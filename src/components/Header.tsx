@@ -24,9 +24,6 @@ interface HeaderProps {
   lang?: 'en' | 'bn';
   toggleLanguage?: () => void;
   onLogout?: () => void;
-  onOpenInstallModal?: () => void;
-  globalFilterMode?: 'month' | 'all';
-  setGlobalFilterMode?: (mode: 'month' | 'all') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,10 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   isSyncing,
   onSync,
   viewMode,
-  t,
-  onOpenInstallModal,
-  globalFilterMode = 'month',
-  setGlobalFilterMode
+  t
 }) => {
   const allNavItems = [
     { id: 'summary' as const, label: t('Summary', 'সারাংশ'), icon: BarChart3 },
@@ -77,48 +71,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Global Filter Toggle */}
-        {setGlobalFilterMode && (
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setGlobalFilterMode('month')}
-              className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                globalFilterMode === 'month'
-                  ? 'bg-white text-[#0F172A] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t('Month', 'মাস')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setGlobalFilterMode('all')}
-              className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                globalFilterMode === 'all'
-                  ? 'bg-white text-[#0F172A] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t('All', 'সব')}
-            </button>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {onOpenInstallModal && (
-            <button
-              type="button"
-              onClick={onOpenInstallModal}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-[#16A34A] border border-emerald-200 transition-colors cursor-pointer"
-              title={t('Install App', 'অ্যাপ ইনস্টল করুন')}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t('Install', 'ইন্সটল')}</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={onSync}

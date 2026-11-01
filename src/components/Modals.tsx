@@ -199,6 +199,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [value, setValue] = useState<string>(String(tx.value));
   const [note, setNote] = useState<string>(tx.note || '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isCalcOpen, setIsCalcOpen] = useState<boolean>(false);
 
   const categories = type === 'Expense' ? expenseCategories : incomeCategories;
 
@@ -278,17 +279,58 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </div>
 
           {/* Amount */}
-          <div>
+          <div className="relative">
             <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
               {t('Amount', 'টাকা')}
             </label>
-            <input
-              type="number"
-              value={value}
-              onChange={e => setValue(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400"
-              required
-            />
+            <div 
+              onClick={() => setIsCalcOpen(!isCalcOpen)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] cursor-pointer flex justify-between items-center"
+            >
+              <span className="font-bold">{value || '0'}</span>
+              <Plus className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+
+            {isCalcOpen && (
+              <div className="mt-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200 grid grid-cols-4 gap-1 animate-fadeIn shadow-sm">
+                {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', 'OK'].map(key => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      if (key === 'OK') {
+                        setIsCalcOpen(false);
+                        return;
+                      }
+                      if (key === 'C') {
+                        setValue('0');
+                        return;
+                      }
+                      if (key === 'DEL') {
+                        setValue(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+                        return;
+                      }
+                      // Simple keypad logic
+                      setValue(prev => {
+                        if (prev === '0' && key !== '.') return key;
+                        if (key === '.' && prev.includes('.')) return prev;
+                        if (prev.length < 12) return prev + key;
+                        return prev;
+                      });
+                    }}
+                    className={`h-8 rounded-lg text-[11px] font-bold flex items-center justify-center transition-all active:scale-95 ${
+                      key === 'OK' 
+                        ? 'bg-[#475569] text-white col-span-1' 
+                        : key === 'DEL' || key === 'C' || key === '+' || key === '-'
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-white text-[#0F172A] border border-slate-200 shadow-sm'
+                    }`}
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Category */}
@@ -2213,14 +2255,14 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
               onClick={onClose}
               className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer active:scale-95"
             >
-              {t('Stay', 'থাকুন')}
+              {t('Cancel', 'বাতিল')}
             </button>
             <button
               type="button"
               onClick={onConfirm}
               className="py-1.5 bg-[#475569] hover:bg-[#334155] text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer active:scale-95"
             >
-              {t('Yes, Exit', 'হ্যাঁ, বের হন')}
+              {t('Exit', 'বের হন')}
             </button>
           </div>
         </div>

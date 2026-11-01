@@ -1335,9 +1335,6 @@ export default function App() {
             onSync={() => handleManualSync(currentTab)}
             viewMode={viewMode}
             t={t}
-            onOpenInstallModal={() => setShowMobileModal(true)}
-            globalFilterMode={globalFilterMode}
-            setGlobalFilterMode={setGlobalFilterMode}
           />
         </div>
 

@@ -261,7 +261,27 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </button>
       </div>
 
-      {/* 3. Circular 4-Column Category Grid */}
+      {/* 3. Amount Display Area (Click to open calculator) */}
+      <div 
+        onClick={() => setIsCalculatorOpen(true)}
+        className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex flex-col">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            {t('Amount', 'টাকার পরিমাণ')}
+          </span>
+          <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${
+            entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+          }`}>
+            {calcDisplay}
+          </span>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-slate-600 transition-colors">
+          <Plus className="w-5 h-5" />
+        </div>
+      </div>
+
+      {/* 4. Circular 4-Column Category Grid */}
       <div className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1">
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
