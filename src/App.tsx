@@ -45,7 +45,8 @@ import {
   AddCategoryModal,
   CategoryManagerModal,
   MobileInstallModal,
-  EditProfileModal
+  EditProfileModal,
+  ExitConfirmModal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
@@ -136,6 +137,7 @@ export default function App() {
   
   const { isInstallable, install, isInstalled } = usePWAInstall();
   const [hasPromptedInstall, setHasPromptedInstall] = useState(false);
+  const [showExitModal, setShowExitModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (isInstallable && !isInstalled && !hasPromptedInstall) {
@@ -156,50 +158,21 @@ export default function App() {
   }, []);
 
   // ----------------------------------------------------
-  // BACK BUTTON EXIT LOGIC (3 taps to exit)
+  // BACK BUTTON EXIT LOGIC (Modal to exit)
   // ----------------------------------------------------
-  const [backPressCount, setBackPressCount] = useState<number>(0);
-
   useEffect(() => {
-    // Initial history state to intercept the first back press
+    // Initial history state to intercept back press
     window.history.pushState({ exitGuard: true }, '');
 
-    const handlePopState = () => {
-      setBackPressCount(prev => {
-        const nextCount = prev + 1;
-        if (nextCount < 3) {
-          // Block exit by pushing state back
-          window.history.pushState({ exitGuard: true }, '');
-          
-          const remaining = 3 - nextCount;
-          showToast(
-            lang === 'en' 
-              ? `Press back ${remaining} more time${remaining > 1 ? 's' : ''} to exit` 
-              : `অ্যাপ থেকে বের হতে আরও ${remaining} বার ব্যাক বাটন চাপুন`, 
-            'info'
-          );
-          return nextCount;
-        } else {
-          // 3rd press - allow default back behavior (exits the app)
-          window.history.back();
-          return nextCount;
-        }
-      });
+    const handlePopState = (event: PopStateEvent) => {
+      // Always push state back to prevent default exit
+      window.history.pushState({ exitGuard: true }, '');
+      setShowExitModal(true);
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [lang, showToast]);
-
-  // Reset back press count if user stops tapping
-  useEffect(() => {
-    if (backPressCount > 0 && backPressCount < 3) {
-      const timer = setTimeout(() => {
-        setBackPressCount(0);
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [backPressCount]);
+  }, []);
 
   // ----------------------------------------------------
   // 3. USER MANAGEMENT & AUTHENTICATION STATE
@@ -1231,7 +1204,7 @@ export default function App() {
   // ----------------------------------------------------
   if (!isAuthenticated || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden text-[#0F172A]">
           <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-slate-100 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -left-12 -top-12 w-48 h-48 bg-slate-100 rounded-full blur-3xl pointer-events-none" />
@@ -1320,11 +1293,11 @@ export default function App() {
   // RENDER: MAIN AUTHENTICATED APP
   // ----------------------------------------------------
   return (
-  <div className={`h-[100dvh] w-screen overflow-hidden bg-[#FAF9F6] text-[#0F172A] antialiased selection:bg-slate-200 selection:text-slate-900 flex flex-col ${
-    viewMode === 'mobile' ? 'items-center justify-center bg-[#FAF9F6]' : ''
+  <div className={`h-[100dvh] w-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A] antialiased selection:bg-slate-200 selection:text-slate-900 flex flex-col ${
+    viewMode === 'mobile' ? 'items-center justify-center bg-[#F8FAFC]' : ''
   }`}>
       {/* App Frame: Mobile Phone Container when mobile mode; Full Width when desktop/tablet mode */}
-      <div className={`w-full flex flex-col h-dvh bg-[#FAF9F6] relative ${
+      <div className={`w-full flex flex-col h-dvh bg-[#F8FAFC] relative ${
         viewMode === 'mobile'
           ? 'max-w-[430px] mx-auto border-x border-slate-200 shadow-lg'
           : 'max-w-6xl mx-auto'
@@ -1369,7 +1342,7 @@ export default function App() {
         </div>
 
         {/* MAIN VIEWPORT CONTENT - Exclusively scrollable area */}
-        <main className={`flex-1 overflow-y-auto overscroll-contain overflow-x-hidden w-full bg-[#FAF9F6] ${viewMode === 'mobile' ? 'px-2.5 sm:px-3 py-3 pb-4' : 'px-4 py-5 pb-6'}`}>
+        <main className={`flex-1 overflow-y-auto overscroll-contain overflow-x-hidden w-full bg-[#F8FAFC] ${viewMode === 'mobile' ? 'px-2.5 sm:px-3 py-3 pb-4' : 'px-4 py-5 pb-6'}`}>
           {activeTab === 'summary' && (
             <SummaryTab
               transactions={transactions}
@@ -1591,6 +1564,14 @@ export default function App() {
         onClose={() => setEditingUser(null)}
         onSave={handleSaveProfile}
         isAdmin={currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287'}
+        lang={lang}
+        t={t}
+      />
+
+      <ExitConfirmModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        onConfirm={() => window.close()}
         lang={lang}
         t={t}
       />

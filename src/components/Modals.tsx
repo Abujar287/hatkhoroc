@@ -16,7 +16,8 @@ import {
   ArrowUpRight,
   Plus,
   GripVertical,
-  Download
+  Download,
+  DoorOpen
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader } from '../utils/dateUtils';
@@ -2156,6 +2157,71 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
             <p className="text-[10px] text-slate-400 text-center leading-relaxed">
               {t('ZIP package contains a Summary PDF Statement and a detailed Excel Spreadsheet.', 'জিপ ফাইলে একটি সারাংশ PDF এবং একটি বিস্তারিত Excel ফাইল থাকবে।')}
             </p>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
+
+// ========================================================
+// 9. EXIT CONFIRMATION MODAL
+// ========================================================
+interface ExitConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  lang: 'en' | 'bn';
+  t: (en: string, bn: string) => string;
+}
+
+export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  lang,
+  t
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white text-[#0F172A] w-full max-w-[320px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring text-center space-y-3 my-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center mx-auto">
+            <DoorOpen className="w-5 h-5" />
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-[#0F172A]">
+              {t('Exit Application?', 'অ্যাপ থেকে বের হতে চান?')}
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {t('Are you sure you want to close HisabKitab?', 'আপনি কি নিশ্চিত যে আপনি HisabKitab বন্ধ করতে চান?')}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer active:scale-95"
+            >
+              {t('Stay', 'থাকুন')}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="py-1.5 bg-[#475569] hover:bg-[#334155] text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer active:scale-95"
+            >
+              {t('Yes, Exit', 'হ্যাঁ, বের হন')}
+            </button>
           </div>
         </div>
       </div>
