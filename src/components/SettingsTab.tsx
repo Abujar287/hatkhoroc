@@ -64,7 +64,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onImportJson,
   t,
   onOpenInstallModal,
-  onUpdateSpreadsheetId
+  onUpdateSpreadsheetId,
+  selectedMonth
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);

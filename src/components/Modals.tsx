@@ -15,7 +15,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Plus,
-  GripVertical
+  GripVertical,
+  Download
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader } from '../utils/dateUtils';

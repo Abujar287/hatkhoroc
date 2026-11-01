@@ -1083,7 +1083,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       </div>
 
       {/* 9. MONTHLY HISTORY */}
-      {summaryScope === 'all' && (
+      {globalFilterMode === 'all' && (
         <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2">
             <RotateCcw className="w-4 h-4 text-[#475569]" />
@@ -1107,7 +1107,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     key={row.monthKey}
                     onClick={() => {
                       setSelectedMonth(row.monthKey);
-                      setSummaryScope('month');
+                      setGlobalFilterMode('month');
                     }}
                     className="hover:bg-slate-50 transition-all cursor-pointer"
                   >
