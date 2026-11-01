@@ -149,12 +149,57 @@ export default function App() {
   }, [isInstallable, isInstalled, hasPromptedInstall]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-
     setToast({ show: true, message, type });
     setTimeout(() => {
       setToast(prev => ({ ...prev, show: false }));
     }, 3500);
   }, []);
+
+  // ----------------------------------------------------
+  // BACK BUTTON EXIT LOGIC (3 taps to exit)
+  // ----------------------------------------------------
+  const [backPressCount, setBackPressCount] = useState<number>(0);
+
+  useEffect(() => {
+    // Initial history state to intercept the first back press
+    window.history.pushState({ exitGuard: true }, '');
+
+    const handlePopState = () => {
+      setBackPressCount(prev => {
+        const nextCount = prev + 1;
+        if (nextCount < 3) {
+          // Block exit by pushing state back
+          window.history.pushState({ exitGuard: true }, '');
+          
+          const remaining = 3 - nextCount;
+          showToast(
+            lang === 'en' 
+              ? `Press back ${remaining} more time${remaining > 1 ? 's' : ''} to exit` 
+              : `অ্যাপ থেকে বের হতে আরও ${remaining} বার ব্যাক বাটন চাপুন`, 
+            'info'
+          );
+          return nextCount;
+        } else {
+          // 3rd press - allow default back behavior (exits the app)
+          window.history.back();
+          return nextCount;
+        }
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [lang, showToast]);
+
+  // Reset back press count if user stops tapping
+  useEffect(() => {
+    if (backPressCount > 0 && backPressCount < 3) {
+      const timer = setTimeout(() => {
+        setBackPressCount(0);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [backPressCount]);
 
   // ----------------------------------------------------
   // 3. USER MANAGEMENT & AUTHENTICATION STATE
