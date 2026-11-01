@@ -161,12 +161,15 @@ export default function App() {
   // BACK BUTTON EXIT LOGIC (Modal to exit)
   // ----------------------------------------------------
   useEffect(() => {
-    // Initial history state to intercept back press
-    window.history.pushState({ exitGuard: true }, '');
+    // Add a state to history stack to intercept the back button
+    const pushGuard = () => window.history.pushState({ exitGuard: true }, '', window.location.href);
+    
+    pushGuard();
 
     const handlePopState = (event: PopStateEvent) => {
-      // Always push state back to prevent default exit
-      window.history.pushState({ exitGuard: true }, '');
+      // Re-push immediately to keep the user on the page
+      pushGuard();
+      // Only show if not already showing (prevents multiple modals on rapid clicks)
       setShowExitModal(true);
     };
 

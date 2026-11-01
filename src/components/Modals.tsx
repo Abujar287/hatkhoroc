@@ -2255,7 +2255,7 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
               onClick={onClose}
               className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer active:scale-95"
             >
-              {t('Cancel', 'বাতিল')}
+              {t('Cancelled', 'বাতিল')}
             </button>
             <button
               type="button"
