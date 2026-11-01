@@ -482,7 +482,7 @@ export default function App() {
     }
   }, [allowedTabs, activeTab]);
 
-  const [summaryScope, setSummaryScope] = useState<'month' | 'all'>('month');
+  const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
 
   // Selected Month (YYYY-MM)
   const currentMonthValue = useMemo(() => {
@@ -501,6 +501,17 @@ export default function App() {
   useEffect(() => {
     setLastSyncTime(formatSyncDateTime(lastSyncDate, lang));
   }, [lang, lastSyncDate]);
+
+  // Derived filtered transactions based on global filter mode
+  const filteredTransactions = useMemo(() => {
+    if (globalFilterMode === 'all') return transactions;
+    
+    // Filter by selectedMonth (YYYY-MM)
+    return transactions.filter(tx => {
+      const txDate = normalizeDate(tx.date);
+      return txDate.startsWith(selectedMonth);
+    });
+  }, [transactions, globalFilterMode, selectedMonth]);
 
   // Manual Cloud Sync Function
   const handleManualSync = useCallback(async (tabToSync = currentTab) => {
@@ -1307,6 +1318,8 @@ export default function App() {
             viewMode={viewMode}
             t={t}
             onOpenInstallModal={() => setShowMobileModal(true)}
+            globalFilterMode={globalFilterMode}
+            setGlobalFilterMode={setGlobalFilterMode}
           />
         </div>
 
@@ -1315,10 +1328,11 @@ export default function App() {
           {activeTab === 'summary' && (
             <SummaryTab
               transactions={transactions}
+              filteredTransactions={filteredTransactions}
               selectedMonth={selectedMonth}
               setSelectedMonth={setSelectedMonth}
-              summaryScope={summaryScope}
-              setSummaryScope={setSummaryScope}
+              globalFilterMode={globalFilterMode}
+              setGlobalFilterMode={setGlobalFilterMode}
               onSelectDate={dateStr => setSelectedDateModal(dateStr)}
               onEdit={isReadOnly ? undefined : (tx => setEditingTx(tx))}
               onDelete={isReadOnly ? undefined : (tx => setDeletingTx(tx))}
@@ -1352,7 +1366,7 @@ export default function App() {
 
           {activeTab === 'details' && (
             <DetailsTab
-              transactions={transactions}
+              transactions={filteredTransactions}
               currentUser={currentUser}
               onEdit={tx => setEditingTx(tx)}
               onDelete={tx => setDeletingTx(tx)}
@@ -1407,6 +1421,7 @@ export default function App() {
               t={t}
               onUpdateSpreadsheetId={handleUpdateSpreadsheetId}
               onOpenInstallModal={() => setShowMobileModal(true)}
+              selectedMonth={selectedMonth}
             />
           )}
         </main>

@@ -13,7 +13,7 @@ import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { normalizeDate, formatNumberLocale, formatCleanDateTime } from '../utils/dateUtils';
 import { exportMonthlyReportZip } from '../utils/exportZipReport';
-import { AppsScriptModal } from './Modals';
+import { AppsScriptModal, ExportMonthModal } from './Modals';
 
 interface SettingsTabProps {
   currentUser: AppUser | null;
@@ -36,6 +36,7 @@ interface SettingsTabProps {
   onSaveMonthlyBudget?: (budget: number) => void;
   onOpenInstallModal?: () => void;
   onUpdateSpreadsheetId?: (id: string) => void;
+  selectedMonth: string;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -73,13 +74,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const activeCategories = categoryTypeTab === 'Expense' ? expenseCategories : incomeCategories;
 
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
   // Export Full Month Report ZIP (Summary PDF + Details Excel)
-  const handleExportFullMonthZip = async () => {
+  const handlePerformExportZip = async (targetMonth: string) => {
     setIsExportingZip(true);
     try {
       await exportMonthlyReportZip({
-        month: currentMonthPrefix,
+        month: targetMonth,
         transactions,
         lang,
         userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari'
@@ -221,7 +223,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         <button
           type="button"
-          onClick={handleExportFullMonthZip}
+          onClick={() => setShowExportModal(true)}
           disabled={isExportingZip}
           className="w-full py-2.5 bg-[#475569] hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-sm"
         >
@@ -346,6 +348,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       <AppsScriptModal
         isOpen={showAppsScriptModal}
         onClose={() => setShowAppsScriptModal(false)}
+        lang={lang}
+        t={t}
+      />
+
+      {/* Export Month Selection Modal */}
+      <ExportMonthModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handlePerformExportZip}
+        currentMonth={selectedMonth}
         lang={lang}
         t={t}
       />

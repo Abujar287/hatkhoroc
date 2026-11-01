@@ -22,10 +22,11 @@ import { CategoryDetailsModal } from './Modals';
 
 interface SummaryTabProps {
   transactions: Transaction[];
+  filteredTransactions: Transaction[];
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
-  summaryScope: 'month' | 'all';
-  setSummaryScope: (scope: 'month' | 'all') => void;
+  globalFilterMode: 'month' | 'all';
+  setGlobalFilterMode: (mode: 'month' | 'all') => void;
   onSelectDate: (dateStr: string) => void;
   onEdit?: (tx: Transaction) => void;
   onDelete?: (tx: Transaction) => void;
@@ -36,10 +37,11 @@ interface SummaryTabProps {
 
 export const SummaryTab: React.FC<SummaryTabProps> = ({
   transactions,
+  filteredTransactions,
   selectedMonth,
   setSelectedMonth,
-  summaryScope,
-  setSummaryScope,
+  globalFilterMode,
+  setGlobalFilterMode,
   onSelectDate,
   onEdit,
   onDelete,
@@ -56,9 +58,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
 
   // Custom date filter below calendar
-  const [filterPreset, setFilterPreset] = useState<string>('this_month');
+  const [filterPreset, setFilterPreset] = useState<string>(globalFilterMode === 'all' ? 'all_time' : 'this_month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+
+  // Sync with global filter mode
+  React.useEffect(() => {
+    if (globalFilterMode === 'all') {
+      setFilterPreset('all_time');
+    } else {
+      setFilterPreset('this_month');
+    }
+  }, [globalFilterMode]);
 
 
   // Month shift helper
@@ -142,7 +153,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   }, [transactions]);
 
   // Active Scope Totals for Hero Card
-  const activeTotals = summaryScope === 'all' ? allTimeStats : monthStats;
+  const activeTotals = globalFilterMode === 'all' ? allTimeStats : monthStats;
 
   // Calendar Days calculation for selected month
   const calendarDays = useMemo(() => {
@@ -159,6 +170,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
     return { year, month, emptySlots, days, todayDate, totalDays };
   }, [selectedMonth]);
+
+  // Use global filtered transactions for the main stats
+  const activeTransactions = globalFilterMode === 'all' ? transactions : filteredTransactions;
 
   // ========================================================
   // CUSTOM DATE FILTER BELOW CALENDAR
@@ -422,13 +436,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     <div className="space-y-3 sm:space-y-4 pb-12 animate-fadeIn">
       {/* ON-SCREEN DASHBOARD VIEW (HIDDEN IN PRINT) */}
       <div className="print:hidden space-y-3 sm:space-y-4">
-        {/* 1. Scope Segmented Control */}
+        {/* 1. Scope Segmented Control (Synced with Global Header) */}
         <div className="flex items-center justify-between gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm max-w-md mx-auto w-full">
           <button
             type="button"
-            onClick={() => setSummaryScope('month')}
+            onClick={() => setGlobalFilterMode('month')}
             className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-              summaryScope === 'month'
+              globalFilterMode === 'month'
                 ? 'bg-[#475569] text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -438,9 +452,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setSummaryScope('all')}
+            onClick={() => setGlobalFilterMode('all')}
             className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-              summaryScope === 'all'
+              globalFilterMode === 'all'
                 ? 'bg-[#475569] text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -454,7 +468,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       <div className="rounded-2xl bg-white text-[#0F172A] p-3 sm:p-5 shadow-sm border border-slate-200 relative overflow-hidden">
         {/* Top Header of Hero Card */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 gap-2 flex-wrap">
-          {summaryScope === 'month' ? (
+          {globalFilterMode === 'month' ? (
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -500,7 +514,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         {/* Big Net Balance Display */}
         <div className="mb-3">
           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider block">
-            {summaryScope === 'all'
+            {globalFilterMode === 'all'
               ? t('All-Time Balance', 'সর্বমোট অবশিষ্ট ব্যালেন্স')
               : t('Monthly Balance', 'এই মাসের অবশিষ্ট')}
           </span>
@@ -549,7 +563,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       </div>
 
       {/* 3. MONTHLY CALENDAR */}
-      {summaryScope === 'month' && (
+      {globalFilterMode === 'month' && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
           {/* Header */}
           <div className="flex items-center justify-between">

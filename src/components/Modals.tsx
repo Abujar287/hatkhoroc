@@ -2052,3 +2052,112 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   );
 };
 
+
+// ========================================================
+// 10. EXPORT MONTH SELECTION MODAL
+// ========================================================
+interface ExportMonthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onExport: (month: string) => void;
+  currentMonth: string;
+  lang: 'en' | 'bn';
+  t: (en: string, bn: string) => string;
+}
+
+export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
+  isOpen,
+  onClose,
+  onExport,
+  currentMonth,
+  lang,
+  t
+}) => {
+  if (!isOpen) return null;
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    const now = new Date();
+    // 12 months past, 6 months future
+    for (let i = -12; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'long',
+        year: 'numeric'
+      });
+      opts.push({ val, label });
+    }
+    return opts;
+  }, [lang]);
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white text-[#0F172A] w-full max-w-[340px] rounded-2xl p-5 shadow-xl relative border border-slate-200 animate-modalSpring my-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-emerald-600" />
+              <h3 className="text-sm font-bold text-[#0F172A]">{t('Export Report', 'রিপোর্ট এক্সপোর্ট')}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                {t('Select Month to Export', 'কোন মাসের রিপোর্ট চান?')}
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
+              >
+                <option value="all" className="bg-white text-[#0F172A] font-bold">
+                  {t('All-Time Report (Complete History)', 'সর্বমোট সময় (শুরু থেকে আজ)')}
+                </option>
+                {monthOptions.map(m => (
+                  <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onExport(selectedMonth);
+                  onClose();
+                }}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-200 active:scale-98 transition-all text-sm"
+              >
+                <Download className="w-5 h-5" />
+                <span>{t('Download ZIP Report', 'ZIP রিপোর্ট ডাউনলোড করুন')}</span>
+              </button>
+            </div>
+            
+            <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+              {t('ZIP package contains a Summary PDF Statement and a detailed Excel Spreadsheet.', 'জিপ ফাইলে একটি সারাংশ PDF এবং একটি বিস্তারিত Excel ফাইল থাকবে।')}
+            </p>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
