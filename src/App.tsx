@@ -158,23 +158,39 @@ export default function App() {
   }, []);
 
   // ----------------------------------------------------
-  // BACK BUTTON EXIT LOGIC (Modal to exit)
+  // BACK BUTTON EXIT LOGIC (Robust Hash-based Interception)
   // ----------------------------------------------------
   useEffect(() => {
-    // Add a state to history stack to intercept the back button
-    const pushGuard = () => window.history.pushState({ exitGuard: true }, '', window.location.href);
-    
-    pushGuard();
+    // 1. Initial setup: Push a dummy hash if not present
+    if (!window.location.hash.includes('#app')) {
+      window.history.replaceState(null, '', '#app');
+      window.history.pushState({ guard: true }, '', '#main');
+    }
 
-    const handlePopState = (event: PopStateEvent) => {
-      // Re-push immediately to keep the user on the page
-      pushGuard();
-      // Only show if not already showing (prevents multiple modals on rapid clicks)
-      setShowExitModal(true);
+    const handleHashChange = (e: HashChangeEvent) => {
+      // If user tries to go back to #app (from #main)
+      if (window.location.hash === '#app') {
+        // Stop them! Push them back to #main
+        window.history.pushState({ guard: true }, '', '#main');
+        // Show the exit confirmation
+        setShowExitModal(true);
+      }
     };
 
+    const handlePopState = (e: PopStateEvent) => {
+      if (window.location.hash === '#app' || !window.location.hash) {
+        window.history.pushState({ guard: true }, '', '#main');
+        setShowExitModal(true);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   // ----------------------------------------------------
@@ -1571,7 +1587,15 @@ export default function App() {
       <ExitConfirmModal
         isOpen={showExitModal}
         onClose={() => setShowExitModal(false)}
-        onConfirm={() => window.close()}
+        onConfirm={() => {
+          setShowExitModal(false);
+          // Try to close, but handle browser restriction
+          window.close();
+          // Fallback: alert the user to close the tab manually if close() was blocked
+          setTimeout(() => {
+            alert(lang === 'en' ? 'Please close this tab manually.' : 'দয়া করে এই ট্যাবটি সরাসরি বন্ধ করে দিন।');
+          }, 300);
+        }}
         lang={lang}
         t={t}
       />
