@@ -2103,7 +2103,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 interface ExportMonthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (month: string) => void;
+  onExport: (params: { month: string; startDate?: string; endDate?: string }) => void;
   currentMonth: string;
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
@@ -2120,6 +2120,17 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
   if (!isOpen) return null;
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  });
 
   const monthOptions = useMemo(() => {
     const opts = [];
@@ -2136,6 +2147,8 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
     }
     return opts;
   }, [lang]);
+
+  const isCustomRange = selectedMonth === 'custom';
 
   return (
     <ModalPortal>
@@ -2164,29 +2177,60 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
           <div className="space-y-4">
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                {t('Select Month to Export', 'কোন মাসের রিপোর্ট চান?')}
+                {t('Export Type / Period', 'রিপোর্টের সময়কাল নির্বাচন করুন')}
               </label>
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm mb-3"
               >
                 <option value="all" className="bg-white text-[#0F172A] font-bold">
                   {t('All-Time Report (Complete History)', 'সর্বমোট সময় (শুরু থেকে আজ)')}
                 </option>
+                <option value="custom" className="bg-white text-indigo-600 font-bold">
+                  {t('Custom Date Range...', 'নির্দিষ্ট তারিখ অনুযায়ী...')}
+                </option>
+                <hr />
                 {monthOptions.map(m => (
                   <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
                     {m.label}
                   </option>
                 ))}
               </select>
+
+              {isCustomRange && (
+                <div className="grid grid-cols-2 gap-2 animate-fadeIn">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">{t('Start Date', 'শুরু')}</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F172A]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">{t('End Date', 'শেষ')}</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={e => setEndDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F172A]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  onExport(selectedMonth);
+                  onExport({ 
+                    month: selectedMonth, 
+                    startDate: isCustomRange ? startDate : undefined, 
+                    endDate: isCustomRange ? endDate : undefined 
+                  });
                   onClose();
                 }}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-200 active:scale-98 transition-all text-sm"

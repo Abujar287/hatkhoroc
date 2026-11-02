@@ -78,11 +78,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
   // Export Full Month Report ZIP (Summary PDF + Details Excel)
-  const handlePerformExportZip = async (targetMonth: string) => {
+  const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
     setIsExportingZip(true);
     try {
       await exportMonthlyReportZip({
-        month: targetMonth,
+        ...params,
         transactions,
         lang,
         userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari'

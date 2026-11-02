@@ -7,7 +7,9 @@ import { cleanCategoryName } from './categoryUtils';
 import { normalizeDate } from './dateUtils';
 
 export interface ExportZipOptions {
-  month?: string; // e.g. "2026-10" or "all"
+  month?: string; // e.g. "2026-10" or "all" or "custom"
+  startDate?: string; // "YYYY-MM-DD"
+  endDate?: string;   // "YYYY-MM-DD"
   transactions: Transaction[];
   lang?: 'en' | 'bn';
   userName?: string;
@@ -29,19 +31,39 @@ function formatAmount(val: number): string {
  * 2. Details Data Excel Spreadsheet (All transactions, category summaries & overview)
  */
 export async function exportMonthlyReportZip(options: ExportZipOptions): Promise<boolean> {
-  const { month, transactions, lang = 'en', userName = 'Abujar Al-Gifari' } = options;
+  const { month, startDate, endDate, transactions, lang = 'en', userName = 'Abujar Al-Gifari' } = options;
 
   // 1. Determine target transactions
-  const isAllTime = !month || month === 'all';
-  const targetTxs = isAllTime
-    ? [...transactions]
-    : transactions.filter(t => normalizeDate(t.date).startsWith(month));
+  let targetTxs: Transaction[] = [];
+  let isAllTime = false;
+  let periodLabel = '';
+
+  if (month === 'custom' && startDate && endDate) {
+    targetTxs = transactions.filter(t => {
+      const d = normalizeDate(t.date);
+      return d >= startDate && d <= endDate;
+    });
+    periodLabel = `${startDate} to ${endDate}`;
+  } else {
+    isAllTime = !month || month === 'all';
+    targetTxs = isAllTime
+      ? [...transactions]
+      : transactions.filter(t => normalizeDate(t.date).startsWith(month!));
+    
+    if (isAllTime) {
+      periodLabel = 'All-Time Record';
+    } else {
+      const [y, m] = month!.split('-').map(Number);
+      const d = new Date(y, m - 1, 1);
+      periodLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+  }
 
   if (targetTxs.length === 0) {
     throw new Error(lang === 'en' ? 'No transactions found for the selected period!' : 'নির্বাচিত সময়ের কোনো হিসাব পাওয়া যায়নি!');
   }
 
-  // Sort chronologically (oldest to newest for statement, or newest to oldest)
+  // Sort chronologically
   targetTxs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Compute Statistics
@@ -78,14 +100,6 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
 
   const netBalance = totalIncome - totalExpense;
   const savingsRate = totalIncome > 0 ? ((netBalance / totalIncome) * 100) : 0;
-
-  // Period Label
-  let periodLabel = 'All-Time Record';
-  if (!isAllTime) {
-    const [y, m] = month.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    periodLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  }
 
   const generatedDateStr = new Date().toLocaleString('en-US', {
     dateStyle: 'medium',
