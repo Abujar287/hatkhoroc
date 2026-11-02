@@ -107,88 +107,33 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     return opts;
   }, [lang]);
 
-  // Calculations for Selected Month in Calendar
-  const monthStats = useMemo(() => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    let inc = 0;
-    let exp = 0;
-    const dailyMap: Record<number, { inc: number; exp: number; count: number }> = {};
+  // 1. FILTER MODE STATE
+  // 'preset' | 'custom'
+  const [filterMode, setFilterMode] = useState<'preset' | 'custom'>(() => {
+    return globalFilterMode === 'all' ? 'preset' : 'preset';
+  });
 
-    transactions.forEach(tx => {
-      const cleanDate = normalizeDate(tx.date);
-      const [ty, tm, td] = cleanDate.split('-').map(Number);
-      if (ty === y && tm === m) {
-        const val = Number(tx.value) || 0;
-        if (!dailyMap[td]) dailyMap[td] = { inc: 0, exp: 0, count: 0 };
-        dailyMap[td].count += 1;
-
-        if (tx.type === 'Expense') {
-          exp += val;
-          dailyMap[td].exp += val;
-        } else {
-          inc += val;
-          dailyMap[td].inc += val;
-        }
-      }
-    });
-
-    const net = inc - exp;
-    const savingsRate = inc > 0 ? Math.max(0, (net / inc) * 100).toFixed(1) : '0';
-
-    return { inc, exp, net, savingsRate, dailyMap };
-  }, [transactions, selectedMonth]);
-
-  // Calculations for All Time
-  const allTimeStats = useMemo(() => {
-    let inc = 0;
-    let exp = 0;
-    transactions.forEach(tx => {
-      const val = Number(tx.value) || 0;
-      if (tx.type === 'Expense') exp += val;
-      else inc += val;
-    });
-    const net = inc - exp;
-    const savingsRate = inc > 0 ? Math.max(0, (net / inc) * 100).toFixed(1) : '0';
-    return { inc, exp, net, savingsRate };
-  }, [transactions]);
-
-  // Active Scope Totals for Hero Card
-  const activeTotals = globalFilterMode === 'all' ? allTimeStats : monthStats;
-
-  // Calendar Days calculation for selected month
-  const calendarDays = useMemo(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const firstDayIndex = new Date(year, month - 1, 1).getDay(); // 0 = Sun
-    const totalDays = new Date(year, month, 0).getDate();
-
-    const emptySlots = Array.from({ length: firstDayIndex });
-    const days = Array.from({ length: totalDays }, (_, i) => i + 1);
-
-    const now = new Date();
-    const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
-    const todayDate = isCurrentMonth ? now.getDate() : -1;
-
-    return { year, month, emptySlots, days, todayDate, totalDays };
-  }, [selectedMonth]);
-
-  // Use global filtered transactions for the main stats
-  const activeTransactions = globalFilterMode === 'all' ? transactions : filteredTransactions;
-
-  // ========================================================
-  // CUSTOM DATE FILTER BELOW CALENDAR
-  // ========================================================
+  // 2. COMPUTE DATE RANGE
   const dateRange = useMemo(() => {
     const now = new Date();
     const todayStr = normalizeDate(now);
 
+    if (filterMode === 'custom') {
+      const s = customStartDate || '0000-01-01';
+      const e = customEndDate || '9999-12-31';
+      return { start: s, end: e, label: `${customStartDate || '...'} ~ ${customEndDate || '...'}` };
+    }
+
+    if (filterPreset === 'all_time') {
+      return { start: '', end: '', label: t('All Time', 'সর্বমোট সময়') };
+    }
     if (filterPreset === 'today') {
       return { start: todayStr, end: todayStr, label: t('Today', 'আজ') };
     }
     if (filterPreset === 'yesterday') {
       const yest = new Date(now);
       yest.setDate(now.getDate() - 1);
-      const yStr = normalizeDate(yest);
-      return { start: yStr, end: yStr, label: t('Yesterday', 'গতকাল') };
+      return { start: normalizeDate(yest), end: normalizeDate(yest), label: t('Yesterday', 'গতকাল') };
     }
     if (filterPreset === 'this_week') {
       const curr = new Date(now);
@@ -201,32 +146,22 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       past7.setDate(now.getDate() - 6);
       return { start: normalizeDate(past7), end: todayStr, label: t('Last 7 Days', 'গত ৭ দিন') };
     }
-    if (filterPreset === 'this_month') {
-      return {
-        start: `${selectedMonth}-01`,
-        end: `${selectedMonth}-31`,
-        label: `${t('Month', 'মাস')}: ${monthLabel}`
-      };
-    }
     if (filterPreset === 'last_month') {
       const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const ym = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
       return { start: `${ym}-01`, end: `${ym}-31`, label: t('Last Month', 'গত মাস') };
     }
-    if (filterPreset === 'this_year') {
-      const y = now.getFullYear();
-      return { start: `${y}-01-01`, end: `${y}-12-31`, label: `${t('Year', 'বছর')} ${y}` };
-    }
-    if (filterPreset === 'custom') {
-      const s = customStartDate || '...';
-      const e = customEndDate || '...';
-      return { start: customStartDate, end: customEndDate, label: `${s} ~ ${e}` };
-    }
-    return { start: '', end: '', label: t('All Time', 'সর্বমোট সময়') };
-  }, [filterPreset, selectedMonth, monthLabel, customStartDate, customEndDate, t]);
+    
+    // Default: selectedMonth (from top bar or 'this_month')
+    return {
+      start: `${selectedMonth}-01`,
+      end: `${selectedMonth}-31`,
+      label: `${t('Month', 'মাস')}: ${monthLabel}`
+    };
+  }, [filterMode, filterPreset, selectedMonth, monthLabel, customStartDate, customEndDate, t]);
 
-  // Transactions filtered by the custom date filter below calendar
-  const filteredRangeTransactions = useMemo(() => {
+  // 3. FILTER TRANSACTIONS
+  const displayTransactions = useMemo(() => {
     return transactions.filter(tx => {
       const clean = normalizeDate(tx.date);
       if (dateRange.start && clean < dateRange.start) return false;
@@ -235,23 +170,39 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     });
   }, [transactions, dateRange]);
 
-  // Statistics for the filtered range
-  const filteredRangeStats = useMemo(() => {
+  // 4. COMPUTE UNIFIED STATS
+  const stats = useMemo(() => {
     let inc = 0;
     let exp = 0;
-    filteredRangeTransactions.forEach(tx => {
+    const dailyMap: Record<string, { inc: number; exp: number; count: number }> = {};
+
+    displayTransactions.forEach(tx => {
       const val = Number(tx.value) || 0;
-      if (tx.type === 'Expense') exp += val;
-      else inc += val;
+      const cleanDate = normalizeDate(tx.date);
+      if (!dailyMap[cleanDate]) dailyMap[cleanDate] = { inc: 0, exp: 0, count: 0 };
+      dailyMap[cleanDate].count += 1;
+
+      if (tx.type === 'Expense') {
+        exp += val;
+        dailyMap[cleanDate].exp += val;
+      } else {
+        inc += val;
+        dailyMap[cleanDate].inc += val;
+      }
     });
+
     const net = inc - exp;
     const savingsRate = inc > 0 ? Math.max(0, (net / inc) * 100).toFixed(1) : '0';
-    return { inc, exp, net, savingsRate, count: filteredRangeTransactions.length };
-  }, [filteredRangeTransactions]);
 
-  // Day-wise list for the filtered range with cumulative balance logic
+    return { inc, exp, net, savingsRate, dailyMap };
+  }, [displayTransactions]);
+
+  // Compatibility aliases
+  const activeTotals = stats;
+  const filteredRangeTransactions = displayTransactions;
+  const filteredRangeStats = stats;
+
   const filteredDayWiseList = useMemo(() => {
-    // 1. Group ALL transactions by date for cumulative calculation
     const allDateMap: Record<string, { inc: number; exp: number; count: number }> = {};
     transactions.forEach(tx => {
       const clean = normalizeDate(tx.date);
@@ -262,7 +213,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       else allDateMap[clean].inc += val;
     });
 
-    // 2. Sort all dates and calculate running balance
     const sortedDates = Object.keys(allDateMap).sort();
     let cumulative = 0;
     const allSummaries: DaySummary[] = sortedDates.map(dateStr => {
@@ -282,26 +232,37 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         dayOfWeek,
         inc: d.inc,
         exp: d.exp,
-        net: cumulative, // Reusing net for cumulative balance as requested in UI
+        net: cumulative,
         count: d.count,
         hasActivity: d.inc > 0 || d.exp > 0
       };
     });
 
-    // 3. Filter summaries based on selected date range and activity
-    let filtered = allSummaries.filter(item => {
+    return allSummaries.filter(item => {
       if (dateRange.start && item.dateStr < dateRange.start) return false;
       if (dateRange.end && item.dateStr > dateRange.end) return false;
       if (dayFilterMode === 'active') return item.hasActivity;
       return true;
+    }).sort((a, b) => {
+      return daySortOrder === 'desc' ? b.dateStr.localeCompare(a.dateStr) : a.dateStr.localeCompare(b.dateStr);
     });
-
-    // 4. Apply sort order
-    if (daySortOrder === 'desc') {
-      return [...filtered].sort((a, b) => b.dateStr.localeCompare(a.dateStr));
-    }
-    return [...filtered].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
   }, [transactions, dateRange, dayFilterMode, daySortOrder, lang]);
+
+  // Calendar logic
+  const calendarDays = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const firstDayIndex = new Date(year, month - 1, 1).getDay();
+    const totalDays = new Date(year, month, 0).getDate();
+    const emptySlots = Array.from({ length: firstDayIndex });
+    const days = Array.from({ length: totalDays }, (_, i) => i + 1);
+    const now = new Date();
+    const todayDate = (now.getFullYear() === year && now.getMonth() + 1 === month) ? now.getDate() : -1;
+    return { year, month, emptySlots, days, todayDate, totalDays };
+  }, [selectedMonth]);
+
+  // Use global filtered transactions for the main stats
+  const activeTransactions = globalFilterMode === 'all' ? transactions : filteredTransactions;
+
 
   // Filtered Chart Categories based on active filter, chartType and chartMode (Top 5 normalized to 100% with no dummy slices)
   const filteredChartCategories = useMemo(() => {
@@ -605,13 +566,12 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 {calendarDays.emptySlots.map((_, idx) => (
                   <div key={`empty-${idx}`} className="h-[54px] sm:h-[60px]" />
                 ))}
-
                 {calendarDays.days.map(dayNum => {
                   const isToday = dayNum === calendarDays.todayDate;
-                  const dayData = monthStats.dailyMap[dayNum];
+                  const dateStr = `${calendarDays.year}-${String(calendarDays.month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                  const dayData = stats.dailyMap[dateStr];
                   const hasExp = dayData && dayData.exp > 0;
                   const hasInc = dayData && dayData.inc > 0;
-                  const dateStr = `${calendarDays.year}-${String(calendarDays.month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                   const formattedDay = String(dayNum).padStart(2, '0');
 
                   return (
@@ -677,67 +637,107 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </div>
       )}
 
-      {/* 4. CUSTOM DATE FILTER */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-1.5">
-            <Filter className="w-4 h-4 text-[#475569]" />
-            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Filter', 'ফিল্টার')}
-            </h3>
+      {/* 4. DYNAMIC DATE FILTER */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-xs">
+              <Filter className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
+                {t('Advanced Filter', 'উন্নত ফিল্টার')}
+              </h3>
+              <p className="text-[9px] text-slate-500 font-medium italic">
+                {t('Filtering based on Google Sheet Column E (Date)', 'গুগল শিটের "Date" কলাম (Column E) অনুযায়ী ফিল্টার হচ্ছে')}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setFilterPreset('this_month');
-                setCustomStartDate('');
-                setCustomEndDate('');
-              }}
-              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-[#EF4444] transition-all cursor-pointer border border-rose-200"
-              title={t('Reset Filter', 'ফিল্টার রিসেট')}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterPreset('this_month');
+              setCustomStartDate('');
+              setCustomEndDate('');
+            }}
+            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-[#EF4444] transition-all cursor-pointer border border-rose-200 shadow-xs active:scale-95"
+            title={t('Reset Filter', 'ফিল্টার রিসেট')}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            value={filterPreset}
-            onChange={e => setFilterPreset(e.target.value)}
-            className="col-span-2 h-9 bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
-          >
-            <option value="this_month" className="bg-white text-[#0F172A]">{t('This Month', 'এই মাস')}</option>
-            <option value="last_month" className="bg-white text-[#0F172A]">{t('Last Month', 'গত মাস')}</option>
-            <option value="this_week" className="bg-white text-[#0F172A]">{t('This Week', 'এই সপ্তাহ')}</option>
-            <option value="last_7_days" className="bg-white text-[#0F172A]">{t('Last 7 Days', 'গত ৭ দিন')}</option>
-            <option value="today" className="bg-white text-[#0F172A]">{t('Today', 'আজ')}</option>
-            <option value="yesterday" className="bg-white text-[#0F172A]">{t('Yesterday', 'গতকাল')}</option>
-            <option value="custom" className="bg-white text-[#0F172A]">{t('Custom Range', 'কাস্টম রেঞ্জ')}</option>
-          </select>
-          {filterPreset === 'custom' && (
-            <>
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-semibold block">{t('From Date', 'শুরুর তারিখ')}</span>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={e => setCustomStartDate(e.target.value)}
-                  className="w-full h-8.5 bg-white border border-slate-200 rounded-xl px-2.5 text-[11px] text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
-                />
+        <div className="space-y-4 animate-fadeIn">
+          {/* Main Toggle Dropdown */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+              {t('1. Select Filter Mode', '১. ফিল্টারের ধরন নির্বাচন করুন')}
+            </label>
+            <select
+              value={filterPreset === 'custom' ? 'custom' : 'preset'}
+              onChange={e => {
+                if (e.target.value === 'custom') {
+                  setFilterPreset('custom');
+                } else {
+                  setFilterPreset('this_month');
+                }
+              }}
+              className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+            >
+              <option value="preset">{t('Month / Time Presets', 'মাসিক বা নির্দিষ্ট সময়কাল অনুযায়ী')}</option>
+              <option value="custom">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী (শুরু - শেষ)')}</option>
+            </select>
+          </div>
+
+          {/* Sub Selection */}
+          <div className="animate-fadeIn">
+            {filterPreset !== 'custom' ? (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                  {t('2. Choose Period', '২. সময়কাল নির্বাচন করুন')}
+                </label>
+                <select
+                  value={filterPreset}
+                  onChange={e => setFilterPreset(e.target.value)}
+                  className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+                >
+                  <option value="this_month">{t('This Month', 'এই মাস')}</option>
+                  <option value="last_month">{t('Last Month', 'গত মাস')}</option>
+                  <option value="this_week">{t('This Week', 'এই সপ্তাহ')}</option>
+                  <option value="last_7_days">{t('Last 7 Days', 'গত ৭ দিন')}</option>
+                  <option value="today">{t('Today', 'আজ')}</option>
+                  <option value="yesterday">{t('Yesterday', 'গতকাল')}</option>
+                  <option value="all_time">{t('All Time (Everything)', 'সব সময়ের হিসাব')}</option>
+                </select>
               </div>
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-semibold block">{t('To Date', 'শেষ তারিখ')}</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={e => setCustomEndDate(e.target.value)}
-                  className="w-full h-8.5 bg-white border border-slate-200 rounded-xl px-2.5 text-[11px] text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
-                />
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                  {t('2. Select Date Range', '২. তারিখ নির্বাচন করুন')}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start', 'শুরু')}</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={e => setCustomStartDate(e.target.value)}
+                      className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End', 'শেষ')}</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+                    />
+                  </div>
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -1164,7 +1164,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <td className="p-2 font-bold bg-slate-100">Net Balance</td>
                 <td className="p-2 font-bold text-slate-900">{filteredRangeStats.net >= 0 ? '+' : ''}{formatNumberLocale(filteredRangeStats.net, lang)}</td>
                 <td className="p-2 font-bold bg-slate-100">Total Transactions</td>
-                <td className="p-2">{filteredRangeStats.count} items</td>
+                <td className="p-2">{displayTransactions.length} items</td>
               </tr>
             </tbody>
           </table>

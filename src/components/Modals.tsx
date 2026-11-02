@@ -2119,7 +2119,13 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  // 'month' | 'custom' | 'all'
+  const [exportScope, setExportScope] = useState<'month' | 'custom' | 'all'>(() => {
+    if (currentMonth === 'all') return 'all';
+    return 'month';
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth === 'all' ? '' : currentMonth);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -2135,8 +2141,8 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
   const monthOptions = useMemo(() => {
     const opts = [];
     const now = new Date();
-    // 12 months past, 6 months future
-    for (let i = -12; i <= 6; i++) {
+    // Current month + previous 24 months
+    for (let i = 0; i >= -24; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
@@ -2148,7 +2154,12 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
     return opts;
   }, [lang]);
 
-  const isCustomRange = selectedMonth === 'custom';
+  // Set initial month if empty
+  useEffect(() => {
+    if (exportScope === 'month' && !selectedMonth && monthOptions.length > 0) {
+      setSelectedMonth(monthOptions[0].val);
+    }
+  }, [exportScope, selectedMonth, monthOptions]);
 
   return (
     <ModalPortal>
@@ -2175,49 +2186,74 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
           </div>
 
           <div className="space-y-4">
+            {/* Step 1: Select Scope */}
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                {t('Export Type / Period', 'রিপোর্টের সময়কাল নির্বাচন করুন')}
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                {t('1. Select Export Type', '১. এক্সপোর্টের ধরন নির্বাচন করুন')}
               </label>
               <select
-                value={selectedMonth}
-                onChange={e => setSelectedMonth(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm mb-3"
+                value={exportScope}
+                onChange={e => setExportScope(e.target.value as any)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
               >
-                <option value="all" className="bg-white text-[#0F172A] font-bold">
-                  {t('All-Time Report (Complete History)', 'সর্বমোট সময় (শুরু থেকে আজ)')}
-                </option>
-                <option value="custom" className="bg-white text-indigo-600 font-bold">
-                  {t('Custom Date Range...', 'নির্দিষ্ট তারিখ অনুযায়ী...')}
-                </option>
-                <hr />
-                {monthOptions.map(m => (
-                  <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
-                    {m.label}
-                  </option>
-                ))}
+                <option value="month">{t('Specific Month', 'নির্দিষ্ট মাস অনুযায়ী')}</option>
+                <option value="custom">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী')}</option>
+                <option value="all">{t('Full History (All-Time)', 'শুরু থেকে আজ পর্যন্ত')}</option>
               </select>
+            </div>
 
-              {isCustomRange && (
-                <div className="grid grid-cols-2 gap-2 animate-fadeIn">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">{t('Start Date', 'শুরু')}</label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={e => setStartDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F172A]"
-                    />
+            {/* Step 2: Select Details based on Scope */}
+            <div className="animate-fadeIn">
+              {exportScope === 'month' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    {t('2. Select Month', '২. মাস নির্বাচন করুন')}
+                  </label>
+                  <select
+                    value={selectedMonth}
+                    onChange={e => setSelectedMonth(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
+                  >
+                    {monthOptions.map(m => (
+                      <option key={m.val} value={m.val}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {exportScope === 'custom' && (
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    {t('2. Select Date Range', '২. তারিখ নির্বাচন করুন')}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start', 'শুরু')}</span>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={e => setStartDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End', 'শেষ')}</span>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-slate-400"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">{t('End Date', 'শেষ')}</label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={e => setEndDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F172A]"
-                    />
-                  </div>
+                </div>
+              )}
+
+              {exportScope === 'all' && (
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <p className="text-[10px] font-medium text-indigo-700 text-center">
+                    {t('This will export all records since the beginning of time.', 'এটি শুরু থেকে আজ পর্যন্ত সমস্ত রেকর্ড এক্সপোর্ট করবে।')}
+                  </p>
                 </div>
               )}
             </div>
@@ -2227,13 +2263,13 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
                 type="button"
                 onClick={() => {
                   onExport({ 
-                    month: selectedMonth, 
-                    startDate: isCustomRange ? startDate : undefined, 
-                    endDate: isCustomRange ? endDate : undefined 
+                    month: exportScope === 'all' ? 'all' : (exportScope === 'custom' ? 'custom' : selectedMonth),
+                    startDate: exportScope === 'custom' ? startDate : undefined, 
+                    endDate: exportScope === 'custom' ? endDate : undefined 
                   });
                   onClose();
                 }}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-200 active:scale-98 transition-all text-sm"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-100 active:scale-98 transition-all text-sm"
               >
                 <Download className="w-5 h-5" />
                 <span>{t('Download ZIP Report', 'ZIP রিপোর্ট ডাউনলোড করুন')}</span>
@@ -2241,7 +2277,7 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
             </div>
             
             <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-              {t('ZIP package contains a Summary PDF Statement and a detailed Excel Spreadsheet.', 'জিপ ফাইলে একটি সারাংশ PDF এবং একটি বিস্তারিত Excel ফাইল থাকবে।')}
+              {t('Report is generated based on the "Date" column (Column E) of your Google Sheet.', 'রিপোর্টটি আপনার গুগল শিটের "Date" কলাম (Column E) অনুযায়ী ফিল্টার করে তৈরি করা হয়।')}
             </p>
           </div>
         </div>

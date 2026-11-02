@@ -7,9 +7,18 @@ export function normalizeDate(rawDate: any): string {
     return `${y}-${m}-${d}`;
   }
 
+  // If already a Date object (sometimes happens with certain APIs)
+  if (rawDate instanceof Date) {
+    if (isNaN(rawDate.getTime())) return normalizeDate(null);
+    const y = rawDate.getFullYear();
+    const m = String(rawDate.getMonth() + 1).padStart(2, '0');
+    const d = String(rawDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   const s = String(rawDate).trim();
 
-  // 1. Standard ISO format: YYYY-MM-DD
+  // 1. Standard ISO format or partial: YYYY-MM-DD
   const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
     const y = isoMatch[1];
@@ -20,7 +29,8 @@ export function normalizeDate(rawDate: any): string {
 
   // 2. Full Date / ISO string like "2026-10-09T14:30:00.000Z"
   if (s.includes('T')) {
-    const parts = s.split('T')[0].split('-');
+    const datePart = s.split('T')[0];
+    const parts = datePart.split(/[-/]/);
     if (parts.length === 3 && parts[0].length === 4) {
       return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
     }
@@ -33,28 +43,24 @@ export function normalizeDate(rawDate: any): string {
     const p2 = Number(slashMatch[2]);
     const y = slashMatch[3];
 
-    // If p1 > 12, p1 must be Day and p2 is Month (DD/MM/YYYY)
+    // Heuristic: If p1 > 12, it must be DD/MM/YYYY
     if (p1 > 12) {
       return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
     }
-    // If p2 > 12, p2 must be Day and p1 is Month (MM/DD/YYYY)
+    // Heuristic: If p2 > 12, it must be MM/DD/YYYY
     if (p2 > 12) {
       return `${y}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
     }
-    // Default standard for DD/MM/YYYY
+    // If ambiguous (both <= 12), we default to DD/MM/YYYY as it's common in many locales
+    // But let's check if the raw string looks like it was meant to be MM/DD (US style)
+    // Actually, most non-US users use DD/MM. 
     return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
   }
 
-  // 4. Try JS Date parser (safe for non-ISO formats)
-  const parts = s.split('-');
-  let parsed: Date;
-  if (parts.length === 3 && parts[0].length === 4) {
-    parsed = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  } else {
-    parsed = new Date(s);
-  }
-  
+  // 4. Try parsing as numeric timestamp or other formats
+  const parsed = new Date(s);
   if (!isNaN(parsed.getTime())) {
+    // Extract local components to avoid UTC shift
     const y = parsed.getFullYear();
     const m = String(parsed.getMonth() + 1).padStart(2, '0');
     const d = String(parsed.getDate()).padStart(2, '0');
