@@ -138,6 +138,7 @@ export default function App() {
   const { isInstallable, install, isInstalled } = usePWAInstall();
   const [hasPromptedInstall, setHasPromptedInstall] = useState(false);
   const [showExitModal, setShowExitModal] = useState<boolean>(false);
+  const [isAppExited, setIsAppExited] = useState<boolean>(false);
 
   useEffect(() => {
     if (isInstallable && !isInstalled && !hasPromptedInstall) {
@@ -158,39 +159,23 @@ export default function App() {
   }, []);
 
   // ----------------------------------------------------
-  // BACK BUTTON EXIT LOGIC (Robust Hash-based Interception)
+  // BACK BUTTON EXIT LOGIC (Strict Interception)
   // ----------------------------------------------------
   useEffect(() => {
-    // 1. Initial setup: Push a dummy hash if not present
-    if (!window.location.hash.includes('#app')) {
-      window.history.replaceState(null, '', '#app');
-      window.history.pushState({ guard: true }, '', '#main');
-    }
+    // Initial dummy state to give the user something to go "back" from
+    window.history.pushState({ exitGuard: true }, '');
 
-    const handleHashChange = (e: HashChangeEvent) => {
-      // If user tries to go back to #app (from #main)
-      if (window.location.hash === '#app') {
-        // Stop them! Push them back to #main
-        window.history.pushState({ guard: true }, '', '#main');
-        // Show the exit confirmation
-        setShowExitModal(true);
-      }
+    const handlePopState = (event: PopStateEvent) => {
+      // User pressed back! 
+      // 1. Immediately push the state back to "trap" them on the page
+      window.history.pushState({ exitGuard: true }, '');
+      
+      // 2. Show the exit confirmation modal
+      setShowExitModal(true);
     };
 
-    const handlePopState = (e: PopStateEvent) => {
-      if (window.location.hash === '#app' || !window.location.hash) {
-        window.history.pushState({ guard: true }, '', '#main');
-        setShowExitModal(true);
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('popstate', handlePopState);
-    
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // ----------------------------------------------------
@@ -1589,16 +1574,28 @@ export default function App() {
         onClose={() => setShowExitModal(false)}
         onConfirm={() => {
           setShowExitModal(false);
-          // Try to close, but handle browser restriction
+          setIsAppExited(true);
           window.close();
-          // Fallback: alert the user to close the tab manually if close() was blocked
-          setTimeout(() => {
-            alert(lang === 'en' ? 'Please close this tab manually.' : 'দয়া করে এই ট্যাবটি সরাসরি বন্ধ করে দিন।');
-          }, 300);
         }}
         lang={lang}
         t={t}
       />
+
+      {isAppExited && (
+        <div className="fixed inset-0 z-[9999999] bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+          <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-[#475569]">
+            <Lock className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl font-bold text-[#0F172A] mb-2">{t('Application Closed', 'অ্যাপটি বন্ধ করা হয়েছে')}</h2>
+          <p className="text-slate-500 mb-6 max-w-xs">{t('You can now safely close this browser tab.', 'আপনি এখন ব্রাউজার ট্যাবটি সরাসরি বন্ধ করতে পারেন।')}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-6 py-2.5 bg-[#475569] text-white rounded-xl font-bold shadow-md active:scale-95 transition-all"
+          >
+            {t('Re-open HisabKitab', 'পুনরায় ওপেন করুন')}
+          </button>
+        </div>
+      )}
       
       {needRefresh && (
         <div className="fixed bottom-20 left-4 right-4 z-[9999] bg-white border border-emerald-500/30 rounded-xl p-4 shadow-xl flex items-center justify-between animate-modalSpring">
