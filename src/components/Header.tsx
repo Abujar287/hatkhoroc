@@ -24,6 +24,8 @@ interface HeaderProps {
   lang?: 'en' | 'bn';
   toggleLanguage?: () => void;
   onLogout?: () => void;
+  selectedMonth: string;
+  monthMappings: import('../types').MonthMapping[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,8 +36,26 @@ export const Header: React.FC<HeaderProps> = ({
   isSyncing,
   onSync,
   viewMode,
-  t
+  t,
+  lang,
+  selectedMonth,
+  monthMappings
 }) => {
+  const activeMonthLabel = React.useMemo(() => {
+    const mapping = monthMappings.find(m => m.label === selectedMonth);
+    if (mapping) return mapping.label;
+
+    try {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth, lang, monthMappings]);
   const allNavItems = [
     { id: 'summary' as const, label: t('Summary', 'সারাংশ'), icon: BarChart3 },
     { id: 'entry' as const, label: t('Add Entry', 'হিসাব যোগ'), icon: PlusCircle },
@@ -68,6 +88,12 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-sm font-bold block truncate leading-tight text-[#0F172A]">
               {t('HisabKitab', 'HisabKitab')}
             </span>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 truncate">
+                {activeMonthLabel}
+              </span>
+            </div>
           </div>
         </div>
 

@@ -43,6 +43,7 @@ interface SettingsTabProps {
   monthMappings: import('../types').MonthMapping[];
   onAddMonthMapping: (mapping: import('../types').MonthMapping) => void;
   onDeleteMonthMapping: (id: string) => void;
+  onSelectMonth: (month: string) => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -74,12 +75,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   selectedMonth,
   monthMappings,
   onAddMonthMapping,
-  onDeleteMonthMapping
+  onDeleteMonthMapping,
+  onSelectMonth
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [categoryTypeTab, setCategoryTypeTab] = useState<TransactionType>('Expense');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Month selection local state
+  const [localSelectedMonth, setLocalSelectedMonth] = useState(selectedMonth);
+
+  // Sync local selection if prop changes from elsewhere
+  React.useEffect(() => {
+    setLocalSelectedMonth(selectedMonth);
+  }, [selectedMonth]);
 
   // Custom Month Mapping State
   const [newMappingLabel, setNewMappingLabel] = useState('');
@@ -106,6 +116,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
+
+  // Month dropdown options (same logic as SummaryTab/BudgetTab)
+  const monthOptions = React.useMemo(() => {
+    const opts: { val: string; label: string }[] = [];
+    
+    // Add custom mappings
+    monthMappings.forEach(m => {
+      opts.push({ val: m.label, label: `📅 ${m.label}` });
+    });
+
+    const now = new Date();
+    for (let i = -12; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'short',
+        year: 'numeric'
+      });
+      // Don't duplicate if label matches
+      if (!opts.find(o => o.val === val)) {
+        opts.push({ val, label });
+      }
+    }
+    return opts;
+  }, [lang, monthMappings]);
 
   // Export Full Month Report ZIP (Summary PDF + Details Excel)
   const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
@@ -177,6 +212,50 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-12 animate-fadeIn">
+      {/* 1. ACTIVE MONTH SELECTION SECTION */}
+      <div className="bg-white rounded-2xl p-4 border border-indigo-500/30 shadow-sm space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
+              {t('Active Application Month', 'অ্যাপের সক্রিয় মাস')}
+            </h3>
+            <p className="text-[10px] text-slate-500">
+              {t('Select the month period to display across the dashboard', 'ড্যাশবোর্ডে দেখানোর জন্য মাসের পিরিয়ড নির্বাচন করুন')}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+              {t('Choose Target Period', 'পিরিয়ড নির্বাচন করুন')}
+            </label>
+            <select
+              value={localSelectedMonth}
+              onChange={e => setLocalSelectedMonth(e.target.value)}
+              className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 text-[14px] font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400 cursor-pointer shadow-sm"
+            >
+              {monthOptions.map(m => (
+                <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSelectMonth(localSelectedMonth)}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 transition-all"
+          >
+            <Calendar className="w-4 h-4" />
+            <span>{t('Update App View', 'ভিউ আপডেট করুন')}</span>
+          </button>
+        </div>
+      </div>
       {/* INSTALL APP CARD */}
       {onOpenInstallModal && (
         <div className="bg-white rounded-2xl p-4 border border-emerald-500/30 shadow-sm space-y-3">

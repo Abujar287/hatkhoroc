@@ -73,7 +73,18 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Month shift helper
   const handleShiftMonth = (delta: number) => {
-    if (selectedMonth.includes('-') && !monthMappings.find(m => m.label === selectedMonth)) {
+    // 1. Check if current is a mapping
+    const mappingIdx = monthMappings.findIndex(m => m.label === selectedMonth);
+    if (mappingIdx !== -1) {
+      const nextIdx = mappingIdx + delta;
+      if (nextIdx >= 0 && nextIdx < monthMappings.length) {
+        setSelectedMonth(monthMappings[nextIdx].label);
+        return;
+      }
+    }
+
+    // 2. Standard YYYY-MM logic
+    if (selectedMonth.includes('-')) {
       const [y, m] = selectedMonth.split('-').map(Number);
       if (!isNaN(y) && !isNaN(m)) {
         const d = new Date(y, m - 1 + delta, 1);

@@ -76,17 +76,32 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
   // Month shift helper
   const handleShiftMonth = (delta: number) => {
-    if (selectedMonth.includes('-') && !monthMappings.find(m => m.label === selectedMonth)) {
+    // 1. Check if current is a mapping
+    const mappingIdx = monthMappings.findIndex(m => m.label === selectedMonth);
+    if (mappingIdx !== -1) {
+      const nextIdx = mappingIdx + delta;
+      if (nextIdx >= 0 && nextIdx < monthMappings.length) {
+        setSelectedMonth(monthMappings[nextIdx].label);
+        return;
+      }
+      // If we go past mappings, we could switch to standard months, but for now we stay
+    }
+
+    // 2. Standard YYYY-MM logic
+    if (selectedMonth.includes('-')) {
       const [y, m] = selectedMonth.split('-').map(Number);
       if (!isNaN(y) && !isNaN(m)) {
         const d = new Date(y, m - 1 + delta, 1);
         const ny = d.getFullYear();
         const nm = String(d.getMonth() + 1).padStart(2, '0');
-        setSelectedMonth(`${ny}-${nm}`);
+        const nextVal = `${ny}-${nm}`;
+        
+        // If the standard month matches a mapping label, select the mapping?
+        // Usually, we just follow the standard sequence
+        setSelectedMonth(nextVal);
         return;
       }
     }
-    // For custom labels, we stay or could potentially find next mapping
   };
 
   // Month display label
