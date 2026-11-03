@@ -262,8 +262,12 @@ export default function App() {
   };
 
   const handleConfirmExit = () => {
+    setShowExitModal(false);
+    handleLogout();
     setIsAppExited(true);
-    window.location.href = 'about:blank'; 
+    try {
+      window.close();
+    } catch {}
   };
 
   // ----------------------------------------------------
@@ -484,7 +488,8 @@ export default function App() {
             id: String(m.id || `map_${idx}`),
             startDate: normalizeDate(m.startDate),
             endDate: normalizeDate(m.endDate),
-            label: cleanMappingLabel(m.label)
+            label: cleanMappingLabel(m.label),
+            isDefault: Boolean(m.isDefault)
           })).filter(m => m.label && m.startDate && m.endDate);
         }
       }
@@ -502,7 +507,8 @@ export default function App() {
             id: String(m.id || `map_${idx}`),
             startDate: normalizeDate(m.startDate),
             endDate: normalizeDate(m.endDate),
-            label: cleanMappingLabel(m.label)
+            label: cleanMappingLabel(m.label),
+            isDefault: Boolean(m.isDefault)
           })).filter(m => m.label && m.startDate && m.endDate));
           return;
         }
@@ -518,12 +524,17 @@ export default function App() {
       id: String(m.id || `map_${idx}`),
       startDate: normalizeDate(m.startDate),
       endDate: normalizeDate(m.endDate),
-      label: cleanMappingLabel(m.label)
+      label: cleanMappingLabel(m.label),
+      isDefault: Boolean(m.isDefault)
     })).filter(m => m.label && m.startDate && m.endDate);
 
     setMonthMappings(cleaned);
     try {
       localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(cleaned));
+      const defItem = cleaned.find(x => x.isDefault);
+      if (defItem) {
+        localStorage.setItem(`app_default_selected_month_${currentTab}`, defItem.label);
+      }
       // Cloud Push
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
@@ -532,6 +543,28 @@ export default function App() {
       });
     } catch {}
   }, [currentTab]);
+
+  const handleSetDefaultMonth = useCallback((monthLabel: string) => {
+    const cleanLabel = cleanMappingLabel(monthLabel) || monthLabel;
+    setSelectedMonth(cleanLabel);
+    localStorage.setItem(`app_default_selected_month_${currentTab}`, cleanLabel);
+
+    // If matching mapping exists, set it as isDefault: true, others false
+    setMonthMappings(prev => {
+      let found = false;
+      const updated = prev.map(m => {
+        const isMatch = m.label.toLowerCase() === cleanLabel.toLowerCase();
+        if (isMatch) found = true;
+        return { ...m, isDefault: isMatch };
+      });
+      if (updated.length > 0) {
+        saveMonthMappings(updated);
+      }
+      return updated;
+    });
+
+    showToast(lang === 'en' ? `'${cleanLabel}' set as default month` : `'${cleanLabel}' ডিফল্ট মাস করা হয়েছে`, 'success');
+  }, [currentTab, saveMonthMappings, showToast, lang]);
 
   const currentMonthValue = useMemo(() => {
     const now = new Date();
@@ -617,16 +650,35 @@ export default function App() {
           const normalized: MonthMapping[] = rawMappings.map((m: any, idx: number) => {
             const rawLabel = m.label || m.MappingMonth || m['Mapping Month'] || '';
             const cleanedLabel = cleanMappingLabel(rawLabel) || `Custom-${idx + 1}`;
+            const rawIsDefault = Boolean(
+              m.isDefault || m.IsDefault || m['Is Default'] || m['is_default'] ||
+              String(m.isDefault || m.IsDefault || m['Is Default']).toLowerCase() === 'true' ||
+              String(m.isDefault || m.IsDefault || m['Is Default']).toLowerCase() === 'yes'
+            );
             return {
               id: String(m.id || `map_${idx}_${Date.now()}`),
               startDate: normalizeDate(m.startDate || m.StartDate || m['Start Date']),
               endDate: normalizeDate(m.endDate || m.EndDate || m['End Date']),
-              label: cleanedLabel
+              label: cleanedLabel,
+              isDefault: rawIsDefault
             };
           }).filter((m: any) => m.label && m.startDate && m.endDate);
 
           setMonthMappings(normalized);
           localStorage.setItem(`app_month_mappings_${tabToSync}`, JSON.stringify(normalized));
+
+          // Auto-sync default month if designated in sheet
+          const defMap = normalized.find(x => x.isDefault);
+          if (defMap) {
+            setSelectedMonth(defMap.label);
+            localStorage.setItem(`app_default_selected_month_${tabToSync}`, defMap.label);
+          } else if (data.defaultMonth || data.default_month) {
+            const sheetDefMonth = cleanMappingLabel(data.defaultMonth || data.default_month);
+            if (sheetDefMonth) {
+              setSelectedMonth(sheetDefMonth);
+              localStorage.setItem(`app_default_selected_month_${tabToSync}`, sheetDefMonth);
+            }
+          }
         }
 
         if (Array.isArray(data.categories) && data.categories.length > 0) {
@@ -951,6 +1003,7 @@ export default function App() {
               onAddMonthMapping={m => saveMonthMappings([...monthMappings, m])}
               onDeleteMonthMapping={id => saveMonthMappings(monthMappings.filter(x => x.id !== id))}
               onSelectMonth={setSelectedMonth}
+              onSetDefaultMonth={handleSetDefaultMonth}
             />
           )}
         </main>

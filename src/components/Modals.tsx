@@ -1597,15 +1597,15 @@ function doPost(e) {
         mapSheet = ss.insertSheet('month mapping');
       }
       mapSheet.clear();
-      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month']);
-      mapSheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'Is Default']);
+      mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
       mapSheet.setFrozenRows(1);
       
       var maps = Array.isArray(data.mappings) ? data.mappings : [];
       for (var m = 0; m < maps.length; m++) {
         var item = maps[m];
         if (item && item.label) {
-          mapSheet.appendRow([item.startDate, item.endDate, item.label]);
+          mapSheet.appendRow([item.startDate, item.endDate, item.label, item.isDefault ? 'TRUE' : 'FALSE']);
         }
       }
       return ContentService.createTextOutput(JSON.stringify({
@@ -1964,8 +1964,8 @@ function getMonthMappings(ss) {
   if (!sheet) {
     try {
       sheet = ss.insertSheet('month mapping');
-      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month']);
-      sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'Is Default']);
+      sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
       sheet.setFrozenRows(1);
     } catch (e) {
       return [];
@@ -1978,6 +1978,8 @@ function getMonthMappings(ss) {
     var start = rows[i][0];
     var end = rows[i][1];
     var label = rows[i][2];
+    var rawDef = String(rows[i][3] || '').trim().toLowerCase();
+    var isDef = rawDef === 'true' || rawDef === 'yes';
     
     if (label && start && end) {
       var cleanLabel = String(label).trim();
@@ -1988,7 +1990,8 @@ function getMonthMappings(ss) {
       mappings.push({
         startDate: formatDateForMapping(start),
         endDate: formatDateForMapping(end),
-        label: cleanLabel
+        label: cleanLabel,
+        isDefault: isDef
       });
     }
   }

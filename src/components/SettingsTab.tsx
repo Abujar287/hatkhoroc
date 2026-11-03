@@ -56,6 +56,7 @@ interface SettingsTabProps {
   onAddMonthMapping: (mapping: import('../types').MonthMapping) => void;
   onDeleteMonthMapping: (id: string) => void;
   onSelectMonth: (month: string) => void;
+  onSetDefaultMonth?: (monthLabel: string) => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -84,7 +85,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   monthMappings,
   onAddMonthMapping,
   onDeleteMonthMapping,
-  onSelectMonth
+  onSelectMonth,
+  onSetDefaultMonth
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
@@ -97,6 +99,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [newMappingLabel, setNewMappingLabel] = useState('');
   const [newMappingStart, setNewMappingStart] = useState('');
   const [newMappingEnd, setNewMappingEnd] = useState('');
+  const [newMappingIsDefault, setNewMappingIsDefault] = useState(false);
 
   const handleAddMapping = () => {
     if (!newMappingLabel.trim() || !newMappingStart || !newMappingEnd) {
@@ -108,11 +111,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       id: Date.now().toString(),
       label: cleanLabel,
       startDate: normalizeDate(newMappingStart),
-      endDate: normalizeDate(newMappingEnd)
+      endDate: normalizeDate(newMappingEnd),
+      isDefault: newMappingIsDefault
     });
     setNewMappingLabel('');
     setNewMappingStart('');
     setNewMappingEnd('');
+    setNewMappingIsDefault(false);
   };
 
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
@@ -347,39 +352,59 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
                   {t('Saved Mappings', 'সংরক্ষিত ম্যাপিং তালিকা')}
                 </span>
-                <div className="max-h-40 overflow-y-auto space-y-1 pr-0.5">
-                  {monthMappings.map(m => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100/70 rounded-lg border border-slate-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[11px] font-bold text-[#0F172A] shrink-0">
-                          {m.label}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono font-medium truncate">
-                          {m.startDate} ~ {m.endDate}
-                        </span>
+                <div className="max-h-48 overflow-y-auto space-y-1 pr-0.5">
+                  {monthMappings.map(m => {
+                    const isDef = Boolean(m.isDefault || selectedMonth === m.label);
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-colors ${
+                          m.isDefault ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 hover:bg-slate-100/70 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[11px] font-bold text-[#0F172A] shrink-0">
+                            {m.label}
+                          </span>
+                          {m.isDefault && (
+                            <span className="text-[8px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                              ⭐ {t('Default', 'ডিফল্ট')}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-mono font-medium truncate">
+                            {m.startDate} ~ {m.endDate}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          {!m.isDefault && onSetDefaultMonth && (
+                            <button
+                              type="button"
+                              onClick={() => onSetDefaultMonth(m.label)}
+                              className="px-1.5 py-0.5 text-[8.5px] font-bold text-amber-700 hover:bg-amber-100 rounded border border-amber-300 cursor-pointer transition-all"
+                              title={t('Set as Default Month', 'ডিফল্ট মাস করুন')}
+                            >
+                              ⭐ {t('Make Default', 'ডিফল্ট করুন')}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onSelectMonth(m.label)}
+                            className="px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 cursor-pointer transition-all"
+                          >
+                            {t('Apply', 'প্রয়োগ')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteMonthMapping(m.id)}
+                            className="w-5 h-5 flex items-center justify-center text-rose-500 hover:bg-rose-100/80 rounded transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <button
-                          type="button"
-                          onClick={() => onSelectMonth(m.label)}
-                          className="px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 cursor-pointer transition-all"
-                        >
-                          {t('Apply', 'প্রয়োগ')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteMonthMapping(m.id)}
-                          className="w-5 h-5 flex items-center justify-center text-rose-500 hover:bg-rose-100/80 rounded transition-colors cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -451,6 +476,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       />
                     </div>
                   </div>
+
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer pt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={newMappingIsDefault}
+                      onChange={e => setNewMappingIsDefault(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>⭐ {t('Set as Default Month', 'এই মাসটি অ্যাপের ডিফল্ট মাস করুন')}</span>
+                  </label>
 
                   <button
                     type="button"
