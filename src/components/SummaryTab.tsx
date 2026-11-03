@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
   Calendar,
@@ -68,6 +69,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   const [chartMode, setChartMode] = useState<'top5' | 'all'>('top5');
   const [categoryBreakdownType, setCategoryBreakdownType] = useState<'Expense' | 'Income'>('Expense');
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
+  const [showAdvancedFilterDropdown, setShowAdvancedFilterDropdown] = useState<boolean>(false);
 
   // Custom date filter below calendar
   const [filterPreset, setFilterPreset] = useState<string>(globalFilterMode === 'all' ? 'all_time' : 'this_month');
@@ -583,40 +585,162 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       <div className="rounded-2xl bg-white text-[#0F172A] p-3 sm:p-5 shadow-sm border border-slate-200 relative overflow-hidden">
         {/* Top Header of Hero Card */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 gap-2 flex-wrap">
-          {globalFilterMode === 'month' ? (
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {globalFilterMode === 'month' ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleShiftMonth(-1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 transition-all cursor-pointer shrink-0 border border-slate-200"
+                  title={t('Previous Month', 'পূর্ববর্তী মাস')}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <select
+                  value={selectedMonth}
+                  onChange={e => {
+                    setSelectedMonth(e.target.value);
+                    setFilterPreset('this_month');
+                  }}
+                  className="bg-white border border-slate-200 text-[#0F172A] text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+                >
+                  {monthOptions.map(m => (
+                    <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleShiftMonth(1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 transition-all cursor-pointer shrink-0 border border-slate-200"
+                  title={t('Next Month', 'পরবর্তী মাস')}
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#475569]">
+                <Globe className="w-3.5 h-3.5 text-[#475569] shrink-0" />
+                <span>{t('All-Time Overview', 'লাইফটাইম সর্বমোট')}</span>
+              </div>
+            )}
+
+            {/* Custom Filter Button & Direct Date Inputs Popup */}
+            <div className="flex items-center gap-1 relative">
               <button
                 type="button"
-                onClick={() => handleShiftMonth(-1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 transition-all cursor-pointer shrink-0 border border-slate-200"
+                onClick={() => {
+                  setShowAdvancedFilterDropdown(prev => !prev);
+                  if (filterPreset !== 'custom') {
+                    setFilterPreset('custom');
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border transition-all ${
+                  filterPreset === 'custom'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                }`}
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <CalendarDays className="w-3 h-3 text-indigo-600" />
+                <span>{t('Custom Filter', 'কাস্টম ফিল্টার')}</span>
+                <ChevronDown className="w-3 h-3" />
               </button>
-              <select
-                value={selectedMonth}
-                onChange={e => setSelectedMonth(e.target.value)}
-                className="bg-white border border-slate-200 text-[#0F172A] text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400 cursor-pointer"
-              >
-                {monthOptions.map(m => (
-                  <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+
               <button
                 type="button"
-                onClick={() => handleShiftMonth(1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 transition-all cursor-pointer shrink-0 border border-slate-200"
+                onClick={() => {
+                  setFilterPreset('this_month');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setShowAdvancedFilterDropdown(false);
+                }}
+                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-[#EF4444] transition-all cursor-pointer border border-rose-200 shadow-xs active:scale-95"
+                title={t('Reset Filter', 'ফিল্টার রিসেট')}
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
+
+              {/* Direct Custom Date Range Portal Modal */}
+              {showAdvancedFilterDropdown && createPortal(
+                <div
+                  className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+                  onClick={() => setShowAdvancedFilterDropdown(false)}
+                >
+                  <div
+                    className="bg-white text-[#0F172A] w-full max-w-[320px] rounded-2xl p-4 shadow-2xl relative border border-slate-200 animate-modalSpring space-y-3 my-auto"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-indigo-600" />
+                        <h3 className="text-xs font-bold text-[#0F172A] uppercase">
+                          {t('Custom Date Range Filter', 'কাস্টম তারিখ রেঞ্জ ফিল্টার')}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedFilterDropdown(false)}
+                        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-full bg-slate-100 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">{t('Start Date', 'শুরু তারিখ')}</span>
+                        <input
+                          type="date"
+                          value={customStartDate}
+                          onChange={e => {
+                            setCustomStartDate(e.target.value);
+                            setFilterPreset('custom');
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400 shadow-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">{t('End Date', 'শেষ তারিখ')}</span>
+                        <input
+                          type="date"
+                          value={customEndDate}
+                          onChange={e => {
+                            setCustomEndDate(e.target.value);
+                            setFilterPreset('custom');
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400 shadow-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterPreset('this_month');
+                          setCustomStartDate('');
+                          setCustomEndDate('');
+                          setShowAdvancedFilterDropdown(false);
+                        }}
+                        className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer active:scale-95 transition-all"
+                      >
+                        {t('Reset', 'রিসেট')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedFilterDropdown(false)}
+                        className="py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm active:scale-95 transition-all"
+                      >
+                        {t('Apply', 'প্রয়োগ')}
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#475569]">
-              <Globe className="w-3.5 h-3.5 text-[#475569] shrink-0" />
-              <span>{t('All-Time Overview', 'লাইফটাইম সর্বমোট')}</span>
-            </div>
-          )}
+          </div>
 
           {/* Savings Badge */}
           <div className="flex items-center gap-2">
@@ -742,88 +866,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </div>
       )}
 
-      {/* 4. DYNAMIC DATE FILTER */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-xs">
-              <Filter className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-                {t('Advanced Filter', 'উন্নত ফিল্টার')}
-              </h3>
-              <p className="text-[9px] text-slate-500 font-medium italic">
-                {t('Filtering based on Google Sheet Column E (Date)', 'গুগল শিটের "Date" কলাম (Column E) অনুযায়ী ফিল্টার হচ্ছে')}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setFilterPreset('this_month');
-              setCustomStartDate('');
-              setCustomEndDate('');
-            }}
-            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-[#EF4444] transition-all cursor-pointer border border-rose-200 shadow-xs active:scale-95"
-            title={t('Reset Filter', 'ফিল্টার রিসেট')}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
 
-        <div className="space-y-3 animate-fadeIn">
-          {/* Choose Period Dropdown */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-              {t('Choose Period', 'সময়কাল নির্বাচন করুন')}
-            </label>
-            <select
-              value={filterPreset}
-              onChange={e => setFilterPreset(e.target.value)}
-              className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
-            >
-              <option value="this_month">{t('This Month', 'এই মাস')} ({monthLabel})</option>
-              <option value="last_month">{t('Last Month', 'গত মাস')}</option>
-              <option value="this_week">{t('This Week', 'এই সপ্তাহ')}</option>
-              <option value="last_7_days">{t('Last 7 Days', 'গত ৭ দিন')}</option>
-              <option value="today">{t('Today', 'আজ')}</option>
-              <option value="yesterday">{t('Yesterday', 'গতকাল')}</option>
-              <option value="custom">{t('Custom Date Range', 'কাস্টম তারিখ রেঞ্জ (শুরু - শেষ)')}</option>
-              <option value="all_time">{t('All Time (Everything)', 'সব সময়ের হিসাব')}</option>
-            </select>
-          </div>
-
-          {/* Custom Date Range Picker Inputs */}
-          {filterPreset === 'custom' && (
-            <div className="space-y-1.5 animate-fadeIn pt-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                {t('Select Date Range', 'তারিখ নির্বাচন করুন')}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start', 'শুরু')}</span>
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={e => setCustomStartDate(e.target.value)}
-                    className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End', 'শেষ')}</span>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={e => setCustomEndDate(e.target.value)}
-                    className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-[12px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 5. SUMMARY CARDS */}
       <div className="grid grid-cols-3 gap-1.5">
@@ -844,68 +887,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           <span className={`text-[11px] font-bold block mt-0.5 ${filteredRangeStats.net >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
             {formatNumberLocale(filteredRangeStats.net, lang)}
           </span>
-        </div>
-      </div>
-
-      {/* 6. DAY-WISE BREAKDOWN */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-1.5">
-            <BarChart2 className="w-4 h-4 text-[#16A34A]" />
-            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Day-Wise Breakdown', 'দিনভিত্তিক হিসাব')}
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => setDaySortOrder(daySortOrder === 'asc' ? 'desc' : 'asc')}
-            className="p-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
-          >
-            <SlidersHorizontal className="w-3 h-3" />
-          </button>
-        </div>
-
-        <div className="space-y-1">
-          {/* Header Row: Date Balance Expense Balance */}
-          <div className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 px-1.5 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-            <span>{t('Date', 'তারিখ')}</span>
-            <span className="text-right">{t('Income', 'আয়')}</span>
-            <span className="text-right">{t('Expense', 'ব্যয়')}</span>
-            <span className="text-right">{t('Balance', 'ব্যালেন্স')}</span>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {filteredDayWiseList.map(item => (
-              <div
-                key={item.dateStr}
-                onClick={() => onSelectDate(item.dateStr)}
-                className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 items-center py-2 px-1.5 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-[11px] group tabular-nums"
-              >
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-[#0F172A]">
-                    {formatDateShortDemo(item.dateStr, lang)}
-                  </span>
-                  <span className="text-[8px] text-slate-400 font-bold opacity-80">
-                    ({formatNumberLocale(item.count, lang)} {t('rec', 'টি')})
-                  </span>
-                </div>
-                <div className={`text-right font-bold ${item.inc > 0 ? 'text-[#16A34A]' : 'text-slate-300'}`}>
-                  {item.inc > 0 ? `+${formatNumberLocale(item.inc, lang)}` : '—'}
-                </div>
-                <div className={`text-right font-bold ${item.exp > 0 ? 'text-[#EF4444]' : 'text-slate-300'}`}>
-                  {item.exp > 0 ? `-${formatNumberLocale(item.exp, lang)}` : '—'}
-                </div>
-                <div className={`text-right font-bold ${item.net >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
-                  {formatNumberLocale(item.net, lang)}
-                </div>
-              </div>
-            ))}
-          </div>
-          {filteredDayWiseList.length === 0 && (
-            <div className="py-6 text-center text-slate-500 text-[10px] italic">
-              {t('No activity.', 'কোনো হিসাব নেই।')}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1164,6 +1145,68 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             ))}
           </div>
         )}
+      </div>
+
+      {/* 6. DAY-WISE BREAKDOWN */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-1.5">
+            <BarChart2 className="w-4 h-4 text-[#16A34A]" />
+            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
+              {t('Day-Wise Breakdown', 'দিনভিত্তিক হিসাব')}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDaySortOrder(daySortOrder === 'asc' ? 'desc' : 'asc')}
+            className="p-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+          </button>
+        </div>
+
+        <div className="space-y-1">
+          {/* Header Row: Date Balance Expense Balance */}
+          <div className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 px-1.5 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+            <span>{t('Date', 'তারিখ')}</span>
+            <span className="text-right">{t('Income', 'আয়')}</span>
+            <span className="text-right">{t('Expense', 'ব্যয়')}</span>
+            <span className="text-right">{t('Balance', 'ব্যালেন্স')}</span>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {filteredDayWiseList.map(item => (
+              <div
+                key={item.dateStr}
+                onClick={() => onSelectDate(item.dateStr)}
+                className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 items-center py-2 px-1.5 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-[11px] group tabular-nums"
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-[#0F172A]">
+                    {formatDateShortDemo(item.dateStr, lang)}
+                  </span>
+                  <span className="text-[8px] text-slate-400 font-bold opacity-80">
+                    ({formatNumberLocale(item.count, lang)} {t('rec', 'টি')})
+                  </span>
+                </div>
+                <div className={`text-right font-bold ${item.inc > 0 ? 'text-[#16A34A]' : 'text-slate-300'}`}>
+                  {item.inc > 0 ? `+${formatNumberLocale(item.inc, lang)}` : '—'}
+                </div>
+                <div className={`text-right font-bold ${item.exp > 0 ? 'text-[#EF4444]' : 'text-slate-300'}`}>
+                  {item.exp > 0 ? `-${formatNumberLocale(item.exp, lang)}` : '—'}
+                </div>
+                <div className={`text-right font-bold ${item.net >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
+                  {formatNumberLocale(item.net, lang)}
+                </div>
+              </div>
+            ))}
+          </div>
+          {filteredDayWiseList.length === 0 && (
+            <div className="py-6 text-center text-slate-500 text-[10px] italic">
+              {t('No activity.', 'কোনো হিসাব নেই।')}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 9. MONTHLY HISTORY */}

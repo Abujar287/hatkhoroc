@@ -1366,56 +1366,76 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
             {t('No transactions found in this category.', 'এই ক্যাটাগরিতে কোনো হিসাব নেই।')}
           </p>
         ) : (
-          <div className="space-y-0.5 max-h-[50vh] overflow-y-auto pr-0.5">
-            {catTxs.map(tx => (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between py-1.5 text-[11px] hover:bg-slate-50 rounded-lg px-1 -mx-1 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <span className="font-bold text-[#0F172A] truncate">
-                    {formatDateShortDemo(tx.date, lang)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className={`font-bold tabular-nums ${
-                      tx.type === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
-                    }`}
-                  >
-                    {tx.type === 'Expense' ? '-' : '+'}
-                    {formatNumberLocale(tx.value, lang)}
-                  </span>
-
-                  {!isReadOnly && onEdit && onDelete && (
-                    <div className="flex items-center gap-1.5 ml-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onEdit(tx);
-                        }}
-                        className="text-slate-400 hover:text-[#475569] cursor-pointer active:scale-90"
-                        title={t('Edit', 'এডিট')}
-                      >
-                        <Edit3 className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onDelete(tx);
-                        }}
-                        className="text-slate-400 hover:text-rose-600 cursor-pointer active:scale-90"
-                        title={t('Delete', 'মুছুন')}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+          <div className="space-y-1.5 max-h-[55vh] overflow-y-auto pr-0.5">
+            {catTxs.map(tx => {
+              const isExpense = tx.type === 'Expense';
+              const emoji = getCategoryEmoji(tx.category);
+              const circleColor = getCategoryColor(tx.category);
+              return (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl transition-all group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-slate-200/60`}>
+                      {emoji}
                     </div>
-                  )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-[#0F172A] text-[11px] truncate">
+                          {cleanCategoryName(tx.category, lang)}
+                        </span>
+                        <span className="text-[9.5px] text-slate-400 shrink-0 font-medium">
+                          {formatDateShortDemo(tx.date, lang)}
+                        </span>
+                      </div>
+                      {tx.note && (
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                          {tx.note}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`font-extrabold text-[11px] tabular-nums ${
+                        isExpense ? 'text-[#EF4444]' : 'text-[#16A34A]'
+                      }`}
+                    >
+                      {isExpense ? '-' : '+'}{formatNumberLocale(tx.value, lang)}
+                    </span>
+
+                    {!isReadOnly && onEdit && onDelete && (
+                      <div className="flex items-center gap-1 ml-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onEdit(tx);
+                          }}
+                          className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-[#475569] rounded hover:bg-white cursor-pointer transition-colors"
+                          title={t('Edit', 'এডিট')}
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onDelete(tx);
+                          }}
+                          className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 rounded hover:bg-white cursor-pointer transition-colors"
+                          title={t('Delete', 'মুছুন')}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
