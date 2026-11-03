@@ -537,7 +537,33 @@ export default function App() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthValue);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    try {
+      const savedDefault = localStorage.getItem(`app_default_selected_month_${currentTab}`);
+      if (savedDefault) return savedDefault;
+    } catch {}
+
+    try {
+      const savedMappings = localStorage.getItem(`app_month_mappings_${currentTab}`);
+      if (savedMappings) {
+        const parsed = JSON.parse(savedMappings);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].label) {
+          return parsed[0].label;
+        }
+      }
+    } catch {}
+
+    return currentMonthValue;
+  });
+
+  useEffect(() => {
+    try {
+      if (selectedMonth) {
+        localStorage.setItem(`app_default_selected_month_${currentTab}`, selectedMonth);
+      }
+    } catch {}
+  }, [selectedMonth, currentTab]);
 
   // ----------------------------------------------------
   // 8. CLOUD SYNC STATE
