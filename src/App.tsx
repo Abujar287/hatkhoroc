@@ -163,7 +163,13 @@ export default function App() {
   // ----------------------------------------------------
   useEffect(() => {
     // Initial dummy state to give the user something to go "back" from
-    window.history.pushState({ exitGuard: true }, '');
+    const setupHistory = () => {
+      if (window.history.state?.exitGuard !== true) {
+        window.history.pushState({ exitGuard: true }, '');
+      }
+    };
+
+    setupHistory();
 
     const handlePopState = (event: PopStateEvent) => {
       // User pressed back! 
@@ -174,9 +180,31 @@ export default function App() {
       setShowExitModal(true);
     };
 
+    // BeforeUnload is for desktop (closing tab/refresh)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isAppExited) {
+        e.preventDefault();
+        e.returnValue = 'Are you sure you want to exit?';
+        return 'Are you sure you want to exit?';
+      }
+    };
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isAppExited]);
+
+  const handleCloseExitModal = () => {
+    setShowExitModal(false);
+    // Double check history state when user cancels
+    if (window.history.state?.exitGuard !== true) {
+      window.history.pushState({ exitGuard: true }, '');
+    }
+  };
 
   // ----------------------------------------------------
   // 3. USER MANAGEMENT & AUTHENTICATION STATE
@@ -1571,11 +1599,14 @@ export default function App() {
 
       <ExitConfirmModal
         isOpen={showExitModal}
-        onClose={() => setShowExitModal(false)}
+        onClose={handleCloseExitModal}
         onConfirm={() => {
           setShowExitModal(false);
           setIsAppExited(true);
-          window.close();
+          // Try to close, but fallback to exited screen
+          try {
+            window.close();
+          } catch (e) {}
         }}
         lang={lang}
         t={t}
