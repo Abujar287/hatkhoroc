@@ -10,11 +10,23 @@ import {
   Smartphone,
   Calendar,
   Trash2,
-  Plus
+  Plus,
+  Shield,
+  Layers,
+  Settings2,
+  Edit3,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
-import { normalizeDate, formatNumberLocale, formatCleanDateTime } from '../utils/dateUtils';
+import {
+  normalizeDate,
+  formatNumberLocale,
+  formatCleanDateTime,
+  cleanMappingLabel,
+  getMonthKeyFromLabel
+} from '../utils/dateUtils';
 import { exportMonthlyReportZip } from '../utils/exportZipReport';
 import { AppsScriptModal, ExportMonthModal } from './Modals';
 
@@ -61,17 +73,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   currentUser,
   expenseCategories,
   incomeCategories,
-  onOpenAddCategoryModal,
-  onDeleteCategory,
   transactions,
   lang,
   onOpenEditProfile,
-  viewMode,
   onLogout,
   onImportJson,
   t,
   onOpenInstallModal,
-  onUpdateSpreadsheetId,
   selectedMonth,
   monthMappings,
   onAddMonthMapping,
@@ -80,18 +88,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
-  const [categoryTypeTab, setCategoryTypeTab] = useState<TransactionType>('Expense');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Month selection local state
-  const [localSelectedMonth, setLocalSelectedMonth] = useState(selectedMonth);
-
-  // Sync local selection if prop changes from elsewhere
-  React.useEffect(() => {
-    setLocalSelectedMonth(selectedMonth);
-  }, [selectedMonth]);
-
   // Custom Month Mapping State
+  const [isMappingDropdownOpen, setIsMappingDropdownOpen] = useState(false);
+  const [isAddingMapping, setIsAddingMapping] = useState(false);
+  const [selectedMappingViewId, setSelectedMappingViewId] = useState<string>('');
   const [newMappingLabel, setNewMappingLabel] = useState('');
   const [newMappingStart, setNewMappingStart] = useState('');
   const [newMappingEnd, setNewMappingEnd] = useState('');
@@ -101,42 +103,48 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       alert(t('Please fill all fields for custom month', 'সবগুলো ঘর পূরণ করুন'));
       return;
     }
+    const cleanLabel = cleanMappingLabel(newMappingLabel) || newMappingLabel.trim();
     onAddMonthMapping({
       id: Date.now().toString(),
-      label: newMappingLabel.trim(),
-      startDate: newMappingStart,
-      endDate: newMappingEnd
+      label: cleanLabel,
+      startDate: normalizeDate(newMappingStart),
+      endDate: normalizeDate(newMappingEnd)
     });
     setNewMappingLabel('');
     setNewMappingStart('');
     setNewMappingEnd('');
   };
 
-  const activeCategories = categoryTypeTab === 'Expense' ? expenseCategories : incomeCategories;
-
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
-  // Month dropdown options (same logic as SummaryTab/BudgetTab)
+  // Month dropdown options with clean labels
   const monthOptions = React.useMemo(() => {
     const opts: { val: string; label: string }[] = [];
+    const mappedMonthKeys = new Set<string>();
     
     // Add custom mappings
     monthMappings.forEach(m => {
-      opts.push({ val: m.label, label: `📅 ${m.label}` });
+      opts.push({
+        val: m.label,
+        label: m.label
+      });
+      const mKey = getMonthKeyFromLabel(m.label);
+      if (mKey) mappedMonthKeys.add(mKey);
     });
 
     const now = new Date();
     for (let i = -12; i <= 6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'short',
-        year: 'numeric'
-      });
-      // Don't duplicate if label matches
-      if (!opts.find(o => o.val === val)) {
-        opts.push({ val, label });
+      if (!mappedMonthKeys.has(val)) {
+        const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+          month: 'short',
+          year: 'numeric'
+        });
+        if (!opts.find(o => o.val === val)) {
+          opts.push({ val, label });
+        }
       }
     }
     return opts;
@@ -149,6 +157,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       await exportMonthlyReportZip({
         ...params,
         transactions,
+        monthMappings,
         lang,
         userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari'
       });
@@ -211,303 +220,312 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-12 animate-fadeIn">
-      {/* 1. ACTIVE MONTH SELECTION SECTION */}
-      <div className="bg-white rounded-2xl p-4 border border-indigo-500/30 shadow-sm space-y-4">
-        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Calendar className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Active Application Month', 'অ্যাপের সক্রিয় মাস')}
-            </h3>
-            <p className="text-[10px] text-slate-500">
-              {t('Select the month period to display across the dashboard', 'ড্যাশবোর্ডে দেখানোর জন্য মাসের পিরিয়ড নির্বাচন করুন')}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-              {t('Choose Target Period', 'পিরিয়ড নির্বাচন করুন')}
-            </label>
-            <select
-              value={localSelectedMonth}
-              onChange={e => setLocalSelectedMonth(e.target.value)}
-              className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 text-[14px] font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400 cursor-pointer shadow-sm"
-            >
-              {monthOptions.map(m => (
-                <option key={m.val} value={m.val} className="bg-white text-[#0F172A]">
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onSelectMonth(localSelectedMonth)}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 transition-all"
-          >
-            <Calendar className="w-4 h-4" />
-            <span>{t('Update App View', 'ভিউ আপডেট করুন')}</span>
-          </button>
-        </div>
-      </div>
-      {/* INSTALL APP CARD */}
-      {onOpenInstallModal && (
-        <div className="bg-white rounded-2xl p-4 border border-emerald-500/30 shadow-sm space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Smartphone className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-                  {t('Install HisabKitab App', 'হিসাব কিতাব অ্যাপ ইনস্টল করুন')}
-                </h3>
-                <p className="text-[10px] text-slate-500">
-                  {t('Install on your phone or desktop for quick access', 'ফোন বা কম্পিউটারে অ্যাপটি ইনস্টল করে নিন')}
-                </p>
+    <div className="max-w-2xl mx-auto space-y-4 pb-14 animate-fadeIn">
+      {/* 1. USER PROFILE CARD */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-[#475569] flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+              {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-[#0F172A] leading-tight">
+                {currentUser?.displayName || 'Abujar Al-Gifari'}
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-xs font-semibold text-slate-500">
+                  @{currentUser?.username || 'abujar287'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {getRoleLabel(currentUser?.role)}
+                </span>
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onOpenInstallModal}
-            className="w-full py-2.5 bg-[#16A34A] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-sm"
-          >
-            <Smartphone className="w-4 h-4" />
-            <span>{t('Install App / Show QR Code', 'অ্যাপ ইনস্টল করুন / QR কোড দেখুন')}</span>
-          </button>
-        </div>
-      )}
 
-
-
-      {/* GOOGLE APPS SCRIPT INTEGRATION */}
-      {isAdmin && (
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center">
-                <FileSpreadsheet className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-                  {t('Apps Script', 'অ্যাপস স্ক্রিপ্ট')}
-                </h3>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAppsScriptModal(true)}
-              className="px-2.5 py-1 rounded-lg bg-[#475569] hover:bg-slate-700 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              onClick={onOpenEditProfile}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#475569] text-xs font-bold border border-slate-200 cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>{t('View Code', 'কোড দেখুন')}</span>
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>{t('Edit Profile', 'প্রোফাইল এডিট')}</span>
             </button>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-[#EF4444] border border-rose-200 cursor-pointer active:scale-95 transition-all"
+                title={t('Log Out', 'লগআউট')}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* FULL MONTH ZIP REPORT (PDF + EXCEL) SECTION */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+      {/* 2. CUSTOM MONTH RANGE MAPPING (FINANCIAL PERIODS) IN COMPACT DROPDOWN */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+        {/* Dropdown Header Toggle */}
+        <button
+          type="button"
+          onClick={() => setIsMappingDropdownOpen(prev => !prev)}
+          className="w-full p-3 sm:p-4 flex items-center justify-between text-left cursor-pointer hover:bg-slate-50/80 transition-colors"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+              <Calendar className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-extrabold text-[#0F172A] uppercase tracking-tight">
+                  {t('Month Range Mappings', 'মাসিক তারিখ রেঞ্জ ম্যাপিং')}
+                </h3>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                  {monthMappings.length}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                {monthMappings.length > 0 
+                  ? monthMappings.map(m => `${m.label} (${m.startDate} ~ ${m.endDate})`).join(', ')
+                  : t('Map financial month to custom start & end dates', 'যেকোনো মাসের শুরু ও শেষ তারিখ নির্ধারণ করুন')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <span className="text-[10px] font-bold text-indigo-600 hidden sm:inline">
+              {isMappingDropdownOpen ? t('Close', 'বন্ধ করুন') : t('Open Dropdown', 'ড্রপডাউন দেখুন')}
+            </span>
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center text-slate-400 transition-transform duration-200 ${isMappingDropdownOpen ? 'rotate-180 text-indigo-600' : ''}`}>
+              <ChevronDown className="w-4 h-4" />
+            </div>
+          </div>
+        </button>
+
+        {/* Dropdown Body: Active when expanded */}
+        {isMappingDropdownOpen && (
+          <div className="p-3 sm:p-4 pt-1 border-t border-slate-100 space-y-2.5 animate-fadeIn">
+            {/* Quick Dropdown Selector to select/view mapped range */}
+            {monthMappings.length > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    {t('Select Mapped Period', 'ম্যাপিং সিলেক্ট করুন')}
+                  </label>
+                  <span className="text-[9px] text-slate-400 font-medium">
+                    {monthMappings.length} {t('configured', 'টি যুক্ত আছে')}
+                  </span>
+                </div>
+                
+                <select
+                  value={selectedMappingViewId}
+                  onChange={e => {
+                    const found = monthMappings.find(m => m.id === e.target.value);
+                    if (found) {
+                      onSelectMonth(found.label);
+                    }
+                    setSelectedMappingViewId(e.target.value);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400 cursor-pointer shadow-xs"
+                >
+                  <option value="">{t('-- View Mapped Month Ranges --', '-- ম্যাপিং রেঞ্জ তালিকা --')}</option>
+                  {monthMappings.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} ({m.startDate} ~ {m.endDate})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Existing Mappings List in Small Font */}
+            {monthMappings.length > 0 ? (
+              <div className="space-y-1 pt-1">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {t('Saved Mappings', 'সংরক্ষিত ম্যাপিং তালিকা')}
+                </span>
+                <div className="max-h-40 overflow-y-auto space-y-1 pr-0.5">
+                  {monthMappings.map(m => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100/70 rounded-lg border border-slate-200 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] font-bold text-[#0F172A] shrink-0">
+                          {m.label}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono font-medium truncate">
+                          {m.startDate} ~ {m.endDate}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => onSelectMonth(m.label)}
+                          className="px-2 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 cursor-pointer transition-all"
+                        >
+                          {t('Apply', 'প্রয়োগ')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteMonthMapping(m.id)}
+                          className="w-5 h-5 flex items-center justify-center text-rose-500 hover:bg-rose-100/80 rounded transition-colors cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="py-2 text-center text-[10px] text-slate-400 italic">
+                {t('No month range mappings added yet.', 'এখনো কোনো তারিখ রেঞ্জ ম্যাপিং যোগ করা হয়নি।')}
+              </div>
+            )}
+
+            {/* Toggle to Add New Mapping */}
+            <div className="pt-1 border-t border-slate-100">
+              {!isAddingMapping ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingMapping(true)}
+                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t('Add New Mapping Range', 'নতুন রেঞ্জ ম্যাপিং যোগ করুন')}</span>
+                </button>
+              ) : (
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      {t('New Mapping Form', 'নতুন ম্যাপিং ফরম')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingMapping(false)}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                    >
+                      {t('Cancel', 'বাতিল')}
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-0.5">
+                    <label className="text-[8.5px] font-bold text-slate-400 uppercase">
+                      {t('Month Label (e.g. Oct-2026)', 'মাসের লেবেল (উদা: Oct-2026)')}
+                    </label>
+                    <input
+                      type="text"
+                      value={newMappingLabel}
+                      onChange={e => setNewMappingLabel(e.target.value)}
+                      placeholder="Oct-2026"
+                      className="w-full h-7 bg-white border border-slate-200 rounded-md px-2 text-[11px] font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <label className="text-[8.5px] font-bold text-slate-400 uppercase">
+                        {t('Start Date', 'শুরু তারিখ')}
+                      </label>
+                      <input
+                        type="date"
+                        value={newMappingStart}
+                        onChange={e => setNewMappingStart(e.target.value)}
+                        className="w-full h-7 bg-white border border-slate-200 rounded-md px-1.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[8.5px] font-bold text-slate-400 uppercase">
+                        {t('End Date', 'শেষ তারিখ')}
+                      </label>
+                      <input
+                        type="date"
+                        value={newMappingEnd}
+                        onChange={e => setNewMappingEnd(e.target.value)}
+                        className="w-full h-7 bg-white border border-slate-200 rounded-md px-1.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddMapping();
+                      setIsAddingMapping(false);
+                    }}
+                    className="w-full py-1.5 bg-[#475569] hover:bg-slate-800 text-white rounded-md text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-98 transition-all"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>{t('Save Mapping', 'ম্যাপিং সেভ করুন')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. REPORTS & DATA MANAGEMENT */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
               <Archive className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-                {t('Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট (ZIP: PDF + Excel)')}
+              <h3 className="text-xs font-extrabold text-[#0F172A] uppercase tracking-tight">
+                {t('Reports & Data Backup', 'রিপোর্ট ও ডাটা ব্যাকআপ')}
               </h3>
-              <p className="text-[10px] text-slate-500">
-                {t('Summary PDF statement & detailed Excel spreadsheet', 'সারাংশ PDF ফাইল ও বিস্তারিত Excel ডেটা ফাইলের জিপ')}
+              <p className="text-[10px] text-slate-500 font-medium">
+                {t('Export complete statements or backup files', 'সম্পূর্ণ স্টেটমেন্ট বা ডাটা ব্যাকআপ ফাইল ডাউনলোড করুন')}
               </p>
             </div>
           </div>
         </div>
 
+        {/* Full Month ZIP Report Button */}
         <button
           type="button"
           onClick={() => setShowExportModal(true)}
           disabled={isExportingZip}
-          className="w-full py-2.5 bg-[#475569] hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-sm"
+          className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-sm"
         >
           {isExportingZip ? (
             <>
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>{t('Generating ZIP (PDF + Excel)...', 'জিপ তৈরি হচ্ছে (PDF + Excel)...')}</span>
+              <span>{t('Generating ZIP...', 'জিপ তৈরি হচ্ছে...')}</span>
             </>
           ) : (
             <>
               <Download className="w-4 h-4" />
-              <span>{t('Print & Export Full Month Report (ZIP)', 'পূর্ণাঙ্গ মাসিক রিপোর্ট এক্সপোর্ট (ZIP: PDF + Excel)')}</span>
+              <span>{t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}</span>
             </>
           )}
         </button>
-      </div>
 
-      {/* PROFILE CARD */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center">
-              <User className="w-4 h-4" />
-            </div>
-            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Profile', 'প্রোফাইল')}
-            </h3>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenEditProfile}
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#475569] text-[10px] font-bold border border-slate-200 cursor-pointer active:scale-95"
-          >
-            {t('Edit', 'এডিট')}
-          </button>
-        </div>
-
-        {currentUser && (
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-500 block mb-0.5">{t('Name', 'নাম')}</span>
-              <span className="font-bold text-[#0F172A]">{currentUser.displayName}</span>
-            </div>
-            <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-500 block mb-0.5">{t('User', 'ইউজার')}</span>
-              <span className="font-bold text-[#475569]">@{currentUser.username}</span>
-            </div>
-            <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 col-span-2">
-              <span className="text-slate-500 block mb-0.5">{t('Role', 'রোল')}</span>
-              <span className="font-bold text-[#0F172A]">{getRoleLabel(currentUser.role)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-
-      {/* CUSTOM MONTH RANGE MAPPING SECTION */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Calendar className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Custom Month Range Mappings', 'কাস্টম মাস ভিত্তিক তারিখ রেঞ্জ')}
-            </h3>
-            <p className="text-[10px] text-slate-500">
-              {t('Define custom start/end dates for specific month labels', 'নির্দিষ্ট মাসের জন্য শুরু ও শেষ তারিখ নির্ধারণ করুন')}
-            </p>
-          </div>
-        </div>
-
-        {/* Existing Mappings List */}
-        {monthMappings.length > 0 && (
-          <div className="space-y-2">
-            {monthMappings.map(m => (
-              <div key={m.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 group">
-                <div className="min-w-0">
-                  <span className="text-[11px] font-bold text-[#0F172A] block">{m.label}</span>
-                  <span className="text-[9px] text-slate-500 font-medium">
-                    {m.startDate} ~ {m.endDate}
-                  </span>
-                </div>
-                <button
-                  onClick={() => onDeleteMonthMapping(m.id)}
-                  className="w-7 h-7 flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add New Mapping Form */}
-        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-          <div className="space-y-1">
-            <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Declare Month (Label)', 'মাসিক লেবেল (উদা: Oct-2026)')}</label>
-            <input
-              type="text"
-              value={newMappingLabel}
-              onChange={e => setNewMappingLabel(e.target.value)}
-              placeholder="Oct-2026"
-              className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start Date', 'শুরু তারিখ')}</label>
-              <input
-                type="date"
-                value={newMappingStart}
-                onChange={e => setNewMappingStart(e.target.value)}
-                className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End Date', 'শেষ তারিখ')}</label>
-              <input
-                type="date"
-                value={newMappingEnd}
-                onChange={e => setNewMappingEnd(e.target.value)}
-                className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
-              />
-            </div>
-          </div>
-          <button
-            onClick={handleAddMapping}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{t('Add Mapping', 'ম্যাপিং যোগ করুন')}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* JSON DATA BACKUP & RESTORE */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-              <FileJson className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
-                {t('JSON Data Management', 'JSON ডাটা ব্যাকআপ ও ইম্পোর্ট')}
-              </h3>
-              <p className="text-[9.5px] text-slate-500">
-                {t('Export or import complete transactions backup (.json)', 'সম্পূর্ণ হিসাব ও ক্যাটাগরির JSON ফাইল এক্সপোর্ট বা ইম্পোর্ট করুন')}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Export JSON Button */}
+        {/* JSON Backup & Restore */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
           <button
             type="button"
             onClick={handleExportJson}
-            className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-[11px] font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-sm group"
+            className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-xs"
           >
-            <Download className="w-4 h-4 text-sky-600 group-hover:translate-y-0.5 transition-transform shrink-0" />
-            <span className="truncate">{t('Export JSON', 'JSON এক্সপোর্ট')}</span>
+            <Download className="w-4 h-4 text-sky-600 shrink-0" />
+            <span className="truncate">{t('Export Backup (.json)', 'JSON ব্যাকআপ')}</span>
           </button>
 
-          {/* Import JSON Button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-[#0F172A] rounded-xl text-[11px] font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-sm group"
+            className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 shadow-xs"
           >
-            <Upload className="w-4 h-4 text-[#475569] group-hover:-translate-y-0.5 transition-transform shrink-0" />
-            <span className="truncate">{t('Import JSON', 'JSON ইম্পোর্ট')}</span>
+            <Upload className="w-4 h-4 text-[#475569] shrink-0" />
+            <span className="truncate">{t('Restore Backup (.json)', 'JSON রিস্টোর')}</span>
           </button>
 
           <input
@@ -520,37 +538,68 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
-      {/* LOGOUT */}
-      {onLogout && (
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-[#EF4444] rounded-xl text-[11px] font-bold border border-rose-200 flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>{t('Log Out', 'লগআউট করুন')}</span>
-          </button>
+      {/* 4. APP INTEGRATIONS & SHORTCUTS */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center border border-slate-200">
+              <Settings2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-extrabold text-[#0F172A] uppercase tracking-tight">
+                {t('App & Integrations', 'অ্যাপ ও ইন্টিগ্রেশন')}
+              </h3>
+            </div>
+          </div>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {onOpenInstallModal && (
+            <button
+              type="button"
+              onClick={onOpenInstallModal}
+              className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
+            >
+              <Smartphone className="w-4 h-4 text-[#16A34A]" />
+              <span>{t('Install App / QR Code', 'অ্যাপ ইনস্টল / QR কোড')}</span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowAppsScriptModal(true)}
+              className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+              <span>{t('View Apps Script Code', 'অ্যাপস স্ক্রিপ্ট কোড')}</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Apps Script Modal */}
-      <AppsScriptModal
-        isOpen={showAppsScriptModal}
-        onClose={() => setShowAppsScriptModal(false)}
-        lang={lang}
-        t={t}
-      />
+      {showAppsScriptModal && (
+        <AppsScriptModal
+          isOpen={showAppsScriptModal}
+          onClose={() => setShowAppsScriptModal(false)}
+          lang={lang}
+          t={t}
+        />
+      )}
 
       {/* Export Month Selection Modal */}
-      <ExportMonthModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handlePerformExportZip}
-        currentMonth={selectedMonth}
-        lang={lang}
-        t={t}
-      />
+      {showExportModal && (
+        <ExportMonthModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handlePerformExportZip}
+          currentMonth={selectedMonth}
+          monthMappings={monthMappings}
+          lang={lang}
+          t={t}
+        />
+      )}
 
       {/* Printable Full Month Overall Report (Hidden except in print mode) */}
       <div className="hidden print:block printable-container text-slate-900 bg-white p-4">
@@ -574,22 +623,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <tbody>
               <tr className="border-b border-slate-200">
                 <td className="p-2 font-bold bg-slate-100 w-1/4">Total Income</td>
-                <td className="p-2  font-bold text-emerald-700">+{formatNumberLocale(monthInc, lang)}</td>
+                <td className="p-2 font-bold text-emerald-700">+{formatNumberLocale(monthInc, lang)}</td>
                 <td className="p-2 font-bold bg-slate-100 w-1/4">Total Expense</td>
-                <td className="p-2  font-bold text-rose-700">-{formatNumberLocale(monthExp, lang)}</td>
+                <td className="p-2 font-bold text-rose-700">-{formatNumberLocale(monthExp, lang)}</td>
               </tr>
               <tr>
                 <td className="p-2 font-bold bg-slate-100">Net Balance</td>
-                <td className="p-2  font-bold text-slate-900">{monthNet >= 0 ? '+' : ''}{formatNumberLocale(monthNet, lang)}</td>
+                <td className="p-2 font-bold text-slate-900">{monthNet >= 0 ? '+' : ''}{formatNumberLocale(monthNet, lang)}</td>
                 <td className="p-2 font-bold bg-slate-100">Total Transactions</td>
-                <td className="p-2 ">{monthTransactions.length} records</td>
+                <td className="p-2">{monthTransactions.length} records</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div>
-          <table className="w-full text-xs border border-slate-300 ">
+          <table className="w-full text-xs border border-slate-300">
             <thead>
               <tr className="bg-slate-100 font-bold border-b border-slate-300">
                 <th className="p-1.5 text-left">Date / Time</th>
@@ -602,11 +651,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <tbody>
               {monthTransactions.map(tx => (
                 <tr key={tx.id} className="border-b border-slate-200">
-                  <td className="p-1.5 text-[10.5px]  whitespace-nowrap">{formatCleanDateTime(tx.datetime || tx.date, lang)}</td>
+                  <td className="p-1.5 text-[10.5px] whitespace-nowrap">{formatCleanDateTime(tx.datetime || tx.date, lang)}</td>
                   <td className="p-1.5 text-center font-semibold">{tx.type}</td>
                   <td className="p-1.5 font-semibold">{cleanCategoryName(tx.category, lang)}</td>
                   <td className="p-1.5 text-slate-700">{tx.note || '—'}</td>
-                  <td className={`p-1.5 text-right  font-bold ${tx.type === 'Expense' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                  <td className={`p-1.5 text-right font-bold ${tx.type === 'Expense' ? 'text-rose-700' : 'text-emerald-700'}`}>
                     {tx.type === 'Expense' ? '-' : '+'}{formatNumberLocale(Math.abs(tx.value), lang)}
                   </td>
                 </tr>

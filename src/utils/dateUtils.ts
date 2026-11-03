@@ -57,7 +57,49 @@ export function normalizeDate(rawDate: any): string {
     return `${y}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
   }
 
-  // 4. Try parsing as numeric timestamp or other formats
+  // 3.5. GMT or full date string like "Tue Oct 27 2026 00:00:00 GMT+0600..." or "Thu Oct 01 2026..."
+  const gmtTextMatch = s.match(/(?:[A-Za-z]{3},\s*)?(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
+  if (gmtTextMatch) {
+    const mStr = gmtTextMatch[1].toLowerCase();
+    const d = String(Number(gmtTextMatch[2])).padStart(2, '0');
+    const y = gmtTextMatch[3];
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const mIdx = months.findIndex(m => mStr.startsWith(m));
+    if (mIdx !== -1) {
+      return `${y}-${String(mIdx + 1).padStart(2, '0')}-${d}`;
+    }
+  }
+
+  // 4. Alphabetic months like "12-Oct-26" or "Oct-2026"
+  const alphaMatch = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,9})[-\/\s](\d{2,4})/);
+  if (alphaMatch) {
+    const d = alphaMatch[1];
+    const mStr = alphaMatch[2].toLowerCase();
+    let y = alphaMatch[3];
+    if (y.length === 2) y = '20' + y;
+    
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const mIdx = months.findIndex(m => mStr.startsWith(m));
+    if (mIdx !== -1) {
+      return `${y}-${String(mIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 5. Month-Year format like "Oct-2026" or "10-2026" (for mappings)
+  const myMatch = s.match(/^([A-Za-z]{3,9}|[\d]{1,2})[-\/\s](\d{2,4})$/);
+  if (myMatch) {
+    const mStr = myMatch[1].toLowerCase();
+    let y = myMatch[2];
+    if (y.length === 2) y = '20' + y;
+    
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const mIdx = months.findIndex(m => mStr.startsWith(m)) + 1 || Number(mStr);
+    if (!isNaN(mIdx) && mIdx >= 1 && mIdx <= 12) {
+      return `${y}-${String(mIdx).padStart(2, '0')}`;
+    }
+  }
+
+  // 6. Try parsing as numeric timestamp or other formats
   const parsed = new Date(s);
   if (!isNaN(parsed.getTime())) {
     // Extract local components to avoid UTC shift
@@ -66,6 +108,7 @@ export function normalizeDate(rawDate: any): string {
     const d = String(parsed.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
+
 
   // Fallback: today's date
   const now = new Date();
@@ -241,4 +284,137 @@ export function formatDayHeader(dateStr: string, lang: 'en' | 'bn'): string {
     return dateStr;
   }
 }
+
+/**
+ * Normalizes any month label (e.g. from Google Sheets Date string, "Thu Oct 01 2026...",
+ * "2026-10", "oct-26", "October 2026") into standardized "Oct-2026"
+ */
+export function cleanMappingLabel(rawLabel: any): string {
+  if (!rawLabel) return '';
+  const s = String(rawLabel).trim();
+  if (!s) return '';
+
+  const monthsProper = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthsLower = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  // 1. GMT / ISO / Full Date String (e.g. "Thu Oct 01 2026 00:00:00 GMT+0600...") or "Oct 01 2026"
+  const gmtTextMatch = s.match(/(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
+  if (gmtTextMatch) {
+    const mStr = gmtTextMatch[1].toLowerCase();
+    const y = gmtTextMatch[3];
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${monthsProper[idx]}-${y}`;
+    }
+  }
+
+  // 2. YYYY-MM or YYYY-MM-DD
+  const ymMatch = s.match(/^(\d{4})[-/](\d{1,2})/);
+  if (ymMatch) {
+    const y = ymMatch[1];
+    const m = parseInt(ymMatch[2], 10);
+    if (m >= 1 && m <= 12) {
+      return `${monthsProper[m - 1]}-${y}`;
+    }
+  }
+
+  // 3. Month name and year (e.g. "Oct-2026", "oct-26", "October 2026", "oct 26")
+  const alphaMatch = s.match(/^([A-Za-z]{3,9})[-\s/]?(\d{2,4})$/);
+  if (alphaMatch) {
+    const mStr = alphaMatch[1].toLowerCase();
+    let y = alphaMatch[2];
+    if (y.length === 2) y = '20' + y;
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${monthsProper[idx]}-${y}`;
+    }
+  }
+
+  return s;
+}
+
+/**
+ * Returns YYYY-MM key from any month label or date representation
+ * e.g., "Oct-2026" -> "2026-10", "Thu Oct 01 2026..." -> "2026-10"
+ */
+export function getMonthKeyFromLabel(labelOrDate: any): string {
+  if (!labelOrDate) return '';
+  const s = String(labelOrDate).trim();
+  const monthsLower = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  // GMT or Full Date string
+  const gmtTextMatch = s.match(/(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
+  if (gmtTextMatch) {
+    const mStr = gmtTextMatch[1].toLowerCase();
+    const y = gmtTextMatch[3];
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${y}-${String(idx + 1).padStart(2, '0')}`;
+    }
+  }
+
+  // YYYY-MM
+  const ymMatch = s.match(/^(\d{4})[-/](\d{1,2})/);
+  if (ymMatch) {
+    return `${ymMatch[1]}-${String(Number(ymMatch[2])).padStart(2, '0')}`;
+  }
+
+  // Month-Year alphabetic e.g. "Oct-2026" or "oct 2026"
+  const alphaMatch = s.match(/([A-Za-z]{3,9})[-\s/]?(\d{2,4})/);
+  if (alphaMatch) {
+    const mStr = alphaMatch[1].toLowerCase();
+    let y = alphaMatch[2];
+    if (y.length === 2) y = '20' + y;
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${y}-${String(idx + 1).padStart(2, '0')}`;
+    }
+  }
+
+  return s;
+}
+
+/**
+ * Universally finds the corresponding MonthMapping for a given selectedMonth query.
+ * Matches whether query is "Oct-2026", "2026-10", "Thu Oct 01 2026...", "Oct 2026", etc.
+ */
+export function findMonthMapping<T extends { label: string; startDate: string; endDate: string }>(
+  mappings: T[] | undefined | null,
+  query: string | undefined | null
+): T | undefined {
+  if (!mappings || !Array.isArray(mappings) || mappings.length === 0 || !query) {
+    return undefined;
+  }
+
+  const cleanQuery = cleanMappingLabel(query).toLowerCase();
+  const queryMonthKey = getMonthKeyFromLabel(query);
+  const rawQuery = String(query).trim().toLowerCase();
+
+  return mappings.find(m => {
+    if (!m || !m.label) return false;
+    const rawLabel = String(m.label).trim().toLowerCase();
+    if (rawLabel === rawQuery) return true;
+
+    const cleanedLabel = cleanMappingLabel(m.label).toLowerCase();
+    if (cleanedLabel === cleanQuery) return true;
+
+    const mMonthKey = getMonthKeyFromLabel(m.label);
+    if (queryMonthKey && mMonthKey && queryMonthKey === mMonthKey) return true;
+
+    // Check if query is YYYY-MM and mapping range covers this month
+    if (queryMonthKey) {
+      const startKey = m.startDate ? m.startDate.slice(0, 7) : '';
+      const endKey = m.endDate ? m.endDate.slice(0, 7) : '';
+      if (cleanedLabel.toLowerCase().includes(cleanQuery)) return true;
+      if (startKey === queryMonthKey || endKey === queryMonthKey) {
+        if (cleanedLabel.toLowerCase() === cleanQuery || mMonthKey === queryMonthKey) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  });
+}
+
 

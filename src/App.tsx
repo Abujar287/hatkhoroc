@@ -24,7 +24,14 @@ import {
   DEFAULT_INCOME_CATEGORIES,
   GOOGLE_SCRIPT_URL
 } from './constants';
-import { normalizeDate, formatSyncDateTime, formatCleanDateTime } from './utils/dateUtils';
+import {
+  normalizeDate,
+  formatSyncDateTime,
+  formatCleanDateTime,
+  cleanMappingLabel,
+  getMonthKeyFromLabel,
+  findMonthMapping
+} from './utils/dateUtils';
 import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
 
@@ -472,16 +479,57 @@ export default function App() {
       const saved = localStorage.getItem(`app_month_mappings_${currentTab}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map((m: any, idx: number) => ({
+            id: String(m.id || `map_${idx}`),
+            startDate: normalizeDate(m.startDate),
+            endDate: normalizeDate(m.endDate),
+            label: cleanMappingLabel(m.label)
+          })).filter(m => m.label && m.startDate && m.endDate);
+        }
       }
     } catch {}
     return [];
   });
 
-  const saveMonthMappings = useCallback((updated: MonthMapping[]) => {
-    setMonthMappings(updated);
+  useEffect(() => {
     try {
-      localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(updated));
+      const saved = localStorage.getItem(`app_month_mappings_${currentTab}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setMonthMappings(parsed.map((m: any, idx: number) => ({
+            id: String(m.id || `map_${idx}`),
+            startDate: normalizeDate(m.startDate),
+            endDate: normalizeDate(m.endDate),
+            label: cleanMappingLabel(m.label)
+          })).filter(m => m.label && m.startDate && m.endDate));
+          return;
+        }
+      }
+      setMonthMappings([]);
+    } catch {
+      setMonthMappings([]);
+    }
+  }, [currentTab]);
+
+  const saveMonthMappings = useCallback(async (updated: MonthMapping[]) => {
+    const cleaned = updated.map((m, idx) => ({
+      id: String(m.id || `map_${idx}`),
+      startDate: normalizeDate(m.startDate),
+      endDate: normalizeDate(m.endDate),
+      label: cleanMappingLabel(m.label)
+    })).filter(m => m.label && m.startDate && m.endDate);
+
+    setMonthMappings(cleaned);
+    try {
+      localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(cleaned));
+      // Cloud Push
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ action: 'savemappings', mappings: cleaned })
+      });
     } catch {}
   }, [currentTab]);
 
@@ -504,11 +552,14 @@ export default function App() {
 
   const filteredTransactions = useMemo(() => {
     if (globalFilterMode === 'all') return transactions;
-    const mapping = monthMappings.find(m => m.label === selectedMonth);
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
     return transactions.filter(tx => {
       const txDate = normalizeDate(tx.date);
-      if (mapping) return txDate >= mapping.startDate && txDate <= mapping.endDate;
-      return txDate.startsWith(selectedMonth);
+      if (mapping) {
+        return txDate >= mapping.startDate && txDate <= mapping.endDate;
+      }
+      const monthKey = getMonthKeyFromLabel(selectedMonth);
+      return txDate.startsWith(monthKey);
     });
   }, [transactions, globalFilterMode, selectedMonth, monthMappings]);
 
@@ -520,19 +571,38 @@ export default function App() {
     try {
       const res = await fetch(`${GOOGLE_SCRIPT_URL}?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
       const data = await res.json();
-      if (data && data.result === 'success' && Array.isArray(data.transactions)) {
-        const formatted: Transaction[] = data.transactions.map((t: any) => ({
-          id: String(t.id || Date.now() + Math.random()),
-          rowNumber: t.rowNumber || t.row || t.rowIndex,
-          datetime: formatCleanDateTime(t.datetime, 'en') || t.datetime || '',
-          type: (String(t.type || '').toLowerCase().includes('inc') || String(t.type || '').includes('আয়')) ? 'Income' : 'Expense',
-          category: t.category || 'Others',
-          date: normalizeDate(t.date),
-          value: Math.abs(Number(t.value) || 0),
-          note: t.note || ''
-        }));
-        saveTransactionsLocally(formatted);
+      if (data && data.result === 'success') {
+        if (Array.isArray(data.transactions)) {
+          const formatted: Transaction[] = data.transactions.map((t: any) => ({
+            id: String(t.id || Date.now() + Math.random()),
+            rowNumber: t.rowNumber || t.row || t.rowIndex,
+            datetime: formatCleanDateTime(t.datetime, 'en') || t.datetime || '',
+            type: (String(t.type || '').toLowerCase().includes('inc') || String(t.type || '').includes('আয়')) ? 'Income' : 'Expense',
+            category: t.category || 'Others',
+            date: normalizeDate(t.date),
+            value: Math.abs(Number(t.value) || 0),
+            note: t.note || ''
+          }));
+          saveTransactionsLocally(formatted);
+        }
         
+        const rawMappings = data.monthMappings || data.mappings;
+        if (Array.isArray(rawMappings)) {
+          const normalized: MonthMapping[] = rawMappings.map((m: any, idx: number) => {
+            const rawLabel = m.label || m.MappingMonth || m['Mapping Month'] || '';
+            const cleanedLabel = cleanMappingLabel(rawLabel) || `Custom-${idx + 1}`;
+            return {
+              id: String(m.id || `map_${idx}_${Date.now()}`),
+              startDate: normalizeDate(m.startDate || m.StartDate || m['Start Date']),
+              endDate: normalizeDate(m.endDate || m.EndDate || m['End Date']),
+              label: cleanedLabel
+            };
+          }).filter((m: any) => m.label && m.startDate && m.endDate);
+
+          setMonthMappings(normalized);
+          localStorage.setItem(`app_month_mappings_${tabToSync}`, JSON.stringify(normalized));
+        }
+
         if (Array.isArray(data.categories) && data.categories.length > 0) {
           const cloudExp = data.categories.filter((c: any) => String(c.type).toLowerCase() === 'expense').map((c: any) => c.category);
           const cloudInc = data.categories.filter((c: any) => String(c.type).toLowerCase() === 'income').map((c: any) => c.category);
@@ -548,12 +618,20 @@ export default function App() {
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
       }
-    } catch {
+    } catch (err) {
+      console.error('Sync Error:', err);
       showToast(lang === 'en' ? 'Sync failed' : 'সিঙ্ক করা সম্ভব হয়নি', 'error');
     } finally {
       setIsSyncing(false);
     }
   }, [currentTab, lang, saveTransactionsLocally, showToast]);
+
+  // Initial sync on mount or auth
+  useEffect(() => {
+    if (isAuthenticated) {
+      handleManualSync(currentTab);
+    }
+  }, [isAuthenticated, currentTab, handleManualSync]);
 
   const handleSaveTransaction = async (overrideVal?: number) => {
     if (isReadOnly) return;
@@ -584,6 +662,7 @@ export default function App() {
     } catch {}
 
     setCalcDisplay('0');
+    setEntryCategory('');
     setEntryNote('');
     setIsSubmitting(false);
     showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
@@ -623,7 +702,7 @@ export default function App() {
   // 10. ENTRY & MODAL LOGIC
   // ----------------------------------------------------
   const [entryType, setEntryType] = useState<TransactionType>('Expense');
-  const [entryCategory, setEntryCategory] = useState<string>(() => expenseCategories[0] || 'Others');
+  const [entryCategory, setEntryCategory] = useState<string>('');
   const [entryDate, setEntryDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [entryNote, setEntryNote] = useState<string>('');
   const [calcDisplay, setCalcDisplay] = useState<string>('0');

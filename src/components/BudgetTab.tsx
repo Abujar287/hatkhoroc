@@ -12,7 +12,13 @@ import {
   Plus
 } from 'lucide-react';
 import { Transaction } from '../types';
-import { normalizeDate, formatNumberLocale } from '../utils/dateUtils';
+import {
+  normalizeDate,
+  formatNumberLocale,
+  formatDateShortDemo,
+  findMonthMapping,
+  getMonthKeyFromLabel
+} from '../utils/dateUtils';
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
 
 interface BudgetTabProps {
@@ -73,24 +79,30 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Month shift helper
   const handleShiftMonth = (delta: number) => {
-    // 1. Check if current is a mapping
-    const mappingIdx = monthMappings.findIndex(m => m.label === selectedMonth);
-    if (mappingIdx !== -1) {
-      const nextIdx = mappingIdx + delta;
-      if (nextIdx >= 0 && nextIdx < monthMappings.length) {
-        setSelectedMonth(monthMappings[nextIdx].label);
-        return;
+    // 1. Check if current matches a mapping
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    if (mapping) {
+      const mappingIdx = monthMappings.findIndex(m => m.id === mapping.id || m.label === mapping.label);
+      if (mappingIdx !== -1) {
+        const nextIdx = mappingIdx + delta;
+        if (nextIdx >= 0 && nextIdx < monthMappings.length) {
+          setSelectedMonth(monthMappings[nextIdx].label);
+          return;
+        }
       }
     }
 
     // 2. Standard YYYY-MM logic
-    if (selectedMonth.includes('-')) {
-      const [y, m] = selectedMonth.split('-').map(Number);
+    const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+    if (monthKey.includes('-')) {
+      const [y, m] = monthKey.split('-').map(Number);
       if (!isNaN(y) && !isNaN(m)) {
         const d = new Date(y, m - 1 + delta, 1);
         const ny = d.getFullYear();
         const nm = String(d.getMonth() + 1).padStart(2, '0');
-        setSelectedMonth(`${ny}-${nm}`);
+        const nextVal = `${ny}-${nm}`;
+        const targetMap = findMonthMapping(monthMappings, nextVal);
+        setSelectedMonth(targetMap ? targetMap.label : nextVal);
         return;
       }
     }
@@ -98,11 +110,14 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Month display label
   const monthLabel = useMemo(() => {
-    const mapping = monthMappings.find(m => m.label === selectedMonth);
-    if (mapping) return mapping.label;
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    if (mapping) {
+      return mapping.label;
+    }
 
     try {
-      const [y, m] = selectedMonth.split('-').map(Number);
+      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+      const [y, m] = monthKey.split('-').map(Number);
       const d = new Date(y, m - 1, 1);
       return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
         month: 'long',
@@ -115,7 +130,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Calculate actual spending per category for selected month
   const categorySpending = useMemo(() => {
-    const mapping = monthMappings.find(m => m.label === selectedMonth);
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
     const spendingMap: Record<string, number> = {};
 
     transactions.forEach(tx => {
@@ -126,11 +141,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       if (mapping) {
         isMatch = cleanDate >= mapping.startDate && cleanDate <= mapping.endDate;
       } else {
-        if (selectedMonth.includes('-')) {
-          const [y, m] = selectedMonth.split('-').map(Number);
-          const [ty, tm] = cleanDate.split('-').map(Number);
-          isMatch = ty === y && tm === m;
-        }
+        const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+        isMatch = cleanDate.startsWith(monthKey);
       }
 
       if (isMatch) {
@@ -157,23 +169,31 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   // Month dropdown options
   const monthOptions = useMemo(() => {
     const opts: { val: string; label: string }[] = [];
+    const mappedMonthKeys = new Set<string>();
     
-    // Add custom mappings
+    // Add custom mappings first
     monthMappings.forEach(m => {
-      opts.push({ val: m.label, label: `📅 ${m.label}` });
+      opts.push({
+        val: m.label,
+        label: m.label
+      });
+      const mKey = getMonthKeyFromLabel(m.label);
+      if (mKey) mappedMonthKeys.add(mKey);
     });
 
     const now = new Date();
     for (let i = -12; i <= 6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'short',
-        year: 'numeric'
-      });
-      // Don't duplicate if label matches
-      if (!opts.find(o => o.val === val)) {
-        opts.push({ val, label });
+      
+      if (!mappedMonthKeys.has(val)) {
+        const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+          month: 'short',
+          year: 'numeric'
+        });
+        if (!opts.find(o => o.val === val)) {
+          opts.push({ val, label });
+        }
       }
     }
     return opts;

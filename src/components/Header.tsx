@@ -11,6 +11,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { AppUser, AppTab } from '../types';
+import { findMonthMapping, formatDateShortDemo, getMonthKeyFromLabel } from '../utils/dateUtils';
 
 interface HeaderProps {
   currentUser: AppUser | null;
@@ -37,16 +38,19 @@ export const Header: React.FC<HeaderProps> = ({
   onSync,
   viewMode,
   t,
-  lang,
+  lang = 'en',
   selectedMonth,
   monthMappings
 }) => {
   const activeMonthLabel = React.useMemo(() => {
-    const mapping = monthMappings.find(m => m.label === selectedMonth);
-    if (mapping) return mapping.label;
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    if (mapping) {
+      return mapping.label;
+    }
 
     try {
-      const [y, m] = selectedMonth.split('-').map(Number);
+      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+      const [y, m] = monthKey.split('-').map(Number);
       const d = new Date(y, m - 1, 1);
       return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
         month: 'short',

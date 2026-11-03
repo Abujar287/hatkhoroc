@@ -234,7 +234,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
           type="button"
           onClick={() => {
             setEntryType('Expense');
-            if (expenseCategories.length > 0) setEntryCategory(expenseCategories[0]);
+            setEntryCategory('');
           }}
           className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
             entryType === 'Expense'
@@ -249,7 +249,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
           type="button"
           onClick={() => {
             setEntryType('Income');
-            if (incomeCategories.length > 0) setEntryCategory(incomeCategories[0]);
+            setEntryCategory('');
           }}
           className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
             entryType === 'Income'
@@ -261,25 +261,50 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </button>
       </div>
 
-      {/* 3. Amount Display Area (Click to open calculator) */}
-      <div 
-        onClick={() => setIsCalculatorOpen(true)}
-        className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
-      >
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            {t('Amount', 'টাকার পরিমাণ')}
-          </span>
-          <span className={`text-2xl font-extrabold tracking-tight tabular-nums ${
-            entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
-          }`}>
-            {calcDisplay}
-          </span>
+      {/* 3. Category Selection Prompt OR Selected Category Amount Card */}
+      {entryCategory ? (
+        <div 
+          onClick={() => setIsCalculatorOpen(true)}
+          className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all animate-fadeIn"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
+              entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
+            }`}>
+              <CategoryIcon category={entryCategory} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                {t('Selected Category', 'নির্বাচিত ক্যাটাগরি')}
+              </span>
+              <span className="text-xs font-bold text-[#0F172A] truncate block leading-tight">
+                {cleanCategoryName(entryCategory, lang)}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col items-end">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">
+                {t('Amount', 'পরিমাণ')}
+              </span>
+              <span className={`text-lg font-extrabold tabular-nums ${
+                entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+              }`}>
+                {calcDisplay}
+              </span>
+            </div>
+            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+              <Plus className="w-3.5 h-3.5" />
+            </div>
+          </div>
         </div>
-        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-slate-600 transition-colors">
-          <Plus className="w-5 h-5" />
+      ) : (
+        <div className="text-center py-1">
+          <p className="text-[11px] font-semibold text-slate-400">
+            {t('Select a category to enter amount', 'টাকার পরিমাণ যোগ করতে যেকোনো একটি ক্যাটাগরি নির্বাচন করুন')}
+          </p>
         </div>
-      </div>
+      )}
 
       {/* 4. Circular 4-Column Category Grid */}
       <div className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1">

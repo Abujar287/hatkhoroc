@@ -20,18 +20,26 @@ import {
   DoorOpen
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
-import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader } from '../utils/dateUtils';
+import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
 const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = original;
     };
   }, []);
+
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
 
   return createPortal(children, document.body);
 };
@@ -196,17 +204,40 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [type, setType] = useState<TransactionType>(tx.type);
   const [category, setCategory] = useState<string>(tx.category);
   const [date, setDate] = useState<string>(tx.date);
-  const [value, setValue] = useState<string>(String(tx.value));
+  const [amountInput, setAmountInput] = useState<string>(String(tx.value));
   const [note, setNote] = useState<string>(tx.note || '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [isCalcOpen, setIsCalcOpen] = useState<boolean>(false);
 
   const categories = type === 'Expense' ? expenseCategories : incomeCategories;
 
+  // Live expression calculation (e.g. 40+30 or +30 automatically calculates 70)
+  const evaluatedAmount = useMemo(() => {
+    if (!amountInput) return 0;
+    const trimmed = amountInput.trim();
+    // If user starts with an operator like +30 or -10, prepend original value
+    let exprToEvaluate = trimmed;
+    if (trimmed.startsWith('+') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('/')) {
+      exprToEvaluate = `${tx.value}${trimmed}`;
+    }
+    return evaluateExpression(exprToEvaluate);
+  }, [amountInput, tx.value]);
+
+  const hasMathExpression = useMemo(() => {
+    return /[+\-*/]/.test(amountInput);
+  }, [amountInput]);
+
+  const handleQuickAdd = (addVal: number) => {
+    setAmountInput(prev => {
+      const trimmed = prev.trim();
+      if (!trimmed || trimmed === '0') return String(addVal);
+      return `${trimmed}+${addVal}`;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(value);
-    if (isNaN(val) || val <= 0) return;
+    const finalVal = evaluatedAmount > 0 ? evaluatedAmount : (parseFloat(amountInput) || tx.value);
+    if (isNaN(finalVal) || finalVal <= 0) return;
 
     setIsSaving(true);
     await onSave({
@@ -214,7 +245,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       type,
       category,
       date,
-      value: val,
+      value: finalVal,
       note
     });
     setIsSaving(false);
@@ -228,166 +259,183 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[340px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[85vh] overflow-y-auto overscroll-contain my-auto"
+          className="bg-white text-[#0F172A] w-full max-w-[360px] rounded-2xl p-5 shadow-2xl relative border border-slate-200 animate-modalSpring max-h-[90vh] overflow-y-auto overscroll-contain my-auto space-y-4"
           onClick={e => e.stopPropagation()}
         >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
-          <div className="flex items-center gap-1.5">
-            <Edit3 className="w-3.5 h-3.5 text-[#475569]" />
-            <h3 className="text-xs font-bold text-[#0F172A]">{t('Edit Transaction', 'লেনদেন এডিট')}</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
-          {/* Type Selector */}
-          <div className="grid grid-cols-2 gap-1.5">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center border border-slate-200">
+                <Edit3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#0F172A] leading-tight">
+                  {t('Edit Transaction', 'লেনদেন এডিট')}
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {t('Update amount or category', 'টাকা বা ক্যাটাগরি পরিবর্তন করুন')}
+                </span>
+              </div>
+            </div>
             <button
               type="button"
-              onClick={() => {
-                setType('Expense');
-                if (expenseCategories.length > 0) setCategory(expenseCategories[0]);
-              }}
-              className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                type === 'Expense'
-                  ? 'bg-[#EF4444] text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-800 rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer transition-colors"
             >
-              {t('Expense', 'খরচ')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setType('Income');
-                if (incomeCategories.length > 0) setCategory(incomeCategories[0]);
-              }}
-              className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                type === 'Income'
-                  ? 'bg-[#16A34A] text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {t('Income', 'আয়')}
+              <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Amount */}
-          <div className="relative">
-            <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
-              {t('Amount', 'টাকা')}
-            </label>
-            <div 
-              onClick={() => setIsCalcOpen(!isCalcOpen)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] cursor-pointer flex justify-between items-center"
-            >
-              <span className="font-bold">{value || '0'}</span>
-              <Plus className="w-3.5 h-3.5 text-slate-400" />
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            {/* Type Selector Tabs */}
+            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setType('Expense');
+                  if (expenseCategories.length > 0 && !expenseCategories.includes(category)) {
+                    setCategory(expenseCategories[0]);
+                  }
+                }}
+                className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                  type === 'Expense'
+                    ? 'bg-[#EF4444] text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t('Expense', 'খরচ')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setType('Income');
+                  if (incomeCategories.length > 0 && !incomeCategories.includes(category)) {
+                    setCategory(incomeCategories[0]);
+                  }
+                }}
+                className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                  type === 'Income'
+                    ? 'bg-[#16A34A] text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t('Income', 'আয়')}
+              </button>
             </div>
 
-            {isCalcOpen && (
-              <div className="mt-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200 grid grid-cols-4 gap-1 animate-fadeIn shadow-sm">
-                {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', 'OK'].map(key => (
+            {/* Smart Amount Field with Arithmetic Support */}
+            <div className="space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {t('Amount', 'টাকার পরিমাণ')}
+                </label>
+                {hasMathExpression && evaluatedAmount > 0 && (
+                  <span className="text-[11px] font-extrabold text-[#16A34A] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 animate-fadeIn">
+                    = {formatNumberLocale(evaluatedAmount, lang)}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={amountInput}
+                  onChange={e => setAmountInput(e.target.value)}
+                  placeholder="e.g. 40+30"
+                  className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-3 py-2 text-base font-black text-[#0F172A] tracking-tight focus:outline-none shadow-xs"
+                />
+              </div>
+
+              {/* Quick Arithmetic Sum Helper Pills */}
+              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto pb-0.5">
+                <span className="text-[9px] font-bold text-slate-400 uppercase shrink-0">
+                  {t('Add:', 'যোগ:')}
+                </span>
+                {[10, 20, 50, 100, 500].map(val => (
                   <button
-                    key={key}
+                    key={val}
                     type="button"
-                    onClick={() => {
-                      if (key === 'OK') {
-                        setIsCalcOpen(false);
-                        return;
-                      }
-                      if (key === 'C') {
-                        setValue('0');
-                        return;
-                      }
-                      if (key === 'DEL') {
-                        setValue(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
-                        return;
-                      }
-                      // Simple keypad logic
-                      setValue(prev => {
-                        if (prev === '0' && key !== '.') return key;
-                        if (key === '.' && prev.includes('.')) return prev;
-                        if (prev.length < 12) return prev + key;
-                        return prev;
-                      });
-                    }}
-                    className={`h-8 rounded-lg text-[11px] font-bold flex items-center justify-center transition-all active:scale-95 ${
-                      key === 'OK' 
-                        ? 'bg-[#475569] text-white col-span-1' 
-                        : key === 'DEL' || key === 'C' || key === '+' || key === '-'
-                        ? 'bg-slate-200 text-slate-700'
-                        : 'bg-white text-[#0F172A] border border-slate-200 shadow-sm'
-                    }`}
+                    onClick={() => handleQuickAdd(val)}
+                    className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-[10px] font-bold text-[#475569] active:scale-95 transition-all shadow-2xs shrink-0 cursor-pointer"
                   >
-                    {key}
+                    +{val}
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Category */}
-          <div>
-            <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
-              {t('Category', 'ক্যাটাগরি')}
-            </label>
-            <select
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
-            >
-              {categories.map(c => (
-                <option key={c} value={c} className="bg-white text-[#0F172A]">
-                  {cleanCategoryName(c, lang)}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* Category */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                {t('Category', 'ক্যাটাগরি')}
+              </label>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+              >
+                {categories.map(c => (
+                  <option key={c} value={c} className="bg-white text-[#0F172A]">
+                    {cleanCategoryName(c, lang)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Date */}
-          <div>
-            <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
-              {t('Date', 'তারিখ')}
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
-              required
-            />
-          </div>
+            {/* Date */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                {t('Date', 'তারিখ')}
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-xs"
+                required
+              />
+            </div>
 
-          {/* Note */}
-          <div>
-            <label className="text-[10px] font-semibold text-slate-500 block mb-0.5">
-              {t('Note', 'বিবরণ')}
-            </label>
-            <input
-              type="text"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400"
-            />
-          </div>
+            {/* Note */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">
+                {t('Note (Optional)', 'বিবরণ (ঐচ্ছিক)')}
+              </label>
+              <input
+                type="text"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder={t('Add description...', 'বিবরণ লিখুন...')}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400 placeholder:text-slate-400 shadow-xs"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="w-full py-2 bg-[#475569] hover:bg-slate-700 text-white rounded-lg font-bold transition-all shadow-sm cursor-pointer mt-1 active:scale-98 flex items-center justify-center gap-1.5 text-xs"
-          >
-            {isSaving ? t('Saving...', 'সেভ হচ্ছে...') : t('Save Changes', 'সেভ করুন')}
-          </button>
-        </form>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                {t('Cancel', 'বাতিল')}
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="flex-2 py-2.5 bg-[#475569] hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-98 flex items-center justify-center gap-1.5"
+              >
+                {isSaving ? (
+                  <span>{t('Saving...', 'সেভ হচ্ছে...')}</span>
+                ) : (
+                  <span>
+                    {t('Save Changes', 'সেভ করুন')} {evaluatedAmount > 0 ? `(${formatNumberLocale(evaluatedAmount, lang)})` : ''}
+                  </span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
     </ModalPortal>
   );
 };
@@ -1398,7 +1446,7 @@ export const AppsScriptModal: React.FC<AppsScriptModalProps> = ({
 
   const appsScriptCode = `// ====================================================================
 // হিসাব-নিকাশ: গুগল শিট Apps Script কোড (Code.gs)
-// ভার্সন: 5.1 (পারফেক্ট মাল্টি-ট্যাব ইউজার আইসোলেশন ও ক্যাটাগরি সিঙ্ক)
+// ভার্সন: 6.0 (মাল্টি-ট্যাব সাপোর্ট ও কাস্টম মাস ভিত্তিক তারিখ রেঞ্জ)
 // ====================================================================
 
 function doPost(e) {
@@ -1519,6 +1567,30 @@ function doPost(e) {
         result: 'success',
         message: 'ক্যাটাগরি নিরাপদ সিঙ্ক সম্পন্ন',
         added: addedCount
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৫.৪ কাস্টম মান্থ ম্যাপিং সিঙ্ক (SAVE MAPPINGS)
+    if (action === 'savemappings') {
+      var mapSheet = ss.getSheetByName('month mapping');
+      if (!mapSheet) {
+        mapSheet = ss.insertSheet('month mapping');
+      }
+      mapSheet.clear();
+      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month']);
+      mapSheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      mapSheet.setFrozenRows(1);
+      
+      var maps = Array.isArray(data.mappings) ? data.mappings : [];
+      for (var m = 0; m < maps.length; m++) {
+        var item = maps[m];
+        if (item && item.label) {
+          mapSheet.appendRow([item.startDate, item.endDate, item.label]);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        message: 'মান্থ ম্যাপিং সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -1687,6 +1759,7 @@ function doGet(e) {
     sheetTab: sheet.getName(),
     transactions: transactions,
     categories: getCategoriesList(ss),
+    monthMappings: getMonthMappings(ss),
     count: transactions.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -1852,7 +1925,6 @@ function handleUpdateRow(sheet, data) {
       sheet.getRange(r, 4).setValue(data.category);
       sheet.getRange(r, 5).setValue(data.date);
       sheet.getRange(r, 6).setValue(data.value);
-      sheet.getRange(r, 7).setValue(data.note || '');
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
         sheetTab: sheet.getName(),
@@ -1864,7 +1936,55 @@ function handleUpdateRow(sheet, data) {
     result: 'not_found',
     sheetTab: sheet.getName()
   })).setMimeType(ContentService.MimeType.JSON);
-}`;
+}
+
+// ৭. মাস ভিত্তিক ম্যাপিং পড়া
+function getMonthMappings(ss) {
+  var sheet = ss.getSheetByName('month mapping');
+  if (!sheet) {
+    try {
+      sheet = ss.insertSheet('month mapping');
+      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month']);
+      sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  var rows = sheet.getDataRange().getValues();
+  var mappings = [];
+  for (var i = 1; i < rows.length; i++) {
+    var start = rows[i][0];
+    var end = rows[i][1];
+    var label = rows[i][2];
+    
+    if (label && start && end) {
+      var cleanLabel = String(label).trim();
+      if (label instanceof Date) {
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        cleanLabel = months[label.getMonth()] + '-' + label.getFullYear();
+      }
+      mappings.push({
+        startDate: formatDateForMapping(start),
+        endDate: formatDateForMapping(end),
+        label: cleanLabel
+      });
+    }
+  }
+  return mappings;
+}
+
+function formatDateForMapping(d) {
+  if (d instanceof Date) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  return String(d).trim();
+}
+`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(appsScriptCode);
@@ -2105,6 +2225,7 @@ interface ExportMonthModalProps {
   onClose: () => void;
   onExport: (params: { month: string; startDate?: string; endDate?: string }) => void;
   currentMonth: string;
+  monthMappings?: import('../types').MonthMapping[];
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
 }
@@ -2114,6 +2235,7 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
   onClose,
   onExport,
   currentMonth,
+  monthMappings = [],
   lang,
   t
 }) => {
@@ -2139,20 +2261,35 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
   });
 
   const monthOptions = useMemo(() => {
-    const opts = [];
+    const opts: { val: string; label: string }[] = [];
+    const mappedMonthKeys = new Set<string>();
+    
+    // Add custom mappings first
+    monthMappings.forEach(m => {
+      opts.push({
+        val: m.label,
+        label: m.label
+      });
+      const mKey = getMonthKeyFromLabel(m.label);
+      if (mKey) mappedMonthKeys.add(mKey);
+    });
+
     const now = new Date();
-    // Current month + previous 24 months
-    for (let i = 0; i >= -24; i--) {
+    for (let i = -12; i <= 6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'long',
-        year: 'numeric'
-      });
-      opts.push({ val, label });
+      if (!mappedMonthKeys.has(val)) {
+        const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+          month: 'short',
+          year: 'numeric'
+        });
+        if (!opts.find(o => o.val === val)) {
+          opts.push({ val, label });
+        }
+      }
     }
     return opts;
-  }, [lang]);
+  }, [lang, monthMappings]);
 
   // Set initial month if empty
   useEffect(() => {

@@ -4,15 +4,16 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { Transaction } from '../types';
 import { cleanCategoryName } from './categoryUtils';
-import { normalizeDate } from './dateUtils';
+import { normalizeDate, getMonthKeyFromLabel, cleanMappingLabel } from './dateUtils';
 
 export interface ExportZipOptions {
-  month?: string; // e.g. "2026-10" or "all" or "custom"
+  month?: string; // e.g. "2026-10" or "Oct-2026" or "all" or "custom"
   startDate?: string; // "YYYY-MM-DD"
   endDate?: string;   // "YYYY-MM-DD"
   transactions: Transaction[];
   lang?: 'en' | 'bn';
   userName?: string;
+  monthMappings?: import('../types').MonthMapping[];
 }
 
 /**
@@ -31,14 +32,14 @@ function formatAmount(val: number): string {
  * 2. Details Data Excel Spreadsheet (All transactions, category summaries & overview)
  */
 export async function exportMonthlyReportZip(options: ExportZipOptions): Promise<boolean> {
-  const { month, startDate, endDate, transactions, lang = 'en', userName = 'Abujar Al-Gifari' } = options;
+  const { month, startDate, endDate, transactions, lang = 'en', userName = 'Abujar Al-Gifari', monthMappings = [] } = options;
 
   // 1. Determine target transactions
   let targetTxs: Transaction[] = [];
   let isAllTime = false;
   let periodLabel = '';
 
-  if (month === 'custom' && startDate && endDate) {
+  if (startDate && endDate) {
     targetTxs = transactions.filter(t => {
       const d = normalizeDate(t.date);
       return d >= startDate && d <= endDate;
@@ -46,16 +47,30 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
     periodLabel = `${startDate} to ${endDate}`;
   } else {
     isAllTime = !month || month === 'all';
-    targetTxs = isAllTime
-      ? [...transactions]
-      : transactions.filter(t => normalizeDate(t.date).startsWith(month!));
     
-    if (isAllTime) {
-      periodLabel = 'All-Time Record';
+    // Check if month matches any custom mapping label or month key
+    const mapping = monthMappings.find(m => 
+      m.label.toLowerCase() === (month || '').toLowerCase() || 
+      getMonthKeyFromLabel(m.label) === month
+    );
+
+    if (mapping) {
+      targetTxs = transactions.filter(t => {
+        const d = normalizeDate(t.date);
+        return d >= mapping.startDate && d <= mapping.endDate;
+      });
+      periodLabel = `${mapping.label} (${mapping.startDate} to ${mapping.endDate})`;
     } else {
-      const [y, m] = month!.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      periodLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const monthKey = getMonthKeyFromLabel(month);
+      targetTxs = isAllTime
+        ? [...transactions]
+        : transactions.filter(t => normalizeDate(t.date).startsWith(monthKey));
+      
+      if (isAllTime) {
+        periodLabel = 'All-Time Record';
+      } else {
+        periodLabel = cleanMappingLabel(month) || monthKey || 'Monthly Record';
+      }
     }
   }
 
