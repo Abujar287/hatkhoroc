@@ -7,7 +7,10 @@ import {
   LogOut,
   FileSpreadsheet,
   Archive,
-  Smartphone
+  Smartphone,
+  Calendar,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
@@ -37,6 +40,9 @@ interface SettingsTabProps {
   onOpenInstallModal?: () => void;
   onUpdateSpreadsheetId?: (id: string) => void;
   selectedMonth: string;
+  monthMappings: import('../types').MonthMapping[];
+  onAddMonthMapping: (mapping: import('../types').MonthMapping) => void;
+  onDeleteMonthMapping: (id: string) => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -65,12 +71,36 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   t,
   onOpenInstallModal,
   onUpdateSpreadsheetId,
-  selectedMonth
+  selectedMonth,
+  monthMappings,
+  onAddMonthMapping,
+  onDeleteMonthMapping
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [categoryTypeTab, setCategoryTypeTab] = useState<TransactionType>('Expense');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Custom Month Mapping State
+  const [newMappingLabel, setNewMappingLabel] = useState('');
+  const [newMappingStart, setNewMappingStart] = useState('');
+  const [newMappingEnd, setNewMappingEnd] = useState('');
+
+  const handleAddMapping = () => {
+    if (!newMappingLabel.trim() || !newMappingStart || !newMappingEnd) {
+      alert(t('Please fill all fields for custom month', 'সবগুলো ঘর পূরণ করুন'));
+      return;
+    }
+    onAddMonthMapping({
+      id: Date.now().toString(),
+      label: newMappingLabel.trim(),
+      startDate: newMappingStart,
+      endDate: newMappingEnd
+    });
+    setNewMappingLabel('');
+    setNewMappingStart('');
+    setNewMappingEnd('');
+  };
 
   const activeCategories = categoryTypeTab === 'Expense' ? expenseCategories : incomeCategories;
 
@@ -281,6 +311,86 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
+
+      {/* CUSTOM MONTH RANGE MAPPING SECTION */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-[11px] font-bold text-[#0F172A] uppercase tracking-tight">
+              {t('Custom Month Range Mappings', 'কাস্টম মাস ভিত্তিক তারিখ রেঞ্জ')}
+            </h3>
+            <p className="text-[10px] text-slate-500">
+              {t('Define custom start/end dates for specific month labels', 'নির্দিষ্ট মাসের জন্য শুরু ও শেষ তারিখ নির্ধারণ করুন')}
+            </p>
+          </div>
+        </div>
+
+        {/* Existing Mappings List */}
+        {monthMappings.length > 0 && (
+          <div className="space-y-2">
+            {monthMappings.map(m => (
+              <div key={m.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 group">
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold text-[#0F172A] block">{m.label}</span>
+                  <span className="text-[9px] text-slate-500 font-medium">
+                    {m.startDate} ~ {m.endDate}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onDeleteMonthMapping(m.id)}
+                  className="w-7 h-7 flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add New Mapping Form */}
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Declare Month (Label)', 'মাসিক লেবেল (উদা: Oct-2026)')}</label>
+            <input
+              type="text"
+              value={newMappingLabel}
+              onChange={e => setNewMappingLabel(e.target.value)}
+              placeholder="Oct-2026"
+              className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start Date', 'শুরু তারিখ')}</label>
+              <input
+                type="date"
+                value={newMappingStart}
+                onChange={e => setNewMappingStart(e.target.value)}
+                className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End Date', 'শেষ তারিখ')}</label>
+              <input
+                type="date"
+                value={newMappingEnd}
+                onChange={e => setNewMappingEnd(e.target.value)}
+                className="w-full h-8.5 bg-white border border-slate-200 rounded-lg px-2.5 text-[10px] font-bold text-[#0F172A] focus:outline-none"
+              />
+            </div>
+          </div>
+          <button
+            onClick={handleAddMapping}
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{t('Add Mapping', 'ম্যাপিং যোগ করুন')}</span>
+          </button>
+        </div>
+      </div>
 
       {/* JSON DATA BACKUP & RESTORE */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">

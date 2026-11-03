@@ -18,7 +18,7 @@ import {
   Plus,
   Sliders
 } from 'lucide-react';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES,
@@ -534,10 +534,30 @@ export default function App() {
 
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
 
-  // Selected Month (YYYY-MM)
+  // Month Range Mappings
+  const [monthMappings, setMonthMappings] = useState<MonthMapping[]>(() => {
+    try {
+      const saved = localStorage.getItem(`app_month_mappings_${currentTab}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const saveMonthMappings = useCallback((updated: MonthMapping[]) => {
+    setMonthMappings(updated);
+    try {
+      localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(updated));
+    } catch {}
+  }, [currentTab]);
+
+  // Selected Month (YYYY-MM or Mapping Label)
   const currentMonthValue = useMemo(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const isoMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return isoMonth;
   }, []);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthValue);
 
@@ -556,12 +576,18 @@ export default function App() {
   const filteredTransactions = useMemo(() => {
     if (globalFilterMode === 'all') return transactions;
     
-    // Filter by selectedMonth (YYYY-MM)
+    // Check if selectedMonth is a mapping label
+    const mapping = monthMappings.find(m => m.label === selectedMonth);
+    
+    // Filter by selectedMonth (YYYY-MM) or custom range
     return transactions.filter(tx => {
       const txDate = normalizeDate(tx.date);
+      if (mapping) {
+        return txDate >= mapping.startDate && txDate <= mapping.endDate;
+      }
       return txDate.startsWith(selectedMonth);
     });
-  }, [transactions, globalFilterMode, selectedMonth]);
+  }, [transactions, globalFilterMode, selectedMonth, monthMappings]);
 
   // Manual Cloud Sync Function
   const handleManualSync = useCallback(async (tabToSync = currentTab) => {
@@ -1386,6 +1412,7 @@ export default function App() {
               isReadOnly={isReadOnly}
               lang={lang}
               t={t}
+              monthMappings={monthMappings}
             />
           )}
 
@@ -1432,6 +1459,7 @@ export default function App() {
               lang={lang}
               t={t}
               currentTab={currentTab}
+              monthMappings={monthMappings}
             />
           )}
 
@@ -1469,6 +1497,9 @@ export default function App() {
               onUpdateSpreadsheetId={handleUpdateSpreadsheetId}
               onOpenInstallModal={() => setShowMobileModal(true)}
               selectedMonth={selectedMonth}
+              monthMappings={monthMappings}
+              onAddMonthMapping={(mapping) => saveMonthMappings([...monthMappings, mapping])}
+              onDeleteMonthMapping={(id) => saveMonthMappings(monthMappings.filter(m => m.id !== id))}
             />
           )}
         </main>

@@ -23,6 +23,7 @@ interface BudgetTabProps {
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
   currentTab: string;
+  monthMappings: import('../types').MonthMapping[];
 }
 
 export const BudgetTab: React.FC<BudgetTabProps> = ({
@@ -32,7 +33,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   setSelectedMonth,
   lang,
   t,
-  currentTab
+  currentTab,
+  monthMappings
 }) => {
   // Category-wise budgets stored per tab and per month: { [categoryName]: number }
   const storageKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
@@ -71,33 +73,56 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Month shift helper
   const handleShiftMonth = (delta: number) => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m - 1 + delta, 1);
-    const ny = d.getFullYear();
-    const nm = String(d.getMonth() + 1).padStart(2, '0');
-    setSelectedMonth(`${ny}-${nm}`);
+    if (selectedMonth.includes('-') && !monthMappings.find(m => m.label === selectedMonth)) {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        const d = new Date(y, m - 1 + delta, 1);
+        const ny = d.getFullYear();
+        const nm = String(d.getMonth() + 1).padStart(2, '0');
+        setSelectedMonth(`${ny}-${nm}`);
+        return;
+      }
+    }
   };
 
   // Month display label
   const monthLabel = useMemo(() => {
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-      month: 'long',
-      year: 'numeric'
-    });
-  }, [selectedMonth, lang]);
+    const mapping = monthMappings.find(m => m.label === selectedMonth);
+    if (mapping) return mapping.label;
+
+    try {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth, lang, monthMappings]);
 
   // Calculate actual spending per category for selected month
   const categorySpending = useMemo(() => {
-    const [y, m] = selectedMonth.split('-').map(Number);
+    const mapping = monthMappings.find(m => m.label === selectedMonth);
     const spendingMap: Record<string, number> = {};
 
     transactions.forEach(tx => {
       if (tx.type !== 'Expense') return;
       const cleanDate = normalizeDate(tx.date);
-      const [ty, tm, td] = cleanDate.split('-').map(Number);
-      if (ty === y && tm === m) {
+      
+      let isMatch = false;
+      if (mapping) {
+        isMatch = cleanDate >= mapping.startDate && cleanDate <= mapping.endDate;
+      } else {
+        if (selectedMonth.includes('-')) {
+          const [y, m] = selectedMonth.split('-').map(Number);
+          const [ty, tm] = cleanDate.split('-').map(Number);
+          isMatch = ty === y && tm === m;
+        }
+      }
+
+      if (isMatch) {
         const catClean = cleanCategoryName(tx.category, 'en');
         const val = Number(tx.value) || 0;
         spendingMap[catClean] = (spendingMap[catClean] || 0) + val;
@@ -105,7 +130,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     });
 
     return spendingMap;
-  }, [transactions, selectedMonth]);
+  }, [transactions, selectedMonth, monthMappings]);
 
   // Total budget and total spent across all categories
   const totalBudget = useMemo(() => {
@@ -118,30 +143,63 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   const remainingBudget = totalBudget - totalSpent;
 
+  // Month dropdown options
+  const monthOptions = useMemo(() => {
+    const opts: { val: string; label: string }[] = [];
+    
+    // Add custom mappings
+    monthMappings.forEach(m => {
+      opts.push({ val: m.label, label: `📅 ${m.label}` });
+    });
+
+    const now = new Date();
+    for (let i = -12; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'short',
+        year: 'numeric'
+      });
+      // Don't duplicate if label matches
+      if (!opts.find(o => o.val === val)) {
+        opts.push({ val, label });
+      }
+    }
+    return opts;
+  }, [lang, monthMappings]);
+
   return (
     <div className="max-w-2xl mx-auto space-y-4 animate-fadeIn pb-16">
       {/* MONTH SELECTOR BAR */}
-      <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex items-center justify-between">
+      <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => handleShiftMonth(-1)}
-          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200"
+          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200 shrink-0"
           title={t('Previous Month', 'পূর্ববর্তী মাস')}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-[#475569]" />
-          <span className="text-xs font-bold text-[#0F172A] uppercase tracking-wide">
-            {monthLabel}
-          </span>
+        <div className="flex-1 flex items-center gap-2 justify-center min-w-0">
+          <Calendar className="w-4 h-4 text-[#475569] shrink-0" />
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="bg-transparent border-none text-[13px] font-bold text-[#0F172A] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
+          >
+            {monthOptions.map(m => (
+              <option key={m.val} value={m.val} className="bg-white text-[#0F172A] normal-case">
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <button
           type="button"
           onClick={() => handleShiftMonth(1)}
-          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200"
+          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200 shrink-0"
           title={t('Next Month', 'পরবর্তী মাস')}
         >
           <ChevronRight className="w-4 h-4" />

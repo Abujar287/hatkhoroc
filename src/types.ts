@@ -43,3 +43,10 @@ export interface AppUser {
   googleEmail?: string;
   spreadsheetId?: string;
 }
+
+export interface MonthMapping {
+  id: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  label: string;     // e.g., "Oct-2026"
+}
