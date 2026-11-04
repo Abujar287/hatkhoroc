@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   User,
   Download,
@@ -18,7 +18,15 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  EyeOff
+  EyeOff,
+  Landmark,
+  Banknote,
+  ShoppingBag,
+  Zap,
+  Scale,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
@@ -27,7 +35,8 @@ import {
   formatNumberLocale,
   formatCleanDateTime,
   cleanMappingLabel,
-  getMonthKeyFromLabel
+  getMonthKeyFromLabel,
+  findMonthMapping
 } from '../utils/dateUtils';
 import { exportMonthlyReportZip } from '../utils/exportZipReport';
 import { AppsScriptModal, ExportMonthModal } from './Modals';
@@ -245,8 +254,261 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     reader.readAsText(file);
   };
 
+  // ----------------------------------------------------
+  // MATRICS AMOUNT (ASSET RECONCILIATION) STATE & CALCULATION
+  // ----------------------------------------------------
+  const [metrics, setMetrics] = useState<{
+    cityBank: string;
+    bkash: string;
+    nagad: string;
+    cash: string;
+    moneyBag: string;
+  }>(() => {
+    try {
+      const userKey = currentUser?.username || 'user';
+      const saved = localStorage.getItem(`app_matrics_amount_${userKey}_${selectedMonth}`);
+      if (saved) return JSON.parse(saved);
+      const fallback = localStorage.getItem(`app_matrics_amount_${userKey}`);
+      if (fallback) return JSON.parse(fallback);
+    } catch {}
+    return {
+      cityBank: '',
+      bkash: '',
+      nagad: '',
+      cash: '',
+      moneyBag: ''
+    };
+  });
+
+  useEffect(() => {
+    try {
+      const userKey = currentUser?.username || 'user';
+      const saved = localStorage.getItem(`app_matrics_amount_${userKey}_${selectedMonth}`);
+      if (saved) {
+        setMetrics(JSON.parse(saved));
+        return;
+      }
+      const fallback = localStorage.getItem(`app_matrics_amount_${userKey}`);
+      if (fallback) {
+        setMetrics(JSON.parse(fallback));
+        return;
+      }
+    } catch {}
+    setMetrics({
+      cityBank: '',
+      bkash: '',
+      nagad: '',
+      cash: '',
+      moneyBag: ''
+    });
+  }, [selectedMonth, currentUser?.username]);
+
+  const updateMetric = (field: 'cityBank' | 'bkash' | 'nagad' | 'cash' | 'moneyBag', value: string) => {
+    setMetrics(prev => {
+      const next = { ...prev, [field]: value };
+      try {
+        const userKey = currentUser?.username || 'user';
+        localStorage.setItem(`app_matrics_amount_${userKey}_${selectedMonth}`, JSON.stringify(next));
+        localStorage.setItem(`app_matrics_amount_${userKey}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleResetMetrics = () => {
+    const empty = { cityBank: '', bkash: '', nagad: '', cash: '', moneyBag: '' };
+    setMetrics(empty);
+    try {
+      const userKey = currentUser?.username || 'user';
+      localStorage.setItem(`app_matrics_amount_${userKey}_${selectedMonth}`, JSON.stringify(empty));
+      localStorage.setItem(`app_matrics_amount_${userKey}`, JSON.stringify(empty));
+    } catch {}
+  };
+
+  // Active Month Transactions & Real-time Monthly Balance Calculation
+  const selectedMapping = useMemo(() => findMonthMapping(monthMappings, selectedMonth), [monthMappings, selectedMonth]);
+  const activeMonthTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      const txDate = normalizeDate(tx.date);
+      if (selectedMapping) {
+        return txDate >= selectedMapping.startDate && txDate <= selectedMapping.endDate;
+      }
+      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+      return txDate.startsWith(monthKey);
+    });
+  }, [transactions, selectedMapping, selectedMonth]);
+
+  const activeMonthInc = useMemo(() =>
+    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + (Number(tx.value) || 0) : acc, 0),
+    [activeMonthTransactions]
+  );
+  const activeMonthExp = useMemo(() =>
+    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + (Number(tx.value) || 0) : acc, 0),
+    [activeMonthTransactions]
+  );
+  const activeMonthlyBalance = activeMonthInc - activeMonthExp;
+
+  // Real-time Sums
+  const numCityBank = parseFloat(metrics.cityBank) || 0;
+  const numBkash = parseFloat(metrics.bkash) || 0;
+  const numNagad = parseFloat(metrics.nagad) || 0;
+  const numCash = parseFloat(metrics.cash) || 0;
+  const numMoneyBag = parseFloat(metrics.moneyBag) || 0;
+
+  const totalMatricsAmount = numCityBank + numBkash + numNagad + numCash + numMoneyBag;
+  const difference = totalMatricsAmount - activeMonthlyBalance;
+
   return (
     <div className="max-w-2xl mx-auto space-y-4 pb-14 animate-fadeIn">
+      {/* 0. MATRICS AMOUNT (CLEAN & SIMPLE REPORTING FORMAT) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
+        {/* Header - Minimal & Clean */}
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="text-sm font-extrabold text-[#0F172A] flex items-center gap-2">
+            <span>Matrics Amount</span>
+            {selectedMonth && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {selectedMonth}
+              </span>
+            )}
+          </h3>
+
+          {(metrics.cityBank || metrics.bkash || metrics.nagad || metrics.cash || metrics.moneyBag) && (
+            <button
+              type="button"
+              onClick={handleResetMetrics}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+              title="Reset"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+
+        {/* Rows for City Bank, Bkash, Nagad, Cash, Money Bag */}
+        <div className="divide-y divide-slate-100">
+          {/* City Bank */}
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              City Bank
+            </span>
+            <div className="relative w-36 sm:w-44">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={metrics.cityBank}
+                onChange={e => updateMetric('cityBank', e.target.value)}
+                placeholder="0"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Bkash */}
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Bkash
+            </span>
+            <div className="relative w-36 sm:w-44">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={metrics.bkash}
+                onChange={e => updateMetric('bkash', e.target.value)}
+                placeholder="0"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Nagad */}
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Nagad
+            </span>
+            <div className="relative w-36 sm:w-44">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={metrics.nagad}
+                onChange={e => updateMetric('nagad', e.target.value)}
+                placeholder="0"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Cash */}
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Cash
+            </span>
+            <div className="relative w-36 sm:w-44">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={metrics.cash}
+                onChange={e => updateMetric('cash', e.target.value)}
+                placeholder="0"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Money Bag */}
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Money Bag
+            </span>
+            <div className="relative w-36 sm:w-44">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={metrics.moneyBag}
+                onChange={e => updateMetric('moneyBag', e.target.value)}
+                placeholder="0"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 1 Single Row for Total, Monthly Balance, Difference */}
+        <div className="border-t-2 border-slate-200 bg-slate-50/90 grid grid-cols-3 divide-x divide-slate-200 text-center py-2.5 px-1">
+          <div className="px-1">
+            <span className="text-[11px] font-semibold text-slate-500 block">Total</span>
+            <span className="text-sm sm:text-base font-extrabold font-mono text-slate-900">
+              ৳{formatNumberLocale(totalMatricsAmount, lang)}
+            </span>
+          </div>
+          <div className="px-1">
+            <span className="text-[11px] font-semibold text-slate-500 block">Monthly Balance</span>
+            <span className="text-sm sm:text-base font-extrabold font-mono text-slate-900">
+              ৳{formatNumberLocale(activeMonthlyBalance, lang)}
+            </span>
+          </div>
+          <div className="px-1">
+            <span className="text-[11px] font-semibold text-slate-500 block">Difference</span>
+            <span className={`text-sm sm:text-base font-extrabold font-mono ${
+              difference < 0 ? 'text-rose-600' : 'text-emerald-600'
+            }`}>
+              {difference >= 0 ? '+' : ''}৳{formatNumberLocale(difference, lang)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* 1. USER PROFILE CARD */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
