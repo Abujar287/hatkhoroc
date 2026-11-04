@@ -539,7 +539,11 @@ export default function App() {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
-        body: JSON.stringify({ action: 'savemappings', mappings: cleaned })
+        body: JSON.stringify({
+          action: 'savemappings',
+          defaultMonth: defItem ? defItem.label : '',
+          mappings: cleaned
+        })
       });
     } catch {}
   }, [currentTab]);

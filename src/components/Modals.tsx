@@ -1590,31 +1590,83 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.৪ কাস্টম মান্থ ম্যাপিং সিঙ্ক (SAVE MAPPINGS)
-    if (action === 'savemappings') {
+    // ৫.৪ কাস্টম মান্থ ম্যাপিং ও ডিফল্ট মাস সিঙ্ক (SAVE MAPPINGS - ডাটা ক্লিয়ার না করে নিরাপদ সিঙ্ক)
+    if (action === 'savemappings' || action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
       var mapSheet = ss.getSheetByName('month mapping');
       if (!mapSheet) {
         mapSheet = ss.insertSheet('month mapping');
       }
-      mapSheet.clear();
-      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
-      mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
-      mapSheet.setFrozenRows(1);
-      
+
+      var lastRow = mapSheet.getLastRow();
+      if (lastRow < 1) {
+        mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
+        try {
+          mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+          mapSheet.setFrozenRows(1);
+        } catch (e) {}
+      }
+
+      var defaultLabel = String(data.defaultMonth || data.defaultLabel || data.default || '').trim().toLowerCase();
       var maps = Array.isArray(data.mappings) ? data.mappings : [];
-      for (var m = 0; m < maps.length; m++) {
-        var item = maps[m];
-        if (item && item.label) {
-          var isDef = item.isDefault === true ||
-                      String(item.isDefault).toLowerCase() === 'true' ||
-                      String(item.isDefault).toLowerCase() === 'default' ||
-                      String(item.defaultMonth || item['default month']).toLowerCase() === 'default';
-          mapSheet.appendRow([item.startDate, item.endDate, item.label, isDef ? 'default' : '']);
+
+      // Find default label from maps array if not explicitly passed
+      for (var d = 0; d < maps.length; d++) {
+        var mItem = maps[d];
+        if (mItem && (mItem.isDefault === true || String(mItem.isDefault).toLowerCase() === 'true' || String(mItem.isDefault).toLowerCase() === 'default' || String(mItem.defaultMonth).toLowerCase() === 'default')) {
+          defaultLabel = String(mItem.label || '').trim().toLowerCase();
+          break;
         }
       }
+
+      // Map existing sheet rows by Mapping Month
+      var existingData = mapSheet.getDataRange().getValues();
+      var rowMap = {};
+      for (var r = 1; r < existingData.length; r++) {
+        var existingLabel = String(existingData[r][2] || '').trim().toLowerCase();
+        if (existingLabel) {
+          rowMap[existingLabel] = r + 1; // 1-based row number
+        }
+      }
+
+      // Upsert mappings from payload without clearing sheet
+      for (var k = 0; k < maps.length; k++) {
+        var item = maps[k];
+        if (item && item.label) {
+          var itemLabelClean = String(item.label).trim().toLowerCase();
+          var isThisDefault = item.isDefault === true ||
+                              String(item.isDefault).toLowerCase() === 'true' ||
+                              String(item.isDefault).toLowerCase() === 'default' ||
+                              (defaultLabel && itemLabelClean === defaultLabel);
+
+          if (rowMap[itemLabelClean]) {
+            var targetRow = rowMap[itemLabelClean];
+            if (item.startDate) mapSheet.getRange(targetRow, 1).setValue(item.startDate);
+            if (item.endDate) mapSheet.getRange(targetRow, 2).setValue(item.endDate);
+            mapSheet.getRange(targetRow, 4).setValue(isThisDefault ? 'default' : '');
+          } else {
+            mapSheet.appendRow([item.startDate || '', item.endDate || '', item.label, isThisDefault ? 'default' : '']);
+            rowMap[itemLabelClean] = mapSheet.getLastRow();
+          }
+        }
+      }
+
+      // Update Column D for all rows in sheet if defaultLabel is specified
+      if (defaultLabel) {
+        var fullData = mapSheet.getDataRange().getValues();
+        for (var idx = 1; idx < fullData.length; idx++) {
+          var labelInSheet = String(fullData[idx][2] || '').trim().toLowerCase();
+          var targetRowIndex = idx + 1;
+          if (labelInSheet === defaultLabel) {
+            mapSheet.getRange(targetRowIndex, 4).setValue('default');
+          } else {
+            mapSheet.getRange(targetRowIndex, 4).setValue('');
+          }
+        }
+      }
+
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
-        message: 'মান্থ ম্যাপিং সেভ হয়েছে'
+        message: 'মান্থ ম্যাপিং ডাটা বজায় রেখে সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
