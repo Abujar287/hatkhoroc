@@ -1590,83 +1590,99 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.৪ কাস্টম মান্থ ম্যাপিং ও ডিফল্ট মাস সিঙ্ক (SAVE MAPPINGS - ডাটা ক্লিয়ার না করে নিরাপদ সিঙ্ক)
+    // ৫.৪ কাস্টম মান্থ ম্যাপিং ও ডিফল্ট মাস সিঙ্ক (SAVE MAPPINGS - ডেট অবজেক্ট রিকভারি, প্লেইন টেক্সট ফরম্যাট ও সিঙ্গল ডিফল্ট)
     if (action === 'savemappings' || action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
       var mapSheet = ss.getSheetByName('month mapping');
       if (!mapSheet) {
         mapSheet = ss.insertSheet('month mapping');
       }
 
-      var lastRow = mapSheet.getLastRow();
-      if (lastRow < 1) {
-        mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
-        try {
-          mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
-          mapSheet.setFrozenRows(1);
-        } catch (e) {}
-      }
-
-      var defaultLabel = String(data.defaultMonth || data.defaultLabel || data.default || '').trim().toLowerCase();
+      var defaultLabel = parseLabelString(data.defaultMonth || data.defaultLabel || data.default || '').toLowerCase();
       var maps = Array.isArray(data.mappings) ? data.mappings : [];
 
-      // Find default label from maps array if not explicitly passed
       for (var d = 0; d < maps.length; d++) {
         var mItem = maps[d];
         if (mItem && (mItem.isDefault === true || String(mItem.isDefault).toLowerCase() === 'true' || String(mItem.isDefault).toLowerCase() === 'default' || String(mItem.defaultMonth).toLowerCase() === 'default')) {
-          defaultLabel = String(mItem.label || '').trim().toLowerCase();
+          defaultLabel = parseLabelString(mItem.label || '').toLowerCase();
           break;
         }
       }
 
-      // Map existing sheet rows by Mapping Month
-      var existingData = mapSheet.getDataRange().getValues();
-      var rowMap = {};
-      for (var r = 1; r < existingData.length; r++) {
-        var existingLabel = String(existingData[r][2] || '').trim().toLowerCase();
-        if (existingLabel) {
-          rowMap[existingLabel] = r + 1; // 1-based row number
+      // ১. বিদ্যমান শিট রো পড়া (Google Sheets Auto Date Conversion রিকভারি সহ)
+      var rawValues = mapSheet.getDataRange().getValues();
+      var combinedMap = {};
+
+      if (rawValues.length > 1) {
+        for (var r = 1; r < rawValues.length; r++) {
+          var sDate = formatDateVal(rawValues[r][0]);
+          var eDate = formatDateVal(rawValues[r][1]);
+          var mLabel = parseLabelString(rawValues[r][2]);
+          var mDef = String(rawValues[r][3] || '').trim().toLowerCase();
+          if (mLabel) {
+            var key = mLabel.toLowerCase();
+            combinedMap[key] = {
+              startDate: sDate,
+              endDate: eDate,
+              label: mLabel,
+              isDefault: mDef === 'default' || mDef === 'true'
+            };
+          }
         }
       }
 
-      // Upsert mappings from payload without clearing sheet
+      // ২. নতুন পে-লোড এর ডাটা আপডেট ও মার্জ করা (Unique by Month Label)
       for (var k = 0; k < maps.length; k++) {
         var item = maps[k];
         if (item && item.label) {
-          var itemLabelClean = String(item.label).trim().toLowerCase();
-          var isThisDefault = item.isDefault === true ||
-                              String(item.isDefault).toLowerCase() === 'true' ||
-                              String(item.isDefault).toLowerCase() === 'default' ||
-                              (defaultLabel && itemLabelClean === defaultLabel);
+          var cleanL = parseLabelString(item.label);
+          var itemKey = cleanL.toLowerCase();
+          var isThisDef = item.isDefault === true ||
+                          String(item.isDefault).toLowerCase() === 'true' ||
+                          String(item.isDefault).toLowerCase() === 'default' ||
+                          (defaultLabel && itemKey === defaultLabel);
 
-          if (rowMap[itemLabelClean]) {
-            var targetRow = rowMap[itemLabelClean];
-            if (item.startDate) mapSheet.getRange(targetRow, 1).setValue(item.startDate);
-            if (item.endDate) mapSheet.getRange(targetRow, 2).setValue(item.endDate);
-            mapSheet.getRange(targetRow, 4).setValue(isThisDefault ? 'default' : '');
-          } else {
-            mapSheet.appendRow([item.startDate || '', item.endDate || '', item.label, isThisDefault ? 'default' : '']);
-            rowMap[itemLabelClean] = mapSheet.getLastRow();
+          combinedMap[itemKey] = {
+            startDate: formatDateVal(item.startDate) || (combinedMap[itemKey] ? combinedMap[itemKey].startDate : ''),
+            endDate: formatDateVal(item.endDate) || (combinedMap[itemKey] ? combinedMap[itemKey].endDate : ''),
+            label: cleanL,
+            isDefault: isThisDef
+          };
+          if (isThisDef) {
+            defaultLabel = itemKey;
           }
         }
       }
 
-      // Update Column D for all rows in sheet if defaultLabel is specified
-      if (defaultLabel) {
-        var fullData = mapSheet.getDataRange().getValues();
-        for (var idx = 1; idx < fullData.length; idx++) {
-          var labelInSheet = String(fullData[idx][2] || '').trim().toLowerCase();
-          var targetRowIndex = idx + 1;
-          if (labelInSheet === defaultLabel) {
-            mapSheet.getRange(targetRowIndex, 4).setValue('default');
-          } else {
-            mapSheet.getRange(targetRowIndex, 4).setValue('');
-          }
-        }
+      // ৩. কলামগুলো প্লেইন টেক্সট (@) ফরম্যাটে সেটিং যাতে গুগল শিট আবার ডেট অবজেক্টে কনভার্ট না করে
+      mapSheet.clearContents();
+      try {
+        mapSheet.getRange(1, 1, Math.max(mapSheet.getMaxRows(), 30), 4).setNumberFormat('@');
+      } catch (e) {}
+
+      mapSheet.getRange(1, 1, 1, 4).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month']]);
+      try {
+        mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+        mapSheet.setFrozenRows(1);
+      } catch (err) {}
+
+      var finalRows = [];
+      var keys = Object.keys(combinedMap);
+      var cleanDefKey = defaultLabel.replace(/[^a-z0-9]/g, '');
+
+      for (var i = 0; i < keys.length; i++) {
+        var obj = combinedMap[keys[i]];
+        var cleanKey = keys[i].replace(/[^a-z0-9]/g, '');
+        var isFinalDef = cleanDefKey ? (cleanKey === cleanDefKey) : obj.isDefault;
+        finalRows.push([obj.startDate, obj.endDate, obj.label, isFinalDef ? 'default' : '']);
+      }
+
+      if (finalRows.length > 0) {
+        mapSheet.getRange(2, 1, finalRows.length, 4).setValues(finalRows);
       }
 
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
-        message: 'মান্থ ম্যাপিং ডাটা বজায় রেখে সেভ হয়েছে'
+        message: 'মান্থ ম্যাপিং প্লেইন টেক্সট ফরম্যাটে সিঙ্ক সম্পন্ন'
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -1743,6 +1759,45 @@ function doGet(e) {
   // ৪. রো আপডেট
   if (action === 'update') {
     return handleUpdateRow(sheet, params);
+  }
+
+  // ৪.১ কাস্টম মান্থ ডিফল্ট সেট (GET পিন সাপোর্ট - ইনস্ট্যান্ট গুগল শিট আপডেট)
+  if (action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
+    var mapSheet = ss.getSheetByName('month mapping');
+    if (!mapSheet) {
+      mapSheet = ss.insertSheet('month mapping');
+    }
+    var targetDef = parseLabelString(params.defaultMonth || params.defaultLabel || params.default || params.month || '').toLowerCase();
+    var cleanTarget = targetDef.replace(/[^a-z0-9]/g, '');
+
+    var rawValues = mapSheet.getDataRange().getValues();
+    if (rawValues.length <= 1 || !rawValues[0][0]) {
+      mapSheet.getRange(1, 1, 1, 4).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month']]);
+      try {
+        mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+        mapSheet.setFrozenRows(1);
+      } catch (e) {}
+      rawValues = mapSheet.getDataRange().getValues();
+    }
+
+    if (rawValues.length > 1) {
+      for (var r = 1; r < rawValues.length; r++) {
+        var mLabel = parseLabelString(rawValues[r][2]).toLowerCase();
+        var cleanLabel = mLabel.replace(/[^a-z0-9]/g, '');
+        var targetRowIndex = r + 1;
+        var isMatch = cleanTarget && (cleanLabel === cleanTarget || (cleanLabel.length >= 3 && cleanTarget.length >= 3 && (cleanLabel.indexOf(cleanTarget) !== -1 || cleanTarget.indexOf(cleanLabel) !== -1)));
+        if (mLabel && isMatch) {
+          mapSheet.getRange(targetRowIndex, 4).setValue('default');
+        } else {
+          mapSheet.getRange(targetRowIndex, 4).setValue('');
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      defaultMonth: targetDef,
+      message: 'ডিফল্ট মাস সফলভাবে সেট হয়েছে: ' + targetDef
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 
   // ৫.১ একক ক্যাটাগরি নিচে যোগ (GET সাপোর্ট - আগের কিছু না মুছে নিচে যুক্ত)
@@ -2031,22 +2086,17 @@ function getMonthMappings(ss) {
   var rows = sheet.getDataRange().getValues();
   var mappings = [];
   for (var i = 1; i < rows.length; i++) {
-    var start = rows[i][0];
-    var end = rows[i][1];
-    var label = rows[i][2];
+    var start = formatDateVal(rows[i][0]);
+    var end = formatDateVal(rows[i][1]);
+    var label = parseLabelString(rows[i][2]);
     var rawDef = String(rows[i][3] || '').trim().toLowerCase();
     var isDef = rawDef === 'true' || rawDef === 'yes' || rawDef === 'default';
     
     if (label && start && end) {
-      var cleanLabel = String(label).trim();
-      if (label instanceof Date) {
-        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        cleanLabel = months[label.getMonth()] + '-' + label.getFullYear();
-      }
       mappings.push({
-        startDate: formatDateForMapping(start),
-        endDate: formatDateForMapping(end),
-        label: cleanLabel,
+        startDate: start,
+        endDate: end,
+        label: label,
         isDefault: isDef
       });
     }
@@ -2054,14 +2104,44 @@ function getMonthMappings(ss) {
   return mappings;
 }
 
-function formatDateForMapping(d) {
-  if (d instanceof Date) {
-    var y = d.getFullYear();
-    var m = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + day;
+// লেবেল থেকে টেক্সট এক্সট্রাক্ট করা (Date object support সহ)
+function parseLabelString(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[val.getMonth()] + '-' + val.getFullYear();
   }
-  return String(d).trim();
+  var str = String(val).trim();
+  if (str.indexOf('GMT') !== -1 || str.indexOf('Standard Time') !== -1) {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      var ms = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return ms[d.getMonth()] + '-' + d.getFullYear();
+    }
+  }
+  return str;
+}
+
+// ডেট ভ্যালু ফরম্যাট করা (YYYY-MM-DD)
+function formatDateVal(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    var y = val.getFullYear();
+    var m = String(val.getMonth() + 1).padStart(2, '0');
+    var d = String(val.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+  var str = String(val).trim();
+  if (str.indexOf('GMT') !== -1 || str.indexOf('Standard Time') !== -1) {
+    var dateObj = new Date(str);
+    if (!isNaN(dateObj.getTime())) {
+      var y2 = dateObj.getFullYear();
+      var m2 = String(dateObj.getMonth() + 1).padStart(2, '0');
+      var d2 = String(dateObj.getDate()).padStart(2, '0');
+      return y2 + '-' + m2 + '-' + d2;
+    }
+  }
+  return str;
 }
 `;
 
@@ -2078,7 +2158,7 @@ function formatDateForMapping(d) {
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[380px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[88vh] overflow-y-auto overscroll-contain space-y-3 my-auto"
+          className="bg-white text-[#0F172A] w-full max-w-[400px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[88vh] overflow-y-auto overscroll-contain space-y-3 my-auto"
           onClick={e => e.stopPropagation()}
         >
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -2095,6 +2175,19 @@ function formatDateForMapping(d) {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        {/* Warning Banner */}
+        <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 font-medium space-y-1">
+          <p className="font-extrabold flex items-center gap-1 text-amber-950">
+            <span>⚠️</span> {t('Crucial Google Apps Script Deployment Instructions:', 'জরুরী ধাপ (গুগল শিট আপডেট পাওয়ার জন্য):')}
+          </p>
+          <p className="text-[10px] leading-snug">
+            {t(
+              'After replacing code in Apps Script, click: Deploy > New deployment (or Deploy > Manage deployments > Edit > New Version) to activate updates.',
+              'অ্যাপস স্ক্রিপ্টে এই কোডটি পেস্ট করার পর অবশ্যই top menu থেকে Deploy > New deployment (অথবা Deploy > Manage deployments > Edit > New Version) দিতে হবে।'
+            )}
+          </p>
         </div>
 
         <div className="relative">

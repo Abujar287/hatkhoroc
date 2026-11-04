@@ -519,14 +519,34 @@ export default function App() {
   }, [currentTab]);
 
   const saveMonthMappings = useCallback(async (updated: MonthMapping[]) => {
-    const cleaned = updated.map((m, idx) => ({
-      id: String(m.id || `map_${idx}`),
-      startDate: normalizeDate(m.startDate),
-      endDate: normalizeDate(m.endDate),
-      label: cleanMappingLabel(m.label),
-      isDefault: Boolean(m.isDefault),
-      defaultMonth: m.isDefault ? 'default' : ''
-    })).filter(m => m.label && m.startDate && m.endDate);
+    // Determine target default month label if any entry is explicitly marked default
+    let targetDefaultKey = '';
+    for (let i = updated.length - 1; i >= 0; i--) {
+      if (updated[i].isDefault) {
+        targetDefaultKey = cleanMappingLabel(updated[i].label).toLowerCase();
+        break;
+      }
+    }
+
+    // Unique Map by label to prevent duplicate month rows
+    const uniqueMap = new Map<string, MonthMapping>();
+    updated.forEach((m, idx) => {
+      const cleanedLabel = cleanMappingLabel(m.label);
+      const key = cleanedLabel.toLowerCase();
+      if (key && m.startDate && m.endDate) {
+        const isDef = targetDefaultKey ? (key === targetDefaultKey) : Boolean(m.isDefault);
+        uniqueMap.set(key, {
+          id: String(m.id || `map_${idx}`),
+          startDate: normalizeDate(m.startDate),
+          endDate: normalizeDate(m.endDate),
+          label: cleanedLabel,
+          isDefault: isDef,
+          defaultMonth: isDef ? 'default' : ''
+        });
+      }
+    });
+
+    const cleaned = Array.from(uniqueMap.values());
 
     setMonthMappings(cleaned);
     try {
@@ -535,13 +555,19 @@ export default function App() {
       if (defItem) {
         localStorage.setItem(`app_default_selected_month_${currentTab}`, defItem.label);
       }
-      // Cloud Push
+      
+      // Dual Cloud Sync: POST + GET param ping for max reliability
+      const defMonthLabel = defItem ? defItem.label : '';
+      fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(defMonthLabel)}`, {
+        mode: 'no-cors'
+      }).catch(() => {});
+
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         body: JSON.stringify({
           action: 'savemappings',
-          defaultMonth: defItem ? defItem.label : '',
+          defaultMonth: defMonthLabel,
           mappings: cleaned
         })
       });
@@ -550,46 +576,62 @@ export default function App() {
 
   const handleSetDefaultMonth = useCallback((monthLabel: string) => {
     const cleanLabel = cleanMappingLabel(monthLabel) || monthLabel;
+    const targetKey = cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
+
     setSelectedMonth(cleanLabel);
     localStorage.setItem(`app_default_selected_month_${currentTab}`, cleanLabel);
 
-    setMonthMappings(prev => {
-      let found = false;
-      let updated: MonthMapping[] = prev.map((m): MonthMapping => {
-        const isMatch = m.label.toLowerCase() === cleanLabel.toLowerCase();
-        if (isMatch) found = true;
-        return { ...m, isDefault: isMatch };
+    let found = false;
+    const uniqueMap = new Map<string, MonthMapping>();
+
+    monthMappings.forEach(m => {
+      const rawLabel = cleanMappingLabel(m.label) || m.label;
+      const key = rawLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isMatch = key === targetKey || (key.length >= 3 && targetKey.length >= 3 && (key.includes(targetKey) || targetKey.includes(key)));
+      if (isMatch) found = true;
+      uniqueMap.set(key, {
+        ...m,
+        label: rawLabel,
+        isDefault: isMatch
       });
-
-      // If month label was not present in monthMappings array, auto-create a mapping
-      if (!found) {
-        const monthKey = getMonthKeyFromLabel(cleanLabel) || cleanLabel;
-        let startDate = `${monthKey}-01`;
-        let endDate = `${monthKey}-31`;
-        if (monthKey.includes('-')) {
-          const [y, m] = monthKey.split('-').map(Number);
-          if (!isNaN(y) && !isNaN(m)) {
-            const lastDay = new Date(y, m, 0).getDate();
-            startDate = `${y}-${String(m).padStart(2, '0')}-01`;
-            endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-          }
-        }
-        const newMapping: MonthMapping = {
-          id: Date.now().toString(),
-          label: cleanLabel,
-          startDate,
-          endDate,
-          isDefault: true
-        };
-        updated = [...updated.map((m): MonthMapping => ({ ...m, isDefault: false })), newMapping];
-      }
-
-      saveMonthMappings(updated);
-      return updated;
     });
 
+    if (!found) {
+      const monthKey = getMonthKeyFromLabel(cleanLabel) || cleanLabel;
+      let startDate = `${monthKey}-01`;
+      let endDate = `${monthKey}-31`;
+      if (monthKey.includes('-')) {
+        const [y, m] = monthKey.split('-').map(Number);
+        if (!isNaN(y) && !isNaN(m)) {
+          const lastDay = new Date(y, m, 0).getDate();
+          startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+          endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        }
+      }
+      uniqueMap.set(targetKey, {
+        id: Date.now().toString(),
+        label: cleanLabel,
+        startDate,
+        endDate,
+        isDefault: true
+      });
+    }
+
+    const updatedList = Array.from(uniqueMap.values());
+
+    // 1. Update React State
+    setMonthMappings(updatedList);
+
+    // 2. Synchronous Cloud Push
+    saveMonthMappings(updatedList);
+
+    // 3. Direct GET Parameter Cloud Ping
+    fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(cleanLabel)}&sheetTab=${encodeURIComponent(currentTab)}`, {
+      mode: 'no-cors'
+    }).catch(() => {});
+
     showToast(lang === 'en' ? `'${cleanLabel}' set as default month` : `'${cleanLabel}' ডিফল্ট মাস করা হয়েছে`, 'success');
-  }, [currentTab, saveMonthMappings, showToast, lang]);
+  }, [currentTab, monthMappings, saveMonthMappings, showToast, lang]);
 
   const currentMonthValue = useMemo(() => {
     const now = new Date();
@@ -683,24 +725,37 @@ export default function App() {
         
         const rawMappings = data.monthMappings || data.mappings;
         if (Array.isArray(rawMappings)) {
-          const normalized: MonthMapping[] = rawMappings.map((m: any, idx: number) => {
+          const mapDeduplicated = new Map<string, MonthMapping>();
+          rawMappings.forEach((m: any, idx: number) => {
             const rawLabel = m.label || m.MappingMonth || m['Mapping Month'] || '';
             const cleanedLabel = cleanMappingLabel(rawLabel) || `Custom-${idx + 1}`;
-            const defaultVal = m.isDefault ?? m.IsDefault ?? m['Is Default'] ?? m['is_default'] ?? m['default month'] ?? m['Default Month'] ?? m['default_month'] ?? m['default'] ?? m['Default'];
-            const rawIsDefault = Boolean(
-              defaultVal === true ||
-              String(defaultVal).toLowerCase() === 'true' ||
-              String(defaultVal).toLowerCase() === 'yes' ||
-              String(defaultVal).toLowerCase() === 'default'
-            );
-            return {
-              id: String(m.id || `map_${idx}_${Date.now()}`),
-              startDate: normalizeDate(m.startDate || m.StartDate || m['Start Date']),
-              endDate: normalizeDate(m.endDate || m.EndDate || m['End Date']),
-              label: cleanedLabel,
-              isDefault: rawIsDefault
-            };
-          }).filter((m: any) => m.label && m.startDate && m.endDate);
+            const key = cleanedLabel.toLowerCase();
+            const sDate = normalizeDate(m.startDate || m.StartDate || m['Start Date']);
+            const eDate = normalizeDate(m.endDate || m.EndDate || m['End Date']);
+            
+            if (key && sDate && eDate) {
+              const defaultVal = m.isDefault ?? m.IsDefault ?? m['Is Default'] ?? m['is_default'] ?? m['default month'] ?? m['Default Month'] ?? m['default_month'] ?? m['default'] ?? m['Default'];
+              const rawIsDefault = Boolean(
+                defaultVal === true ||
+                String(defaultVal).toLowerCase() === 'true' ||
+                String(defaultVal).toLowerCase() === 'yes' ||
+                String(defaultVal).toLowerCase() === 'default'
+              );
+
+              const existing = mapDeduplicated.get(key);
+              const finalDef = rawIsDefault || Boolean(existing && existing.isDefault);
+
+              mapDeduplicated.set(key, {
+                id: String(m.id || `map_${idx}_${Date.now()}`),
+                startDate: sDate,
+                endDate: eDate,
+                label: cleanedLabel,
+                isDefault: finalDef
+              });
+            }
+          });
+
+          const normalized = Array.from(mapDeduplicated.values());
 
           setMonthMappings(normalized);
           localStorage.setItem(`app_month_mappings_${tabToSync}`, JSON.stringify(normalized));

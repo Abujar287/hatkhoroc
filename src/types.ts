@@ -50,5 +50,6 @@ export interface MonthMapping {
   endDate: string;   // YYYY-MM-DD
   label: string;     // e.g., "Oct-2026"
   isDefault?: boolean;
+  defaultMonth?: string;
 }
 
