@@ -830,8 +830,8 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const full = `${emoji} ${name.trim()}`;
-    onAdd(full, type);
+    const cleanName = cleanCategoryName(name.trim(), lang) || name.trim();
+    onAdd(cleanName, type);
     onClose();
   };
 
@@ -842,7 +842,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 text-slate-100 w-full max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl relative border border-slate-700/50 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain my-auto"
+          className="bg-slate-800 text-slate-100 w-full max-w-sm rounded-2xl p-4 sm:p-5 shadow-2xl relative border border-slate-700/50 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain my-auto"
           onClick={e => e.stopPropagation()}
         >
         <div className="flex items-center justify-between border-b border-slate-700/50 pb-2.5 mb-3">
@@ -861,60 +861,20 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
-          {/* Emoji Selection Grid - FULL VIEW WITHOUT ANY INNER SCROLL */}
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-semibold text-slate-300">
-                {t('Pick Emoji Icon', 'আইকন বা ইমোজি নির্বাচন করুন')}
-              </label>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <span>{t('Selected:', 'নির্বাচিত:')}</span>
-                <span className="text-base p-0.5 bg-slate-900 border border-indigo-500/50 rounded-lg inline-flex items-center justify-center w-6 h-6">{emoji}</span>
-              </div>
-            </div>
-            
-            {/* Full grid with NO inner scrollbar - all emojis fully visible */}
-            <div className="grid grid-cols-8 sm:grid-cols-9 gap-1.5 p-2.5 bg-slate-900/90 rounded-xl border border-slate-700/60 overflow-visible">
-              {presetEmojis.map(em => {
-                const isSelected = emoji === em;
-                return (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => setEmoji(em)}
-                    className={`h-9 rounded-xl text-base flex items-center justify-center cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white scale-110 shadow-lg shadow-indigo-600/50 ring-2 ring-indigo-400 z-10'
-                        : 'bg-slate-800/80 hover:bg-slate-700 hover:scale-105 border border-slate-700/40 text-slate-100'
-                    }`}
-                    title={em}
-                  >
-                    {em}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+            <label className="text-[11px] font-semibold text-slate-300 block mb-1.5">
               {t('Category Name', 'ক্যাটাগরির নাম')}
             </label>
-            <div className="flex items-center gap-2">
-              <span className="text-xl p-2 bg-slate-900 border border-slate-700 rounded-xl shrink-0 flex items-center justify-center w-11 h-11">
-                {emoji}
-              </span>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder={t('e.g., Gym, Coffee, Netflix', 'যেমন: জিম, কফি, কেনাকাটা')}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
-                required
-                autoFocus
-              />
-            </div>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('e.g., Gym, Bajar, Electricity', 'যেমন: বাজার, বিদ্যুৎ, যাতায়াত')}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+              required
+              autoFocus
+            />
           </div>
 
           <button

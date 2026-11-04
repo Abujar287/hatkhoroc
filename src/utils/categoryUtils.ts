@@ -3,8 +3,8 @@ export function cleanCategoryName(cat: string, targetLang: 'en' | 'bn' = 'en'): 
 
   let cleaned = String(cat).trim();
 
-  // 1. Strip leading emojis and symbols
-  cleaned = cleaned.replace(/^[\p{Extended_Pictographic}\p{Emoji}\s]+/u, '').trim();
+  // 1. Strip all emojis and symbols
+  cleaned = cleaned.replace(/[\p{Extended_Pictographic}\p{Emoji}]/gu, '').trim();
 
   // 2. Remove redundant 'expense', 'expanse', 'income', etc.
   cleaned = cleaned

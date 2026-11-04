@@ -1,25 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  PieChart,
   Calendar,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
-  AlertTriangle,
   CheckCircle2,
   Sliders,
-  Plus
+  Plus,
+  Search,
+  Check,
+  X,
+  Layers,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Transaction } from '../types';
 import { DEFAULT_INCOME_CATEGORIES } from '../constants';
 import {
   normalizeDate,
   formatNumberLocale,
-  formatDateShortDemo,
   findMonthMapping,
   getMonthKeyFromLabel
 } from '../utils/dateUtils';
-import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { cleanCategoryName } from '../utils/categoryUtils';
 
 export interface CategoryBudgetRow {
   category: string;
@@ -58,63 +60,123 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   monthMappings,
   onSaveBudget
 }) => {
-  // Category-wise budgets stored per tab and per month: { [categoryName]: number }
-  const storageKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
+  const budgetStorageKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
+  const selectedCatsStorageKey = `app_selected_budget_cats_${currentTab}_${selectedMonth}`;
+
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      const saved = localStorage.getItem(budgetStorageKey);
+      if (saved) return JSON.parse(saved);
     } catch {}
     return {};
   });
 
-  const currentMapping = useMemo(() => {
-    return findMonthMapping(monthMappings, selectedMonth);
-  }, [monthMappings, selectedMonth]);
-
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const debounceTimerRef = React.useRef<any>(null);
+  const debounceTimerRef = useRef<any>(null);
 
-  // Filter out any income categories to strictly display and store only Expense categories
+  // Modal state for selecting categories for budget
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [modalSearch, setModalSearch] = useState('');
+
+  // Strictly filter to ONLY pure Expense categories (exclude all income categories)
   const validExpenseCategories = useMemo(() => {
     const incomeSet = new Set(
-      (incomeCategories || DEFAULT_INCOME_CATEGORIES).map(c => cleanCategoryName(c, 'en').toLowerCase().trim())
+      (incomeCategories || DEFAULT_INCOME_CATEGORIES).map(c =>
+        cleanCategoryName(c, 'en').toLowerCase().trim()
+      )
     );
-    const knownIncomeWords = ['salary', 'arrear', 'borrowed', 'borrowed money', 'business', 'bonus', 'other income', 'income', 'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'অন্যান্য আয়', 'অন্যান্য আয়', 'আয়', 'আয়'];
-    
-    return expenseCategories.filter(cat => {
-      const cleanEn = cleanCategoryName(cat, 'en').toLowerCase().trim();
-      const cleanBn = cleanCategoryName(cat, 'bn').toLowerCase().trim();
-      if (incomeSet.has(cleanEn) || incomeSet.has(cleanBn)) return false;
+    const knownIncomeWords = [
+      'salary', 'arrear', 'borrowed', 'borrowed money', 'business', 'bonus', 'other income', 'income',
+      'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'অন্যান্য আয়', 'অন্যান্য আয়', 'আয়', 'আয়'
+    ];
+
+    const list: Array<{ rawName: string; cleanName: string }> = [];
+    const seen = new Set<string>();
+
+    (expenseCategories || []).forEach(cat => {
+      const cleanEn = cleanCategoryName(cat, 'en');
+      if (!cleanEn) return;
+      const lower = cleanEn.toLowerCase();
+      if (seen.has(lower) || incomeSet.has(lower)) return;
       for (const word of knownIncomeWords) {
-        if (cleanEn === word || cleanBn === word || cleanEn.startsWith(word + ' ') || cleanBn.startsWith(word + ' ')) {
-          return false;
-        }
+        if (lower === word || lower.startsWith(word + ' ')) return;
       }
-      return true;
+      seen.add(lower);
+      list.push({
+        rawName: cat,
+        cleanName: cleanEn
+      });
     });
+
+    return list;
   }, [expenseCategories, incomeCategories]);
 
-  // Reload category budgets when selectedMonth or currentTab changes
+  // Selected categories that appear in the budget list
+  const [selectedCategoryNames, setSelectedCategoryNames] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(selectedCatsStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  // Reload category budgets & selected list when selectedMonth or currentTab changes
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
-      if (saved) {
-        setCategoryBudgets(JSON.parse(saved));
+      const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
+      if (savedBudgets) {
+        setCategoryBudgets(JSON.parse(savedBudgets));
       } else {
         setCategoryBudgets({});
       }
     } catch {
       setCategoryBudgets({});
     }
-  }, [currentTab, selectedMonth]);
 
-  // Total budget is derived directly from category budgets
-  const totalBudget = useMemo(() => {
-    return Object.values(categoryBudgets).reduce((sum, b) => sum + (Number(b) || 0), 0);
-  }, [categoryBudgets]);
+    try {
+      const savedCats = localStorage.getItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`);
+      if (savedCats) {
+        const parsed = JSON.parse(savedCats);
+        if (Array.isArray(parsed)) {
+          // Keep only valid expense categories
+          const validSet = new Set(validExpenseCategories.map(c => c.cleanName.toLowerCase()));
+          const filtered = parsed.filter(c => validSet.has(c.toLowerCase()));
+          setSelectedCategoryNames(filtered);
+          return;
+        }
+      }
+    } catch {}
+
+    // If nothing saved for this month, default to categories that already have a budget > 0
+    try {
+      const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
+      if (savedBudgets) {
+        const parsedB = JSON.parse(savedBudgets);
+        const existingWithBudget = Object.keys(parsedB).filter(k => {
+          const lower = k.toLowerCase();
+          return Number(parsedB[k]) > 0 && validExpenseCategories.some(c => c.cleanName.toLowerCase() === lower);
+        });
+        if (existingWithBudget.length > 0) {
+          setSelectedCategoryNames(existingWithBudget);
+          return;
+        }
+      }
+    } catch {}
+
+    // Fallback default: select the first 5 expense categories
+    const initialList = validExpenseCategories.slice(0, 5).map(c => c.cleanName);
+    setSelectedCategoryNames(initialList);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(initialList));
+    } catch {}
+  }, [currentTab, selectedMonth, validExpenseCategories]);
+
+  const currentMapping = useMemo(() => {
+    return findMonthMapping(monthMappings, selectedMonth);
+  }, [monthMappings, selectedMonth]);
 
   // Calculate actual spending per category for selected month (strictly expenses)
   const categorySpending = useMemo(() => {
@@ -124,7 +186,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     transactions.forEach(tx => {
       if (tx.type !== 'Expense') return;
       const cleanDate = normalizeDate(tx.date);
-      
       let isMatch = false;
       if (mapping) {
         isMatch = cleanDate >= mapping.startDate && cleanDate <= mapping.endDate;
@@ -143,53 +204,63 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     return spendingMap;
   }, [transactions, selectedMonth, monthMappings]);
 
+  // Total budget & spending derived directly from selected categories
+  const totalBudget = useMemo(() => {
+    return selectedCategoryNames.reduce((sum, cName) => sum + (Number(categoryBudgets[cName]) || 0), 0);
+  }, [selectedCategoryNames, categoryBudgets]);
+
   const totalSpent = useMemo(() => {
-    return Object.values(categorySpending).reduce((sum, s) => sum + (s || 0), 0);
-  }, [categorySpending]);
+    return selectedCategoryNames.reduce((sum, cName) => sum + (categorySpending[cName] || 0), 0);
+  }, [selectedCategoryNames, categorySpending]);
 
   const remainingBudget = totalBudget - totalSpent;
 
-  // Month display label
-  const monthLabel = useMemo(() => {
-    const mapping = findMonthMapping(monthMappings, selectedMonth);
-    if (mapping) {
-      return mapping.label;
-    }
+  // Sort selected categories DESC by highest value: (budget + spend)
+  const sortedSelectedCategories = useMemo(() => {
+    return [...selectedCategoryNames].sort((a, b) => {
+      const bBudget = Number(categoryBudgets[b]) || 0;
+      const bSpend = Number(categorySpending[b]) || 0;
+      const bTotal = bBudget + bSpend;
 
-    try {
-      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
-      const [y, m] = monthKey.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'long',
-        year: 'numeric'
-      });
-    } catch {
-      return selectedMonth;
-    }
-  }, [selectedMonth, lang, monthMappings]);
+      const aBudget = Number(categoryBudgets[a]) || 0;
+      const aSpend = Number(categorySpending[a]) || 0;
+      const aTotal = aBudget + aSpend;
 
-  // Auto-save budget handler - sends total budget (sum of categories) + category-wise breakdown (Mapping Month, Category, Budget, Spend, Remain)
-  const handlePerformSave = (newCatBudgets?: Record<string, number>) => {
+      if (bTotal !== aTotal) {
+        return bTotal - aTotal; // Descending: highest on top
+      }
+      if (bBudget !== aBudget) {
+        return bBudget - aBudget;
+      }
+      if (bSpend !== aSpend) {
+        return bSpend - aSpend;
+      }
+      return a.localeCompare(b);
+    });
+  }, [selectedCategoryNames, categoryBudgets, categorySpending]);
+
+  // Auto-save budget handler - writes selected categories to Google Sheet as pure text (no icon)
+  const handlePerformSave = (
+    newCatBudgets?: Record<string, number>,
+    newSelectedCats?: string[]
+  ) => {
     const catsToUse = newCatBudgets || categoryBudgets;
-    const catSum = Object.values(catsToUse).reduce((sum, b) => sum + (Number(b) || 0), 0);
+    const selectedList = newSelectedCats || selectedCategoryNames;
 
-    // Compile distinct categories strictly from expense categories only
-    const allCategoryNames = Array.from(new Set(
-      validExpenseCategories.map(c => cleanCategoryName(c, 'en'))
-    )).filter(Boolean);
+    const catSum = selectedList.reduce((sum, cName) => sum + (Number(catsToUse[cName]) || 0), 0);
 
-    const categoryRows: CategoryBudgetRow[] = allCategoryNames.map(cName => {
-      const b = Number(catsToUse[cName] ?? 0);
-      const s = Number(categorySpending[cName] ?? 0);
+    const categoryRows: CategoryBudgetRow[] = selectedList.map(cName => {
+      const cleanPlainName = cleanCategoryName(cName, 'en') || cName;
+      const b = Number(catsToUse[cleanPlainName] ?? catsToUse[cName] ?? 0);
+      const s = Number(categorySpending[cleanPlainName] ?? categorySpending[cName] ?? 0);
       const r = b - s;
       return {
-        category: cName,
+        category: cleanPlainName,
         budget: b,
         spend: s,
         remain: r
       };
-    }).filter(row => row.budget > 0 || row.spend > 0);
+    });
 
     setSaveStatus('saving');
     if (onSaveBudget) {
@@ -203,7 +274,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   const handleBudgetChange = (category: string, value: string) => {
     const num = parseFloat(value) || 0;
-    const updated = { ...categoryBudgets, [category]: num };
+    const cleanPlainName = cleanCategoryName(category, 'en') || category;
+    const updated = { ...categoryBudgets, [cleanPlainName]: num };
     setCategoryBudgets(updated);
     try {
       localStorage.setItem(`app_category_budgets_${currentTab}_${selectedMonth}`, JSON.stringify(updated));
@@ -212,13 +284,68 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     // Auto store to sheet with 700ms debounce
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
-      handlePerformSave(updated);
+      handlePerformSave(updated, selectedCategoryNames);
     }, 700);
   };
 
+  // Toggle category inclusion in active budget list
+  const handleToggleCategory = (cleanName: string) => {
+    setSelectedCategoryNames(prev => {
+      const exists = prev.includes(cleanName);
+      const next = exists ? prev.filter(c => c !== cleanName) : [...prev, cleanName];
+      try {
+        localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
+      } catch {}
+      handlePerformSave(categoryBudgets, next);
+      return next;
+    });
+  };
+
+  // Select all expense categories
+  const handleSelectAll = () => {
+    const allNames = validExpenseCategories.map(c => c.cleanName);
+    setSelectedCategoryNames(allNames);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(allNames));
+    } catch {}
+    handlePerformSave(categoryBudgets, allNames);
+  };
+
+  // Deselect / Clear all categories
+  const handleDeselectAll = () => {
+    setSelectedCategoryNames([]);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify([]));
+    } catch {}
+    handlePerformSave(categoryBudgets, []);
+  };
+
+  // Remove category from active budget list
+  const handleRemoveCategory = (cleanName: string) => {
+    setSelectedCategoryNames(prev => {
+      const next = prev.filter(c => c !== cleanName);
+      try {
+        localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
+      } catch {}
+      handlePerformSave(categoryBudgets, next);
+      return next;
+    });
+  };
+
+  // Filtered categories for the selection modal
+  const filteredModalCategories = useMemo(() => {
+    const query = modalSearch.toLowerCase().trim();
+    if (!query) return validExpenseCategories;
+    return validExpenseCategories.filter(cat => {
+      const enMatch = cat.cleanName.toLowerCase().includes(query);
+      const rawMatch = cat.rawName.toLowerCase().includes(query);
+      const bnMatch = cleanCategoryName(cat.cleanName, 'bn').toLowerCase().includes(query);
+      return enMatch || rawMatch || bnMatch;
+    });
+  }, [validExpenseCategories, modalSearch]);
+
   // Month shift helper
   const handleShiftMonth = (delta: number) => {
-    // 1. Check if current matches a mapping
     const mapping = findMonthMapping(monthMappings, selectedMonth);
     if (mapping) {
       const mappingIdx = monthMappings.findIndex(m => m.id === mapping.id || m.label === mapping.label);
@@ -231,7 +358,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
     }
 
-    // 2. Standard YYYY-MM logic
     const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
     if (monthKey.includes('-')) {
       const [y, m] = monthKey.split('-').map(Number);
@@ -252,7 +378,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     const opts: { val: string; label: string }[] = [];
     const mappedMonthKeys = new Set<string>();
     
-    // Add custom mappings first
     monthMappings.forEach(m => {
       opts.push({
         val: m.label,
@@ -279,6 +404,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     }
     return opts;
   }, [lang, monthMappings]);
+
+  const allSelected = validExpenseCategories.length > 0 && selectedCategoryNames.length === validExpenseCategories.length;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 animate-fadeIn pb-16">
@@ -357,22 +484,22 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* CATEGORY-WISE BUDGET LIST */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center shrink-0">
               <Sliders className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-tight truncate">
-                {t('Category-wise Monthly Budgets', 'ক্যাটাগরি ভিত্তিক মাসিক বাজেট')}
+                {t('Selected Expense Budgets', 'নির্বাচিত খরচের বাজেট')}
               </h3>
               <p className="text-[10px] text-slate-500 font-mono">
-                {validExpenseCategories.length} {t('expense categories', 'টি খরচের ক্যাটাগরি')}
+                {selectedCategoryNames.length} {t('expense categories active', 'টি খরচের ক্যাটাগরি যুক্ত')}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {saveStatus === 'saving' && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold animate-pulse">
                 <div className="w-2.5 h-2.5 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
@@ -385,100 +512,269 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                 <span>{t('Auto Saved to Sheet ✓', 'অটো সেভ হয়েছে ✓')}</span>
               </div>
             )}
+
+            {/* SINGLE + BUTTON ON THE RIGHT OF THE HEADER LINE */}
+            <button
+              type="button"
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-xs"
+              title={t('Select Expense Categories', 'খরচের ক্যাটাগরি বাছুন')}
+            >
+              <Plus className="w-4 h-4 text-white" />
+            </button>
           </div>
         </div>
 
-        <div className="space-y-3 pt-1">
-          {validExpenseCategories.map(cat => {
-            const catClean = cleanCategoryName(cat, 'en');
-            const budgetVal = categoryBudgets[catClean] || categoryBudgets[cat] || 0;
-            const spentVal = categorySpending[catClean] || 0;
-            const pct = budgetVal > 0 ? Math.min(100, (spentVal / budgetVal) * 100) : 0;
-            const isOver = budgetVal > 0 && spentVal > budgetVal;
-            const emoji = getCategoryEmoji(cat);
-            const colorClass = getCategoryColor(cat);
+        {/* ACTIVE BUDGET ITEMS - PURE TEXT ONLY (NO ICONS IN FRONT) */}
+        {sortedSelectedCategories.length === 0 ? (
+          <p className="text-center py-6 text-xs text-slate-400">
+            {t('No categories selected. Tap + above to select categories.', 'কোনো ক্যাটাগরি নির্বাচিত নেই। ক্যাটাগরি বাছতে উপরের + বাটনে চাপুন।')}
+          </p>
+        ) : (
+          <div className="space-y-2.5 pt-1">
+            {sortedSelectedCategories.map(catClean => {
+              const budgetVal = categoryBudgets[catClean] || 0;
+              const spentVal = categorySpending[catClean] || 0;
+              const pct = budgetVal > 0 ? Math.min(100, (spentVal / budgetVal) * 100) : 0;
+              const isOver = budgetVal > 0 && spentVal > budgetVal;
 
-            return (
-              <div
-                key={cat}
-                className="p-3 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2 shadow-2xs"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 shadow-xs ${colorClass} text-slate-900 font-bold`}>
-                      {emoji}
-                    </div>
+              return (
+                <div
+                  key={catClean}
+                  className="p-3 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2 shadow-2xs group relative hover:border-slate-300 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    {/* PLAIN TEXT CATEGORY TITLE (NO ICONS IN FRONT) */}
                     <div className="min-w-0">
-                      <span className="font-bold text-[#0F172A] text-xs truncate block">
-                        {cleanCategoryName(cat, lang)}
+                      <span className="font-bold text-[#0F172A] text-xs sm:text-[13px] truncate block leading-tight">
+                        {cleanCategoryName(catClean, lang)}
                       </span>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+
+                      <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
                         <span>
-                          {t('Spend:', 'খরচ:')} <strong className="text-[#EF4444] tabular-nums">{formatNumberLocale(spentVal, lang)}</strong>
+                          {t('Spend:', 'খরচ:')}{' '}
+                          <strong className="text-[#EF4444] tabular-nums font-bold">
+                            {formatNumberLocale(spentVal, lang)}
+                          </strong>
                         </span>
                         {budgetVal > 0 && (
                           <>
                             <span>•</span>
                             <span>
-                              {t('Remain:', 'অবশিষ্ট:')} <strong className={`tabular-nums ${budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
-                                {budgetVal - spentVal >= 0 ? '+' : ''}{formatNumberLocale(budgetVal - spentVal, lang)}
+                              {t('Remain:', 'অবশিষ্ট:')}{' '}
+                              <strong
+                                className={`tabular-nums font-bold ${
+                                  budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'
+                                }`}
+                              >
+                                {budgetVal - spentVal >= 0 ? '+' : ''}
+                                {formatNumberLocale(budgetVal - spentVal, lang)}
                               </strong>
                             </span>
                           </>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="text-right">
-                      <label className="text-[9px] text-slate-500 block font-semibold uppercase">
-                        {t('Budget Limit', 'বাজেট লিমিট')}
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={budgetVal || ''}
-                        onChange={e => {
-                          const cleanVal = e.target.value.replace(/[^0-9.]/g, '');
-                          handleBudgetChange(catClean, cleanVal);
-                        }}
-                        onBlur={() => {
-                          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-                          handlePerformSave();
-                        }}
-                        placeholder="0"
-                        className="w-24 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 tabular-nums"
-                      />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <label className="text-[9px] text-slate-500 block font-semibold uppercase">
+                          {t('Budget Limit', 'বাজেট লিমিট')}
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={budgetVal || ''}
+                          onChange={e => {
+                            const cleanVal = e.target.value.replace(/[^0-9.]/g, '');
+                            handleBudgetChange(catClean, cleanVal);
+                          }}
+                          onBlur={() => {
+                            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                            handlePerformSave();
+                          }}
+                          placeholder="0"
+                          className="w-24 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 tabular-nums"
+                        />
+                      </div>
+
+                      {/* QUICK REMOVE BUTTON */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCategory(catClean)}
+                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+                        title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
+
+                  {budgetVal > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-slate-500">
+                          {pct.toFixed(0)}% {t('used', 'ব্যবহৃত')}
+                        </span>
+                        <span className={isOver ? 'text-[#EF4444] font-bold' : 'text-[#16A34A] font-bold'}>
+                          {isOver
+                            ? `⚠️ ${t('Exceeded by', 'অতিরিক্ত')} ${formatNumberLocale(spentVal - budgetVal, lang)}`
+                            : `${formatNumberLocale(budgetVal - spentVal, lang)} ${t('remaining', 'অবশিষ্ট')}`}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            isOver ? 'bg-[#EF4444] animate-pulse' : 'bg-[#16A34A]'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* CATEGORY SELECTION MODAL - ONLY EXPENSE CATEGORIES & SELECT ALL OPTION */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
+            {/* MODAL HEADER */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/60">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-1.5">
+                  <Sliders className="w-4 h-4 text-slate-600" />
+                  <span>{t('Select Expense Categories', 'খরচের ক্যাটাগরি নির্বাচন করুন')}</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {t(
+                    'Pick which expense categories to include in this month’s budget',
+                    'এই মাসের বাজেটে কোন কোন খরচের ক্যাটাগরি রাখবেন তা নির্বাচন করুন'
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-slate-200/70 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* SEARCH & SELECT ALL / CLEAR ALL ACTION BAR */}
+            <div className="p-3 border-b border-slate-100 space-y-2.5 bg-white">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={modalSearch}
+                  onChange={e => setModalSearch(e.target.value)}
+                  placeholder={t('Search expense category...', 'খরচের ক্যাটাগরি খুঁজুন...')}
+                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400 focus:bg-white"
+                />
+              </div>
+
+              {/* SELECT ALL / DESELECT ALL BUTTONS */}
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                      allSelected
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>{t('Select All', 'সবগুলো সিলেক্ট করুন')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeselectAll}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer transition-all"
+                  >
+                    <Square className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{t('Clear All', 'সব মুছুন')}</span>
+                  </button>
                 </div>
 
-                {budgetVal > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-slate-500">
-                        {pct.toFixed(0)}% {t('used', 'ব্যবহৃত')}
-                      </span>
-                      <span className={isOver ? 'text-[#EF4444] font-bold' : 'text-[#16A34A] font-bold'}>
-                        {isOver
-                          ? `⚠️ ${t('Exceeded by', 'অতিরিক্ত খরচ')} ${formatNumberLocale(spentVal - budgetVal, lang)}`
-                          : `${formatNumberLocale(budgetVal - spentVal, lang)} ${t('remaining', 'অবশিষ্ট')}`}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300">
-                      <div
-                        className={`h-full transition-all duration-300 ${isOver ? 'bg-[#EF4444] animate-pulse' : 'bg-[#16A34A]'}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+                <span className="text-[11px] font-bold text-slate-600 tabular-nums">
+                  {selectedCategoryNames.length}/{validExpenseCategories.length} {t('selected', 'নির্বাচিত')}
+                </span>
               </div>
-            );
-          })}
+            </div>
+
+            {/* CATEGORIES LIST - PURE PLAIN TEXT (NO ICONS IN FRONT) */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 divide-y divide-slate-100">
+              {filteredModalCategories.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  {t('No expense categories found', 'কোনো খরচের ক্যাটাগরি পাওয়া যায়নি')}
+                </div>
+              ) : (
+                filteredModalCategories.map(cat => {
+                  const isSelected = selectedCategoryNames.includes(cat.cleanName);
+
+                  return (
+                    <div
+                      key={cat.cleanName}
+                      onClick={() => handleToggleCategory(cat.cleanName)}
+                      className={`pt-1.5 first:pt-0 pb-1.5 flex items-center justify-between gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-slate-100/90 font-medium'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {/* Checkbox indicator */}
+                        <div
+                          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
+                            isSelected
+                              ? 'bg-slate-900 border-slate-900 text-white shadow-2xs'
+                              : 'bg-white border-slate-300'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+
+                        {/* PURE PLAIN TEXT CATEGORY NAME (NO ICON PREPENDED) */}
+                        <span className="text-xs text-[#0F172A] font-semibold truncate block">
+                          {cleanCategoryName(cat.cleanName, lang)}
+                        </span>
+                      </div>
+
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {isSelected ? t('Active', 'যুক্ত') : ''}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div className="p-3 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3">
+              <div className="text-[11px] text-slate-500">
+                <strong className="text-slate-800">{selectedCategoryNames.length}</strong> {t('categories in budget', 'টি খরচের ক্যাটাগরি বাজেটে যুক্ত')}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
+              >
+                {t('Done', 'সম্পন্ন')}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
