@@ -393,7 +393,7 @@ export default function App() {
         }
       }
     } catch {}
-    return deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]);
+    return [];
   });
 
   const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
@@ -406,7 +406,7 @@ export default function App() {
         }
       }
     } catch {}
-    return deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]);
+    return [];
   });
 
   const [monthlyBudget, setMonthlyBudget] = useState<number>(() => {
@@ -423,17 +423,17 @@ export default function App() {
       const savedExp = localStorage.getItem(`app_expense_categories_${currentTab}`);
       if (savedExp) {
         const parsed = JSON.parse(savedExp);
-        setExpenseCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
+        setExpenseCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : []);
       } else {
-        setExpenseCategories(deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
+        setExpenseCategories([]);
       }
 
       const savedInc = localStorage.getItem(`app_income_categories_${currentTab}`);
       if (savedInc) {
         const parsed = JSON.parse(savedInc);
-        setIncomeCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
+        setIncomeCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : []);
       } else {
-        setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
+        setIncomeCategories([]);
       }
 
       const savedBudget = localStorage.getItem(`app_monthly_budget_${currentTab}`);
@@ -502,13 +502,20 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setMonthMappings(parsed.map((m: any, idx: number) => ({
+          const list = parsed.map((m: any, idx: number) => ({
             id: String(m.id || `map_${idx}`),
             startDate: normalizeDate(m.startDate),
             endDate: normalizeDate(m.endDate),
             label: cleanMappingLabel(m.label),
             isDefault: Boolean(m.isDefault)
-          })).filter(m => m.label && m.startDate && m.endDate));
+          })).filter(m => m.label && m.startDate && m.endDate);
+          setMonthMappings(list);
+
+          // Always set default month across the app
+          const def = list.find(m => m.isDefault);
+          if (def && def.label) {
+            setSelectedMonth(def.label);
+          }
           return;
         }
       }
@@ -634,28 +641,52 @@ export default function App() {
       localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(finalList));
     } catch {}
 
-    // Dual Cloud Sync: POST + GET param ping for max reliability
+    // Multi-Layer Cloud Sync to Google Sheet:
+    // 1. Server-side proxy /api/sheet-proxy (handles 302 redirect cleanly, returns JSON)
+    // 2. Direct POST with text/plain headers as fallback
+    // 3. GET param ping for redundancy
+    const payload = {
+      action: 'savebudget',
+      sheetTab: currentTab,
+      month: cleanLabel,
+      budget: totalBudget,
+      categoryBudgets: categoryBudgets || {},
+      categoryRows: categoryRows || [],
+      mappings: finalList
+    };
+
     try {
+      let isSaved = false;
+      try {
+        const proxyRes = await fetch('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (proxyRes.ok) {
+          isSaved = true;
+        }
+      } catch (proxyErr) {
+        console.warn('Proxy save error, trying direct POST:', proxyErr);
+      }
+
+      if (!isSaved) {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+      }
+
       fetch(`${GOOGLE_SCRIPT_URL}?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
         mode: 'no-cors'
       }).catch(() => {});
 
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify({
-          action: 'savebudget',
-          sheetTab: currentTab,
-          month: cleanLabel,
-          budget: totalBudget,
-          categoryBudgets: categoryBudgets || {},
-          categoryRows: categoryRows || [],
-          mappings: finalList
-        })
-      });
       showToast(lang === 'en' ? `Budget saved to Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে সেভ হয়েছে`, 'success');
     } catch (err) {
       console.error('Save budget error:', err);
+      showToast(lang === 'en' ? 'Budget saved locally' : 'বাজেট লোকালি সেভ হয়েছে', 'info');
     }
   }, [currentTab, monthMappings, showToast, lang]);
 
@@ -791,8 +822,19 @@ export default function App() {
   const handleManualSync = useCallback(async (tabToSync = currentTab) => {
     setIsSyncing(true);
     try {
-      const res = await fetch(`${GOOGLE_SCRIPT_URL}?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
-      const data = await res.json();
+      let data: any = null;
+      try {
+        const proxyRes = await fetch(`/api/sheet-proxy?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
+        data = await proxyRes.json();
+      } catch (proxyErr) {
+        console.warn('Proxy fetch failed, using direct fetch:', proxyErr);
+      }
+
+      if (!data || data.result !== 'success') {
+        const res = await fetch(`${GOOGLE_SCRIPT_URL}?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
+        data = await res.json();
+      }
+
       if (data && data.result === 'success') {
         if (Array.isArray(data.transactions)) {
           const formatted: Transaction[] = data.transactions.map((t: any) => ({
@@ -865,13 +907,31 @@ export default function App() {
           Object.keys(data.categoryBudgets).forEach(mKey => {
             try {
               localStorage.setItem(`app_category_budgets_${tabToSync}_${mKey}`, JSON.stringify(data.categoryBudgets[mKey]));
+              const cleanKey = cleanMappingLabel(mKey);
+              if (cleanKey && cleanKey !== mKey) {
+                localStorage.setItem(`app_category_budgets_${tabToSync}_${cleanKey}`, JSON.stringify(data.categoryBudgets[mKey]));
+              }
             } catch {}
           });
         }
 
         if (Array.isArray(data.categories) && data.categories.length > 0) {
-          const cloudExp = data.categories.filter((c: any) => String(c.type).toLowerCase() === 'expense').map((c: any) => c.category);
-          const cloudInc = data.categories.filter((c: any) => String(c.type).toLowerCase() === 'income').map((c: any) => c.category);
+          const cloudExp = data.categories
+            .filter((c: any) => {
+              const t = String(c.type || '').toLowerCase();
+              return t === 'expense' || t.includes('খরচ');
+            })
+            .map((c: any) => (typeof c === 'string' ? c : c.category || c.name || ''))
+            .filter(Boolean);
+
+          const cloudInc = data.categories
+            .filter((c: any) => {
+              const t = String(c.type || '').toLowerCase();
+              return t === 'income' || t.includes('আয়') || t.includes('আয়');
+            })
+            .map((c: any) => (typeof c === 'string' ? c : c.category || c.name || ''))
+            .filter(Boolean);
+
           if (cloudExp.length > 0) {
             setExpenseCategories(deduplicateCategories(cloudExp));
             localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(cloudExp));
@@ -1096,8 +1156,8 @@ export default function App() {
   // RENDER: APP
   // ----------------------------------------------------
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden bg-[#F8FAFC] flex flex-col items-center">
-      <div className={`w-full flex flex-col h-dvh bg-[#F8FAFC] relative ${viewMode === 'mobile' ? 'max-w-[430px] border-x border-slate-200' : 'max-w-6xl'}`}>
+    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#F8FAFC] flex flex-col items-center">
+      <div className={`w-full flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden ${viewMode === 'mobile' ? 'max-w-[430px] border-x border-slate-200' : 'max-w-6xl'}`}>
         
         {toast.show && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white rounded-2xl shadow-xl border animate-fadeIn text-xs font-bold">
@@ -1119,7 +1179,7 @@ export default function App() {
           monthMappings={monthMappings}
         />
 
-        <main className="flex-1 overflow-y-auto p-3">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3">
           {activeTab === 'summary' && (
             <SummaryTab
               transactions={transactions}
@@ -1199,17 +1259,24 @@ export default function App() {
           )}
         </main>
 
-        <nav className="bg-white border-t p-2 flex justify-around shadow-sm shrink-0">
+        <nav className="shrink-0 bg-white border-t border-slate-200 px-1 py-1.5 pb-safe flex justify-around items-center shadow-md z-40 w-full min-h-[56px]">
           {[
             { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
             { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
             { id: 'details' as const, label: 'Details', icon: ListOrdered },
             { id: 'budget' as const, label: 'Budget', icon: Sliders },
+            { id: 'users' as const, label: 'Users', icon: Users },
             { id: 'settings' as const, label: 'Settings', icon: Settings }
           ].filter(x => allowedTabs.includes(x.id)).map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex-1 flex flex-col items-center py-2 rounded-xl ${activeTab === item.id ? 'bg-slate-700 text-white' : 'text-slate-500'}`}>
-              <item.icon className="w-5 h-5" />
-              <span className="text-[10px] mt-1">{item.label}</span>
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
+                activeTab === item.id ? 'bg-slate-800 text-white font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <item.icon className="w-5 h-5 shrink-0" />
+              <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight leading-none truncate max-w-full">{item.label}</span>
             </button>
           ))}
         </nav>

@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
   const navItems = allNavItems.filter(item => allowedTabs.includes(item.id));
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-slate-200 text-[#0F172A] w-full shadow-sm">
+    <header className="shrink-0 z-40 bg-white border-b border-slate-200 text-[#0F172A] w-full shadow-sm pt-safe">
       <div className="w-full px-3 py-2 flex items-center justify-between">
         {/* Brand & Identity */}
         <div className="flex items-center gap-2">

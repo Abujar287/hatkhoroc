@@ -1,10 +1,18 @@
 @import "tailwindcss";
 
 @layer base {
-  html {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     -webkit-tap-highlight-color: transparent;
-    scroll-behavior: smooth;
-    font-size: 15px;
     color-scheme: light;
   }
   body {
@@ -15,8 +23,12 @@
     -moz-osx-font-smoothing: grayscale;
     touch-action: manipulation;
     font-weight: 400;
-    overflow-x: hidden;
-    color-scheme: light;
+  }
+  .pb-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+  .pt-safe {
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
   }
   button, input, select, textarea {
     touch-action: manipulation;

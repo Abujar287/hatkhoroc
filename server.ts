@@ -25,6 +25,40 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  const GOOGLE_SCRIPT_TARGET = process.env.VITE_GOOGLE_SCRIPT_URL ||
+    'https://script.google.com/macros/s/AKfycbwdR3oDJiUFWFopvUeLI-8r92-9uS-jRUdRKFW3CghmmIy84sQZjNEeEkY6yboG8g4z/exec';
+
+  app.all('/api/sheet-proxy', async (req, res) => {
+    try {
+      if (req.method === 'POST') {
+        const response = await fetch(GOOGLE_SCRIPT_TARGET, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(req.body)
+        });
+        const text = await response.text();
+        try {
+          return res.json(JSON.parse(text));
+        } catch {
+          return res.send(text);
+        }
+      } else {
+        const queryString = new URLSearchParams(req.query as any).toString();
+        const url = queryString ? `${GOOGLE_SCRIPT_TARGET}?${queryString}` : GOOGLE_SCRIPT_TARGET;
+        const response = await fetch(url);
+        const text = await response.text();
+        try {
+          return res.json(JSON.parse(text));
+        } catch {
+          return res.send(text);
+        }
+      }
+    } catch (error: any) {
+      console.error('Sheet proxy error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
     httpOptions: {
