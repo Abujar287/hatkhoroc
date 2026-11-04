@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -43,8 +43,10 @@ interface BudgetTabProps {
     monthLabel: string, 
     totalBudget: number, 
     categoryBudgets?: Record<string, number>,
-    categoryRows?: CategoryBudgetRow[]
+    categoryRows?: CategoryBudgetRow[],
+    removedCategories?: string[]
   ) => void;
+  onDeleteCategoryFromSheet?: (catName: string) => void;
 }
 
 export const BudgetTab: React.FC<BudgetTabProps> = ({
@@ -57,7 +59,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   t,
   currentTab,
   monthMappings,
-  onSaveBudget
+  onSaveBudget,
+  onDeleteCategoryFromSheet
 }) => {
   const budgetStorageKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
   const selectedCatsStorageKey = `app_selected_budget_cats_${currentTab}_${selectedMonth}`;
@@ -77,29 +80,15 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [modalSearch, setModalSearch] = useState('');
 
-  // Strictly filter to ONLY pure Expense categories (exclude all income categories)
+  // Expense categories for budget selection
   const validExpenseCategories = useMemo(() => {
-    const incomeSet = new Set(
-      (incomeCategories || []).map(c =>
-        cleanCategoryName(c, 'en').toLowerCase().trim()
-      )
-    );
-    const knownIncomeWords = [
-      'salary', 'arrear', 'borrowed', 'borrowed money', 'business', 'bonus', 'other income', 'income',
-      'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'অন্যান্য আয়', 'অন্যান্য আয়', 'আয়', 'আয়'
-    ];
-
     const list: Array<{ rawName: string; cleanName: string }> = [];
     const seen = new Set<string>();
 
     (expenseCategories || []).forEach(cat => {
-      const cleanEn = cleanCategoryName(cat, 'en');
-      if (!cleanEn) return;
+      const cleanEn = cleanCategoryName(cat, 'en') || cat;
       const lower = cleanEn.toLowerCase();
-      if (seen.has(lower) || incomeSet.has(lower)) return;
-      for (const word of knownIncomeWords) {
-        if (lower === word || lower.startsWith(word + ' ')) return;
-      }
+      if (seen.has(lower)) return;
       seen.add(lower);
       list.push({
         rawName: cat,
@@ -108,7 +97,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     });
 
     return list;
-  }, [expenseCategories, incomeCategories]);
+  }, [expenseCategories]);
 
   // Selected categories that appear in the budget list
   const [selectedCategoryNames, setSelectedCategoryNames] = useState<string[]>(() => {
@@ -121,49 +110,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     } catch {}
     return [];
   });
-
-  // Reload category budgets & selected list when selectedMonth or currentTab changes
-  useEffect(() => {
-    try {
-      const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
-      if (savedBudgets) {
-        setCategoryBudgets(JSON.parse(savedBudgets));
-      } else {
-        setCategoryBudgets({});
-      }
-    } catch {
-      setCategoryBudgets({});
-    }
-
-    try {
-      const savedCats = localStorage.getItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`);
-      if (savedCats) {
-        const parsed = JSON.parse(savedCats);
-        if (Array.isArray(parsed)) {
-          setSelectedCategoryNames(parsed);
-          return;
-        }
-      }
-    } catch {}
-
-    // If nothing saved in selectedCats, default ONLY to categories that actually have a budget > 0
-    try {
-      const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
-      if (savedBudgets) {
-        const parsedB = JSON.parse(savedBudgets);
-        const existingWithBudget = Object.keys(parsedB).filter(k => {
-          return Number(parsedB[k]) > 0;
-        });
-        if (existingWithBudget.length > 0) {
-          setSelectedCategoryNames(existingWithBudget);
-          return;
-        }
-      }
-    } catch {}
-
-    // DO NOT auto-populate fake categories when data in sheet is empty (data faka thakle dekhabe na)
-    setSelectedCategoryNames([]);
-  }, [currentTab, selectedMonth, validExpenseCategories]);
 
   const currentMapping = useMemo(() => {
     return findMonthMapping(monthMappings, selectedMonth);
@@ -230,6 +176,67 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     return spendingMap;
   }, [transactions, selectedMonth, monthMappings]);
 
+  // Robust getter for category spending
+  const getSpendVal = useCallback((cat: string, spendingMap: Record<string, number> = categorySpending) => {
+    const en = cleanCategoryName(cat, 'en');
+    const bn = cleanCategoryName(cat, 'bn');
+    const raw = String(cat).trim();
+    const alpha = en.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const candidates = [
+      en,
+      en.toLowerCase(),
+      alpha,
+      bn,
+      bn.toLowerCase(),
+      raw,
+      raw.toLowerCase()
+    ];
+
+    for (const key of candidates) {
+      if (key && spendingMap[key] !== undefined && Number(spendingMap[key]) > 0) {
+        return Number(spendingMap[key]);
+      }
+    }
+    return 0;
+  }, [categorySpending]);
+
+  // Reload category budgets & selected list when selectedMonth or currentTab changes
+  useEffect(() => {
+    let loadedBudgets: Record<string, number> = {};
+    try {
+      const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
+      if (savedBudgets) {
+        loadedBudgets = JSON.parse(savedBudgets);
+        setCategoryBudgets(loadedBudgets);
+      } else {
+        setCategoryBudgets({});
+      }
+    } catch {
+      setCategoryBudgets({});
+    }
+
+    try {
+      const savedCats = localStorage.getItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`);
+      if (savedCats) {
+        const parsed = JSON.parse(savedCats);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedCategoryNames(parsed);
+          return;
+        }
+      }
+    } catch {}
+
+    // Default to ALL valid expense categories automatically
+    const allNames = validExpenseCategories.map(c => c.cleanName);
+    setSelectedCategoryNames(allNames);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(allNames));
+    } catch {}
+    return;
+  }, [currentTab, selectedMonth, validExpenseCategories, getSpendVal]);
+
+  // Robust getter for category budget
   // Robust getter for category budget
   const getBudgetVal = (cat: string, budgetsMap: Record<string, number> = categoryBudgets) => {
     const en = cleanCategoryName(cat, 'en');
@@ -255,62 +262,28 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     return 0;
   };
 
-  // Robust getter for category spending
-  const getSpendVal = (cat: string) => {
-    const en = cleanCategoryName(cat, 'en');
-    const bn = cleanCategoryName(cat, 'bn');
-    const raw = String(cat).trim();
-    const alpha = en.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    const candidates = [
-      en,
-      en.toLowerCase(),
-      alpha,
-      bn,
-      bn.toLowerCase(),
-      raw,
-      raw.toLowerCase()
-    ];
-
-    for (const key of candidates) {
-      if (key && categorySpending[key] !== undefined && Number(categorySpending[key]) > 0) {
-        return Number(categorySpending[key]);
-      }
-    }
-    return 0;
-  };
-
-  // Derive visible categories: Only show categories that have budget > 0 OR spend > 0, or explicitly added by user
+  // Derive visible categories: Show ALL valid expense categories and any saved budgets
   const visibleCategories = useMemo(() => {
     const catSet = new Set<string>();
 
-    // 1. Any category with budget > 0 in this month's budgets
-    Object.keys(categoryBudgets).forEach(cKey => {
-      if (Number(categoryBudgets[cKey]) > 0) {
-        const clean = cleanCategoryName(cKey, 'en') || cKey;
-        catSet.add(clean);
-      }
-    });
-
-    // 2. Any category with actual spending > 0 in this month mapping range
+    // 1. All valid expense categories from sheet / app
     validExpenseCategories.forEach(c => {
-      if (getSpendVal(c.cleanName) > 0 || getBudgetVal(c.cleanName) > 0) {
-        catSet.add(c.cleanName);
-      }
+      catSet.add(c.cleanName);
     });
 
-    // 3. User explicitly selected categories from modal
+    // 2. Any category with saved budget
+    Object.keys(categoryBudgets).forEach(cKey => {
+      const clean = cleanCategoryName(cKey, 'en') || cKey;
+      catSet.add(clean);
+    });
+
+    // 3. User explicitly selected categories
     selectedCategoryNames.forEach(cName => {
       catSet.add(cName);
     });
 
-    // Filter out categories where BOTH budget and spend are 0 (sheet a data faka thakle dekhabe na)
-    return Array.from(catSet).filter(c => {
-      // If user explicitly checked it in selectedCategoryNames, let it be seen so they can type budget
-      if (selectedCategoryNames.includes(c)) return true;
-      return getBudgetVal(c) > 0 || getSpendVal(c) > 0;
-    });
-  }, [categoryBudgets, validExpenseCategories, categorySpending, selectedCategoryNames]);
+    return Array.from(catSet);
+  }, [categoryBudgets, validExpenseCategories, selectedCategoryNames]);
 
   // Total budget & spending derived directly from visible categories
   const totalBudget = useMemo(() => {
@@ -351,14 +324,20 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   // Auto-save budget handler - writes selected categories to Google Sheet sorted DESC
   const handlePerformSave = (
     newCatBudgets?: Record<string, number>,
-    newSelectedCats?: string[]
+    newSelectedCats?: string[],
+    removedCats?: string[]
   ) => {
-    const catsToUse = newCatBudgets || categoryBudgets;
+    const catsToUse = { ...(newCatBudgets || categoryBudgets) };
+
+    if (removedCats && removedCats.length > 0) {
+      removedCats.forEach(r => {
+        catsToUse[r] = 0;
+        const clean = cleanCategoryName(r, 'en') || r;
+        catsToUse[clean] = 0;
+      });
+    }
 
     // Collect all candidate categories:
-    // 1. Any category with budget > 0 in catsToUse
-    // 2. Any category currently in visibleCategories
-    // 3. Any category explicitly in newSelectedCats or selectedCategoryNames
     const catSet = new Set<string>();
 
     Object.keys(catsToUse).forEach(k => {
@@ -368,18 +347,23 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
     });
 
-    visibleCategories.forEach(c => {
-      const clean = cleanCategoryName(c, 'en') || c;
-      catSet.add(clean);
-    });
-
     const explicitList = newSelectedCats !== undefined ? newSelectedCats : selectedCategoryNames;
     explicitList.forEach(c => {
       const clean = cleanCategoryName(c, 'en') || c;
-      catSet.add(clean);
+      if (!removedCats || !removedCats.includes(clean)) {
+        catSet.add(clean);
+      }
+    });
+
+    visibleCategories.forEach(c => {
+      const clean = cleanCategoryName(c, 'en') || c;
+      if (!removedCats || !removedCats.includes(clean)) {
+        catSet.add(clean);
+      }
     });
 
     const activeList = Array.from(catSet).filter(c => {
+      if (removedCats && removedCats.includes(c)) return false;
       return getBudgetVal(c, catsToUse) > 0 || getSpendVal(c) > 0 || explicitList.includes(c);
     });
 
@@ -407,9 +391,22 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       };
     });
 
+    // Explicitly add any removed categories with budget: 0 to categoryRows so the sheet clears the row
+    if (removedCats && removedCats.length > 0) {
+      removedCats.forEach(r => {
+        const cleanPlainName = cleanCategoryName(r, 'en') || r;
+        categoryRows.push({
+          category: cleanPlainName,
+          budget: 0,
+          spend: getSpendVal(cleanPlainName),
+          remain: 0 - getSpendVal(cleanPlainName)
+        });
+      });
+    }
+
     setSaveStatus('saving');
     if (onSaveBudget) {
-      onSaveBudget(selectedMonth, catSum, catsToUse, categoryRows);
+      onSaveBudget(selectedMonth, catSum, catsToUse, categoryRows, removedCats);
     }
     setTimeout(() => {
       setSaveStatus('saved');
@@ -443,7 +440,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     try {
       localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
     } catch {}
-    handlePerformSave(categoryBudgets, next);
+    handlePerformSave(categoryBudgets, next, exists ? [cleanName] : []);
   };
 
   // Select all expense categories
@@ -462,7 +459,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     try {
       localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify([]));
     } catch {}
-    handlePerformSave(categoryBudgets, []);
+    handlePerformSave(categoryBudgets, [], selectedCategoryNames);
   };
 
   // Remove category from active budget list
@@ -475,7 +472,10 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       localStorage.setItem(`app_category_budgets_${currentTab}_${selectedMonth}`, JSON.stringify(updatedBudgets));
       localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
     } catch {}
-    handlePerformSave(updatedBudgets, next);
+    handlePerformSave(updatedBudgets, next, [cleanName]);
+    if (onDeleteCategoryFromSheet) {
+      onDeleteCategoryFromSheet(cleanName);
+    }
   };
 
   // Filtered categories for the selection modal
@@ -658,16 +658,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                 <span>{t('Auto Saved to Sheet ✓', 'অটো সেভ হয়েছে ✓')}</span>
               </div>
             )}
-
-            {/* SINGLE + BUTTON ON THE RIGHT OF THE HEADER LINE */}
-            <button
-              type="button"
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-xs"
-              title={t('Select Expense Categories', 'খরচের ক্যাটাগরি বাছুন')}
-            >
-              <Plus className="w-4 h-4 text-white" />
-            </button>
           </div>
         </div>
 

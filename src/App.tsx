@@ -393,7 +393,7 @@ export default function App() {
         }
       }
     } catch {}
-    return [];
+    return deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]);
   });
 
   const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
@@ -406,7 +406,7 @@ export default function App() {
         }
       }
     } catch {}
-    return [];
+    return deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]);
   });
 
   const [monthlyBudget, setMonthlyBudget] = useState<number>(() => {
@@ -423,17 +423,17 @@ export default function App() {
       const savedExp = localStorage.getItem(`app_expense_categories_${currentTab}`);
       if (savedExp) {
         const parsed = JSON.parse(savedExp);
-        setExpenseCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : []);
+        setExpenseCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
       } else {
-        setExpenseCategories([]);
+        setExpenseCategories(deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
       }
 
       const savedInc = localStorage.getItem(`app_income_categories_${currentTab}`);
       if (savedInc) {
         const parsed = JSON.parse(savedInc);
-        setIncomeCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : []);
+        setIncomeCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
       } else {
-        setIncomeCategories([]);
+        setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
       }
 
       const savedBudget = localStorage.getItem(`app_monthly_budget_${currentTab}`);
@@ -587,14 +587,24 @@ export default function App() {
     monthLabel: string, 
     totalBudget: number, 
     categoryBudgets?: Record<string, number>,
-    categoryRows?: Array<{ category: string; budget: number; spend: number; remain: number }>
+    categoryRows?: Array<{ category: string; budget: number; spend: number; remain: number }>,
+    removedCategories?: string[]
   ) => {
     const cleanLabel = cleanMappingLabel(monthLabel) || monthLabel;
     const targetKey = cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+    const cleanBudgets = { ...(categoryBudgets || {}) };
+    if (removedCategories && removedCategories.length > 0) {
+      removedCategories.forEach(r => {
+        cleanBudgets[r] = 0;
+        const clean = cleanCategoryName(r, 'en') || r;
+        cleanBudgets[clean] = 0;
+      });
+    }
+
     if (categoryBudgets) {
       try {
-        localStorage.setItem(`app_category_budgets_${currentTab}_${cleanLabel}`, JSON.stringify(categoryBudgets));
+        localStorage.setItem(`app_category_budgets_${currentTab}_${cleanLabel}`, JSON.stringify(cleanBudgets));
       } catch {}
     }
 
@@ -650,9 +660,11 @@ export default function App() {
       sheetTab: currentTab,
       month: cleanLabel,
       budget: totalBudget,
-      categoryBudgets: categoryBudgets || {},
+      categoryBudgets: cleanBudgets,
       categoryRows: categoryRows || [],
-      mappings: finalList
+      mappings: finalList,
+      removedCategories: removedCategories || [],
+      deletedCategory: (removedCategories && removedCategories.length > 0) ? removedCategories[0] : undefined
     };
 
     try {
@@ -683,7 +695,22 @@ export default function App() {
         mode: 'no-cors'
       }).catch(() => {});
 
-      showToast(lang === 'en' ? `Budget saved to Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে সেভ হয়েছে`, 'success');
+      // If removedCategories were specified, ensure sheet removes them
+      if (removedCategories && removedCategories.length > 0) {
+        removedCategories.forEach(rCat => {
+          fetch('/api/sheet-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'deletecategory',
+              sheetTab: currentTab,
+              category: rCat
+            })
+          }).catch(() => {});
+        });
+      }
+
+      showToast(lang === 'en' ? `Budget updated in Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে আপডেট হয়েছে`, 'success');
     } catch (err) {
       console.error('Save budget error:', err);
       showToast(lang === 'en' ? 'Budget saved locally' : 'বাজেট লোকালি সেভ হয়েছে', 'info');
@@ -915,31 +942,60 @@ export default function App() {
           });
         }
 
-        if (Array.isArray(data.categories) && data.categories.length > 0) {
-          const cloudExp = data.categories
-            .filter((c: any) => {
-              const t = String(c.type || '').toLowerCase();
-              return t === 'expense' || t.includes('খরচ');
-            })
-            .map((c: any) => (typeof c === 'string' ? c : c.category || c.name || ''))
-            .filter(Boolean);
+        const knownIncomeWords = ['salary', 'arrear', 'borrowed', 'bonus', 'business', 'other income', 'income', 'loan', 'previous month arrears', 'বেতন', 'বকেয়া', 'ধার', 'ব্যবসা', 'বোনাস', 'আয়', 'আয়'];
+        const isIncomeCat = (catName: string) => {
+          const clean = cleanCategoryName(catName, 'en').toLowerCase().trim();
+          return knownIncomeWords.some(w => clean === w || clean.startsWith(w + ' ') || clean.endsWith(' ' + w));
+        };
 
-          const cloudInc = data.categories
-            .filter((c: any) => {
-              const t = String(c.type || '').toLowerCase();
-              return t === 'income' || t.includes('আয়') || t.includes('আয়');
-            })
-            .map((c: any) => (typeof c === 'string' ? c : c.category || c.name || ''))
-            .filter(Boolean);
+        const aggregatedExp: string[] = [...DEFAULT_EXPENSE_CATEGORIES];
+        const aggregatedInc: string[] = [...DEFAULT_INCOME_CATEGORIES];
 
-          if (cloudExp.length > 0) {
-            setExpenseCategories(deduplicateCategories(cloudExp));
-            localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(cloudExp));
-          }
-          if (cloudInc.length > 0) {
-            setIncomeCategories(deduplicateCategories(cloudInc));
-            localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(cloudInc));
-          }
+        if (Array.isArray(data.categories)) {
+          data.categories.forEach((c: any) => {
+            const name = typeof c === 'string' ? c : c.category || c.name || '';
+            const t = String(c.type || '').toLowerCase();
+            if (name) {
+              if (t === 'income' || t.includes('আয়') || isIncomeCat(name)) {
+                aggregatedInc.push(name);
+              } else {
+                aggregatedExp.push(name);
+              }
+            }
+          });
+        }
+
+        if (data.categoryBudgets && typeof data.categoryBudgets === 'object') {
+          Object.values(data.categoryBudgets).forEach((bMap: any) => {
+            if (bMap && typeof bMap === 'object') {
+              Object.keys(bMap).forEach(k => {
+                if (k && !isIncomeCat(k)) {
+                  aggregatedExp.push(k);
+                }
+              });
+            }
+          });
+        }
+
+        if (Array.isArray(data.transactions)) {
+          data.transactions.forEach((tx: any) => {
+            const isExp = String(tx.type || '').toLowerCase().includes('exp') || String(tx.type || '').includes('খরচ');
+            if (isExp && tx.category && !isIncomeCat(tx.category)) {
+              aggregatedExp.push(tx.category);
+            }
+          });
+        }
+
+        const finalExpList = deduplicateCategories(aggregatedExp);
+        const finalIncList = deduplicateCategories(aggregatedInc);
+
+        if (finalExpList.length > 0) {
+          setExpenseCategories(finalExpList);
+          localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(finalExpList));
+        }
+        if (finalIncList.length > 0) {
+          setIncomeCategories(finalIncList);
+          localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
         }
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
@@ -1050,11 +1106,44 @@ export default function App() {
     localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(newCats));
   };
 
-  const handleDeleteCategory = (cat: string, type: TransactionType) => {
+  const handleDeleteCategory = async (cat: string, type: TransactionType) => {
     const updated = (type === 'Expense' ? expenseCategories : incomeCategories).filter(c => c !== cat);
     if (type === 'Expense') setExpenseCategories(updated);
     else setIncomeCategories(updated);
     localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(updated));
+
+    // Also remove from category budgets in local storage
+    try {
+      const budgetKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
+      const savedBudgets = localStorage.getItem(budgetKey);
+      if (savedBudgets) {
+        const parsed = JSON.parse(savedBudgets);
+        delete parsed[cat];
+        const clean = cleanCategoryName(cat, 'en');
+        if (clean) delete parsed[clean];
+        localStorage.setItem(budgetKey, JSON.stringify(parsed));
+      }
+    } catch {}
+
+    // Cloud Delete: delete category row from Google Sheet
+    try {
+      await fetch('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deletecategory',
+          sheetTab: currentTab,
+          category: cat,
+          type
+        })
+      });
+    } catch {}
+
+    fetch(`${GOOGLE_SCRIPT_URL}?action=deletecategory&sheetTab=${encodeURIComponent(currentTab)}&category=${encodeURIComponent(cat)}`, {
+      mode: 'no-cors'
+    }).catch(() => {});
+
+    showToast(lang === 'en' ? `Category '${cat}' deleted from Google Sheet` : `'${cat}' ক্যাটাগরি গুগল শিট থেকে ডিলিট হয়েছে`, 'info');
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
