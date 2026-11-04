@@ -11,6 +11,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Transaction } from '../types';
+import { DEFAULT_INCOME_CATEGORIES } from '../constants';
 import {
   normalizeDate,
   formatNumberLocale,
@@ -29,6 +30,7 @@ export interface CategoryBudgetRow {
 
 interface BudgetTabProps {
   expenseCategories: string[];
+  incomeCategories?: string[];
   transactions: Transaction[];
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
@@ -46,6 +48,7 @@ interface BudgetTabProps {
 
 export const BudgetTab: React.FC<BudgetTabProps> = ({
   expenseCategories,
+  incomeCategories,
   transactions,
   selectedMonth,
   setSelectedMonth,
@@ -74,6 +77,26 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const debounceTimerRef = React.useRef<any>(null);
 
+  // Filter out any income categories to strictly display and store only Expense categories
+  const validExpenseCategories = useMemo(() => {
+    const incomeSet = new Set(
+      (incomeCategories || DEFAULT_INCOME_CATEGORIES).map(c => cleanCategoryName(c, 'en').toLowerCase().trim())
+    );
+    const knownIncomeWords = ['salary', 'arrear', 'borrowed', 'borrowed money', 'business', 'bonus', 'other income', 'income', 'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'অন্যান্য আয়', 'অন্যান্য আয়', 'আয়', 'আয়'];
+    
+    return expenseCategories.filter(cat => {
+      const cleanEn = cleanCategoryName(cat, 'en').toLowerCase().trim();
+      const cleanBn = cleanCategoryName(cat, 'bn').toLowerCase().trim();
+      if (incomeSet.has(cleanEn) || incomeSet.has(cleanBn)) return false;
+      for (const word of knownIncomeWords) {
+        if (cleanEn === word || cleanBn === word || cleanEn.startsWith(word + ' ') || cleanBn.startsWith(word + ' ')) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [expenseCategories, incomeCategories]);
+
   // Reload category budgets when selectedMonth or currentTab changes
   useEffect(() => {
     try {
@@ -93,7 +116,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     return Object.values(categoryBudgets).reduce((sum, b) => sum + (Number(b) || 0), 0);
   }, [categoryBudgets]);
 
-  // Calculate actual spending per category for selected month
+  // Calculate actual spending per category for selected month (strictly expenses)
   const categorySpending = useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
     const spendingMap: Record<string, number> = {};
@@ -146,17 +169,15 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     }
   }, [selectedMonth, lang, monthMappings]);
 
-  // Save budget handler - sends total budget (sum of categories) + category-wise breakdown (Mapping Month, Category, Budget, Spend, Remain)
+  // Auto-save budget handler - sends total budget (sum of categories) + category-wise breakdown (Mapping Month, Category, Budget, Spend, Remain)
   const handlePerformSave = (newCatBudgets?: Record<string, number>) => {
     const catsToUse = newCatBudgets || categoryBudgets;
     const catSum = Object.values(catsToUse).reduce((sum, b) => sum + (Number(b) || 0), 0);
 
-    // Compile distinct categories for category-wise sheet storage
-    const allCategoryNames = Array.from(new Set([
-      ...expenseCategories.map(c => cleanCategoryName(c, 'en')),
-      ...Object.keys(catsToUse),
-      ...Object.keys(categorySpending)
-    ])).filter(Boolean);
+    // Compile distinct categories strictly from expense categories only
+    const allCategoryNames = Array.from(new Set(
+      validExpenseCategories.map(c => cleanCategoryName(c, 'en'))
+    )).filter(Boolean);
 
     const categoryRows: CategoryBudgetRow[] = allCategoryNames.map(cName => {
       const b = Number(catsToUse[cName] ?? 0);
@@ -188,10 +209,11 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       localStorage.setItem(`app_category_budgets_${currentTab}_${selectedMonth}`, JSON.stringify(updated));
     } catch {}
 
+    // Auto store to sheet with 700ms debounce
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       handlePerformSave(updated);
-    }, 1200);
+    }, 700);
   };
 
   // Month shift helper
@@ -345,31 +367,29 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                 {t('Category-wise Monthly Budgets', 'ক্যাটাগরি ভিত্তিক মাসিক বাজেট')}
               </h3>
               <p className="text-[10px] text-slate-500 font-mono">
-                {expenseCategories.length} {t('categories', 'টি ক্যাটাগরি')}
+                {validExpenseCategories.length} {t('expense categories', 'টি খরচের ক্যাটাগরি')}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handlePerformSave()}
-            disabled={saveStatus === 'saving'}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs shrink-0 ${
-              saveStatus === 'saved'
-                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-            }`}
-          >
-            {saveStatus === 'saving' && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {saveStatus === 'saved' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />}
-            <span>
-              {saveStatus === 'saving' ? t('Saving...', 'সেভ হচ্ছে...') : saveStatus === 'saved' ? t('Saved to Sheet ✓', 'শিটে সেভ হয়েছে ✓') : t('Save Budget', 'বাজেট সেভ')}
-            </span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {saveStatus === 'saving' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold animate-pulse">
+                <div className="w-2.5 h-2.5 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
+                <span>{t('Saving to Sheet...', 'শিটে সেভ হচ্ছে...')}</span>
+              </div>
+            )}
+            {saveStatus === 'saved' && (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold animate-fadeIn">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{t('Auto Saved to Sheet ✓', 'অটো সেভ হয়েছে ✓')}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-3 pt-1">
-          {expenseCategories.map(cat => {
+          {validExpenseCategories.map(cat => {
             const catClean = cleanCategoryName(cat, 'en');
             const budgetVal = categoryBudgets[catClean] || categoryBudgets[cat] || 0;
             const spentVal = categorySpending[catClean] || 0;
@@ -422,6 +442,10 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                         onChange={e => {
                           const cleanVal = e.target.value.replace(/[^0-9.]/g, '');
                           handleBudgetChange(catClean, cleanVal);
+                        }}
+                        onBlur={() => {
+                          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                          handlePerformSave();
                         }}
                         placeholder="0"
                         className="w-24 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 tabular-nums"

@@ -535,24 +535,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
-      {/* 3. EXPORT DATA (1 LINE: ZIP, EXPORT JSON, RESTORE JSON) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-              <Archive className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold text-[#0F172A] tracking-tight">
-                Export Data
-              </h3>
-            </div>
-          </div>
-        </div>
-
-        {/* 1 Single Line for ZIP, Export JSON, Restore JSON */}
+      {/* COMPACT ACTIONS & TOOLS (EXPORT ZIP, EXPORT JSON, IMPORT JSON, INSTALL APP/QR, APPS SCRIPT) */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
         <div className="grid grid-cols-3 gap-2">
-          {/* ZIP Report */}
+          {/* Export ZIP */}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
@@ -565,7 +551,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             ) : (
               <Archive className="w-3.5 h-3.5 shrink-0" />
             )}
-            <span className="truncate">{t('ZIP Report', 'মাসিক জিপ')}</span>
+            <span className="truncate">{t('Export ZIP', 'Export ZIP')}</span>
           </button>
 
           {/* Export JSON */}
@@ -576,46 +562,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             title={t('Export Backup (.json)', 'JSON ব্যাকআপ')}
           >
             <Download className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-            <span className="truncate">{t('Export JSON', 'JSON ব্যাকআপ')}</span>
+            <span className="truncate">{t('Export JSON', 'Export JSON')}</span>
           </button>
 
-          {/* Restore JSON */}
+          {/* Import JSON */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="py-2.5 px-2 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-xs"
-            title={t('Restore Backup (.json)', 'JSON রিস্টোর')}
+            title={t('Import Backup (.json)', 'JSON ইমপোর্ট')}
           >
             <Upload className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span className="truncate">{t('Restore JSON', 'JSON রিস্টোর')}</span>
+            <span className="truncate">{t('Import JSON', 'Import JSON')}</span>
           </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={handleFileImport}
-            className="hidden"
-          />
-        </div>
-      </div>
-
-      {/* 4. APP INTEGRATIONS & SHORTCUTS (1 LINE: INSTALL APP / QR CODE & APPS SCRIPT) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center border border-slate-200 shrink-0">
-              <Settings2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs font-extrabold text-[#0F172A] uppercase tracking-tight">
-                {t('App & Integrations', 'অ্যাপ ও ইন্টিগ্রেশন')}
-              </h3>
-            </div>
-          </div>
         </div>
 
-        {/* 1 Single Line for Install App / QR Code and Apps Script */}
         <div className="grid grid-cols-2 gap-2">
           {onOpenInstallModal && (
             <button
@@ -624,7 +585,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
             >
               <Smartphone className="w-4 h-4 text-[#16A34A] shrink-0" />
-              <span className="truncate">{t('Install App / QR Code', 'অ্যাপ ইনস্টল / QR কোড')}</span>
+              <span className="truncate">{t('Install App / QR Code', 'Install App / QR Code')}</span>
             </button>
           )}
 
@@ -635,10 +596,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
             >
               <FileSpreadsheet className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="truncate">{t('Apps Script Code', 'অ্যাপস স্ক্রিপ্ট কোড')}</span>
+              <span className="truncate">{t('Apps Script Code', 'Apps Script Code')}</span>
             </button>
           )}
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleFileImport}
+          className="hidden"
+        />
       </div>
 
       {/* Apps Script Modal */}

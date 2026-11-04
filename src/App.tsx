@@ -1162,7 +1162,9 @@ export default function App() {
 
           {activeTab === 'budget' && (
             <BudgetTab
-              expenseCategories={expenseCategories} transactions={transactions}
+              expenseCategories={expenseCategories}
+              incomeCategories={incomeCategories}
+              transactions={transactions}
               selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
               lang={lang} t={t} currentTab={currentTab} monthMappings={monthMappings}
               onSaveBudget={handleSaveBudget}
