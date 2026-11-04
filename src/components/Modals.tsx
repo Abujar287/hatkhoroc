@@ -1590,7 +1590,7 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.৪ কাস্টম মান্থ ম্যাপিং ও ডিফল্ট মাস সিঙ্ক (SAVE MAPPINGS - ডেট অবজেক্ট রিকভারি, প্লেইন টেক্সট ফরম্যাট ও সিঙ্গল ডিফল্ট)
+    // ৫.৪ কাস্টম মান্থ ম্যাপিং ও ডিফল্ট মাস সিঙ্ক (SAVE MAPPINGS - বাজেট কলাম সহ ৫ কলাম সাপোর্ট)
     if (action === 'savemappings' || action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
       var mapSheet = ss.getSheetByName('month mapping');
       if (!mapSheet) {
@@ -1608,7 +1608,7 @@ function doPost(e) {
         }
       }
 
-      // ১. বিদ্যমান শিট রো পড়া (Google Sheets Auto Date Conversion রিকভারি সহ)
+      // ১. বিদ্যমান শিট রো পড়া (Google Sheets Auto Date Conversion রিকভারি ও বাজেট রিড সহ)
       var rawValues = mapSheet.getDataRange().getValues();
       var combinedMap = {};
 
@@ -1618,13 +1618,15 @@ function doPost(e) {
           var eDate = formatDateVal(rawValues[r][1]);
           var mLabel = parseLabelString(rawValues[r][2]);
           var mDef = String(rawValues[r][3] || '').trim().toLowerCase();
+          var mBudget = (rawValues[r][4] !== undefined && rawValues[r][4] !== '') ? (Number(rawValues[r][4]) || 0) : '';
           if (mLabel) {
             var key = mLabel.toLowerCase();
             combinedMap[key] = {
               startDate: sDate,
               endDate: eDate,
               label: mLabel,
-              isDefault: mDef === 'default' || mDef === 'true'
+              isDefault: mDef === 'default' || mDef === 'true',
+              budget: mBudget
             };
           }
         }
@@ -1641,11 +1643,14 @@ function doPost(e) {
                           String(item.isDefault).toLowerCase() === 'default' ||
                           (defaultLabel && itemKey === defaultLabel);
 
+          var itemBudget = (item.budget !== undefined && item.budget !== null && item.budget !== '') ? (Number(item.budget) || 0) : (combinedMap[itemKey] ? combinedMap[itemKey].budget : '');
+
           combinedMap[itemKey] = {
             startDate: formatDateVal(item.startDate) || (combinedMap[itemKey] ? combinedMap[itemKey].startDate : ''),
             endDate: formatDateVal(item.endDate) || (combinedMap[itemKey] ? combinedMap[itemKey].endDate : ''),
             label: cleanL,
-            isDefault: isThisDef
+            isDefault: isThisDef,
+            budget: itemBudget
           };
           if (isThisDef) {
             defaultLabel = itemKey;
@@ -1653,15 +1658,15 @@ function doPost(e) {
         }
       }
 
-      // ৩. কলামগুলো প্লেইন টেক্সট (@) ফরম্যাটে সেটিং যাতে গুগল শিট আবার ডেট অবজেক্টে কনভার্ট না করে
+      // ৩. ৫ কলাম বিশিষ্ট হেডার ও প্লেইন টেক্সট (@) ফরম্যাটে সেটিং
       mapSheet.clearContents();
       try {
-        mapSheet.getRange(1, 1, Math.max(mapSheet.getMaxRows(), 30), 4).setNumberFormat('@');
+        mapSheet.getRange(1, 1, Math.max(mapSheet.getMaxRows(), 30), 5).setNumberFormat('@');
       } catch (e) {}
 
-      mapSheet.getRange(1, 1, 1, 4).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month']]);
+      mapSheet.getRange(1, 1, 1, 5).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month', 'Budget']]);
       try {
-        mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+        mapSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
         mapSheet.setFrozenRows(1);
       } catch (err) {}
 
@@ -1673,16 +1678,138 @@ function doPost(e) {
         var obj = combinedMap[keys[i]];
         var cleanKey = keys[i].replace(/[^a-z0-9]/g, '');
         var isFinalDef = cleanDefKey ? (cleanKey === cleanDefKey) : obj.isDefault;
-        finalRows.push([obj.startDate, obj.endDate, obj.label, isFinalDef ? 'default' : '']);
+        finalRows.push([obj.startDate, obj.endDate, obj.label, isFinalDef ? 'default' : '', (obj.budget !== undefined && obj.budget !== '') ? obj.budget : '']);
       }
 
       if (finalRows.length > 0) {
-        mapSheet.getRange(2, 1, finalRows.length, 4).setValues(finalRows);
+        mapSheet.getRange(2, 1, finalRows.length, 5).setValues(finalRows);
       }
 
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
-        message: 'মান্থ ম্যাপিং প্লেইন টেক্সট ফরম্যাটে সিঙ্ক সম্পন্ন'
+        message: 'মান্থ ম্যাপিং ও বাজেট ৫ কলামে সফলভাবে সিঙ্ক হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৫.৫ নির্দিষ্ট মাসের বাজেট সেভ (SAVE BUDGET - মান্থ ম্যাপিং কলাম ৫ ও ক্যাটাগরি শিটে স্টোর)
+    if (action === 'savebudget' || action === 'setbudget') {
+      var mapSheet = ss.getSheetByName('month mapping');
+      if (!mapSheet) {
+        mapSheet = ss.insertSheet('month mapping');
+      }
+      var targetMonth = parseLabelString(data.month || data.defaultMonth || (e && e.parameter ? e.parameter.month : '') || '').toLowerCase();
+      var budgetVal = Number(data.budget !== undefined ? data.budget : (e && e.parameter ? e.parameter.budget : 0)) || 0;
+      var cleanTarget = targetMonth.replace(/[^a-z0-9]/g, '');
+
+      // ১. month mapping শিটের কলাম E (Budget) এ আপডেট
+      var rawValues = mapSheet.getDataRange().getValues();
+      if (rawValues.length <= 1 || !rawValues[0][0]) {
+        mapSheet.getRange(1, 1, 1, 5).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month', 'Budget']]);
+        try {
+          mapSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+          mapSheet.setFrozenRows(1);
+        } catch (e) {}
+        rawValues = mapSheet.getDataRange().getValues();
+      }
+
+      var matched = false;
+      if (rawValues.length > 1) {
+        for (var r = 1; r < rawValues.length; r++) {
+          var mLabel = parseLabelString(rawValues[r][2]).toLowerCase();
+          var cleanLabel = mLabel.replace(/[^a-z0-9]/g, '');
+          var isMatch = cleanTarget && (cleanLabel === cleanTarget || (cleanLabel.length >= 3 && cleanTarget.length >= 3 && (cleanLabel.indexOf(cleanTarget) !== -1 || cleanTarget.indexOf(cleanLabel) !== -1)));
+          if (isMatch) {
+            mapSheet.getRange(r + 1, 5).setValue(budgetVal);
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched && targetMonth) {
+        mapSheet.appendRow(['', '', parseLabelString(data.month || (e && e.parameter ? e.parameter.month : '')), '', budgetVal]);
+      }
+
+      // ২. ক্যাটাগরি বাজেট ব্রেকডাউন থাকলে 'Budget' শিটে ৫ কলামে সিঙ্ক (Mapping Month, Category, Budget, Spend, Remain)
+      var catRows = Array.isArray(data.categoryRows) ? data.categoryRows : [];
+      var catBudgets = data.categoryBudgets;
+      if (catRows.length > 0 || (catBudgets && typeof catBudgets === 'object')) {
+        var bSheet = ss.getSheetByName('Budget');
+        if (!bSheet) {
+          bSheet = ss.insertSheet('Budget');
+        }
+
+        // ৫ কলাম বিশিষ্ট হেডার নিশ্চিত করা: Mapping Month, Category, Budget, Spend, Remain
+        var currentBData = bSheet.getDataRange().getValues();
+        if (currentBData.length <= 1 || !currentBData[0][0] || String(currentBData[0][0]).toLowerCase().indexOf('mapping') === -1 || currentBData[0].length < 5) {
+          bSheet.getRange(1, 1, 1, 5).setValues([['Mapping Month', 'Category', 'Budget', 'Spend', 'Remain']]);
+          try {
+            bSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+            bSheet.setFrozenRows(1);
+          } catch (err) {}
+          currentBData = bSheet.getDataRange().getValues();
+        }
+
+        // পূর্ববর্তী ডেটা অক্ষুণ্ণ রেখে (deleteRow না করে) ম্যাচিং ক্যাটাগরি আপডেট বা নিচে অ্যাপেন্ড করা
+        var existingRowMap = {};
+        for (var b = 1; b < currentBData.length; b++) {
+          var bMonthKey = parseLabelString(currentBData[b][0]).toLowerCase().replace(/[^a-z0-9]/g, '');
+          var bCatKey = String(currentBData[b][1] || '').trim().toLowerCase();
+          if (bMonthKey && bCatKey) {
+            existingRowMap[bMonthKey + '___' + bCatKey] = b + 1; // শিটের ১-ভিত্তিক রো ইনডেক্স
+          }
+        }
+
+        var newBRowsToAppend = [];
+        var monthName = parseLabelString(data.month || (e && e.parameter ? e.parameter.month : ''));
+        var monthCleanKey = monthName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        var rowsToProcess = [];
+        if (catRows.length > 0) {
+          for (var c = 0; c < catRows.length; c++) {
+            var item = catRows[c];
+            if (item && item.category) {
+              var cName = String(item.category).trim();
+              var bVal = Number(item.budget) || 0;
+              var sVal = Number(item.spend) || 0;
+              var rVal = Number(item.remain !== undefined ? item.remain : (bVal - sVal)) || 0;
+              rowsToProcess.push({ catName: cName, budget: bVal, spend: sVal, remain: rVal });
+            }
+          }
+        } else if (catBudgets && typeof catBudgets === 'object') {
+          var catKeys = Object.keys(catBudgets);
+          for (var c = 0; c < catKeys.length; c++) {
+            var cAmount = Number(catBudgets[catKeys[c]]) || 0;
+            if (cAmount > 0) {
+              rowsToProcess.push({ catName: catKeys[c], budget: cAmount, spend: 0, remain: cAmount });
+            }
+          }
+        }
+
+        for (var p = 0; p < rowsToProcess.length; p++) {
+          var proc = rowsToProcess[p];
+          var catKey = proc.catName.toLowerCase();
+          var lookupKey = monthCleanKey + '___' + catKey;
+          var existingRowIdx = existingRowMap[lookupKey];
+
+          if (existingRowIdx) {
+            // আগের রোতে ডেটা আপডেট (বাজেট, খরচ, অবশিষ্ট)
+            bSheet.getRange(existingRowIdx, 3, 1, 3).setValues([[proc.budget, proc.spend, proc.remain]]);
+          } else {
+            // নতুন ক্যাটাগরি বা নতুন মাস নিচে যুক্ত হবে (আগের ডেটা মুছে ফেলা হবে না)
+            newBRowsToAppend.push([monthName, proc.catName, proc.budget, proc.spend, proc.remain]);
+          }
+        }
+
+        if (newBRowsToAppend.length > 0) {
+          bSheet.getRange(bSheet.getLastRow() + 1, 1, newBRowsToAppend.length, 5).setValues(newBRowsToAppend);
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        month: targetMonth,
+        budget: budgetVal,
+        message: 'বাজেট সফলভাবে শিটে সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -1800,6 +1927,50 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ৪.২ নির্দিষ্ট মাসের বাজেট সেভ (GET পিন সাপোর্ট - ইনস্ট্যান্ট গুগল শিট আপডেট)
+  if (action === 'savebudget' || action === 'setbudget') {
+    var mapSheet = ss.getSheetByName('month mapping');
+    if (!mapSheet) {
+      mapSheet = ss.insertSheet('month mapping');
+    }
+    var targetMonth = parseLabelString(params.month || params.defaultMonth || params.default || '').toLowerCase();
+    var budgetVal = Number(params.budget || 0) || 0;
+    var cleanTarget = targetMonth.replace(/[^a-z0-9]/g, '');
+
+    var rawValues = mapSheet.getDataRange().getValues();
+    if (rawValues.length <= 1 || !rawValues[0][0]) {
+      mapSheet.getRange(1, 1, 1, 5).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month', 'Budget']]);
+      try {
+        mapSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+        mapSheet.setFrozenRows(1);
+      } catch (e) {}
+      rawValues = mapSheet.getDataRange().getValues();
+    }
+
+    var matched = false;
+    if (rawValues.length > 1) {
+      for (var r = 1; r < rawValues.length; r++) {
+        var mLabel = parseLabelString(rawValues[r][2]).toLowerCase();
+        var cleanLabel = mLabel.replace(/[^a-z0-9]/g, '');
+        var isMatch = cleanTarget && (cleanLabel === cleanTarget || (cleanLabel.length >= 3 && cleanTarget.length >= 3 && (cleanLabel.indexOf(cleanTarget) !== -1 || cleanTarget.indexOf(cleanLabel) !== -1)));
+        if (isMatch) {
+          mapSheet.getRange(r + 1, 5).setValue(budgetVal);
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (!matched && targetMonth) {
+      mapSheet.appendRow(['', '', parseLabelString(params.month || ''), '', budgetVal]);
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      month: targetMonth,
+      budget: budgetVal,
+      message: 'বাজেট সফলভাবে সেট হয়েছে: ' + budgetVal
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   // ৫.১ একক ক্যাটাগরি নিচে যোগ (GET সাপোর্ট - আগের কিছু না মুছে নিচে যুক্ত)
   if (action === 'addcategory') {
     var catSheet = getCategorySheet(ss);
@@ -1891,6 +2062,7 @@ function doGet(e) {
     transactions: transactions,
     categories: getCategoriesList(ss),
     monthMappings: getMonthMappings(ss),
+    categoryBudgets: getCategoryBudgets(ss),
     count: transactions.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -2069,14 +2241,14 @@ function handleUpdateRow(sheet, data) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-// ৭. মাস ভিত্তিক ম্যাপিং পড়া
+// ৭. মাস ভিত্তিক ম্যাপিং পড়া (বাজেট কলাম সহ)
 function getMonthMappings(ss) {
   var sheet = ss.getSheetByName('month mapping');
   if (!sheet) {
     try {
       sheet = ss.insertSheet('month mapping');
-      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
-      sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month', 'Budget']);
+      sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
       sheet.setFrozenRows(1);
     } catch (e) {
       return [];
@@ -2091,17 +2263,37 @@ function getMonthMappings(ss) {
     var label = parseLabelString(rows[i][2]);
     var rawDef = String(rows[i][3] || '').trim().toLowerCase();
     var isDef = rawDef === 'true' || rawDef === 'yes' || rawDef === 'default';
+    var budget = (rows[i][4] !== undefined && rows[i][4] !== '') ? (Number(rows[i][4]) || 0) : 0;
     
     if (label && start && end) {
       mappings.push({
         startDate: start,
         endDate: end,
         label: label,
-        isDefault: isDef
+        isDefault: isDef,
+        budget: budget
       });
     }
   }
   return mappings;
+}
+
+// ৮. ক্যাটাগরি বাজেট পড়া
+function getCategoryBudgets(ss) {
+  var bSheet = ss.getSheetByName('Budget');
+  var budgets = {};
+  if (!bSheet) return budgets;
+  var rows = bSheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    var m = parseLabelString(rows[i][0]);
+    var cat = String(rows[i][1] || '').trim();
+    var val = Number(rows[i][2]) || 0;
+    if (m && cat) {
+      if (!budgets[m]) budgets[m] = {};
+      budgets[m][cat] = val;
+    }
+  }
+  return budgets;
 }
 
 // লেবেল থেকে টেক্সট এক্সট্রাক্ট করা (Date object support সহ)

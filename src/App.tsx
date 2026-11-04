@@ -535,13 +535,15 @@ export default function App() {
       const key = cleanedLabel.toLowerCase();
       if (key && m.startDate && m.endDate) {
         const isDef = targetDefaultKey ? (key === targetDefaultKey) : Boolean(m.isDefault);
+        const bVal = (m.budget !== undefined && m.budget !== null && !isNaN(Number(m.budget)) && Number(m.budget) > 0) ? Number(m.budget) : undefined;
         uniqueMap.set(key, {
           id: String(m.id || `map_${idx}`),
           startDate: normalizeDate(m.startDate),
           endDate: normalizeDate(m.endDate),
           label: cleanedLabel,
           isDefault: isDef,
-          defaultMonth: isDef ? 'default' : ''
+          defaultMonth: isDef ? 'default' : '',
+          budget: bVal
         });
       }
     });
@@ -573,6 +575,89 @@ export default function App() {
       });
     } catch {}
   }, [currentTab]);
+
+  const handleSaveBudget = useCallback(async (
+    monthLabel: string, 
+    totalBudget: number, 
+    categoryBudgets?: Record<string, number>,
+    categoryRows?: Array<{ category: string; budget: number; spend: number; remain: number }>
+  ) => {
+    const cleanLabel = cleanMappingLabel(monthLabel) || monthLabel;
+    const targetKey = cleanLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    if (categoryBudgets) {
+      try {
+        localStorage.setItem(`app_category_budgets_${currentTab}_${cleanLabel}`, JSON.stringify(categoryBudgets));
+      } catch {}
+    }
+
+    let found = false;
+    const updatedMappings = monthMappings.map(m => {
+      const rawLabel = cleanMappingLabel(m.label) || m.label;
+      const key = rawLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isMatch = key === targetKey || (key.length >= 3 && targetKey.length >= 3 && (key.includes(targetKey) || targetKey.includes(key)));
+      if (isMatch) {
+        found = true;
+        return { ...m, label: rawLabel, budget: totalBudget };
+      }
+      return m;
+    });
+
+    let finalList = updatedMappings;
+    if (!found) {
+      const monthKey = getMonthKeyFromLabel(cleanLabel) || cleanLabel;
+      let startDate = `${monthKey}-01`;
+      let endDate = `${monthKey}-31`;
+      if (monthKey.includes('-')) {
+        const [y, m] = monthKey.split('-').map(Number);
+        if (!isNaN(y) && !isNaN(m)) {
+          const lastDay = new Date(y, m, 0).getDate();
+          startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+          endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        }
+      }
+      finalList = [
+        ...updatedMappings,
+        {
+          id: Date.now().toString(),
+          label: cleanLabel,
+          startDate,
+          endDate,
+          isDefault: false,
+          budget: totalBudget
+        }
+      ];
+    }
+
+    setMonthMappings(finalList);
+    try {
+      localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(finalList));
+    } catch {}
+
+    // Dual Cloud Sync: POST + GET param ping for max reliability
+    try {
+      fetch(`${GOOGLE_SCRIPT_URL}?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
+        mode: 'no-cors'
+      }).catch(() => {});
+
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({
+          action: 'savebudget',
+          sheetTab: currentTab,
+          month: cleanLabel,
+          budget: totalBudget,
+          categoryBudgets: categoryBudgets || {},
+          categoryRows: categoryRows || [],
+          mappings: finalList
+        })
+      });
+      showToast(lang === 'en' ? `Budget saved to Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে সেভ হয়েছে`, 'success');
+    } catch (err) {
+      console.error('Save budget error:', err);
+    }
+  }, [currentTab, monthMappings, showToast, lang]);
 
   const handleSetDefaultMonth = useCallback((monthLabel: string) => {
     const cleanLabel = cleanMappingLabel(monthLabel) || monthLabel;
@@ -744,13 +829,15 @@ export default function App() {
 
               const existing = mapDeduplicated.get(key);
               const finalDef = rawIsDefault || Boolean(existing && existing.isDefault);
+              const rawBudget = (m.budget !== undefined && m.budget !== null && m.budget !== '') ? (Number(m.budget) || undefined) : undefined;
 
               mapDeduplicated.set(key, {
                 id: String(m.id || `map_${idx}_${Date.now()}`),
                 startDate: sDate,
                 endDate: eDate,
                 label: cleanedLabel,
-                isDefault: finalDef
+                isDefault: finalDef,
+                budget: rawBudget
               });
             }
           });
@@ -772,6 +859,14 @@ export default function App() {
               localStorage.setItem(`app_default_selected_month_${tabToSync}`, sheetDefMonth);
             }
           }
+        }
+
+        if (data.categoryBudgets && typeof data.categoryBudgets === 'object') {
+          Object.keys(data.categoryBudgets).forEach(mKey => {
+            try {
+              localStorage.setItem(`app_category_budgets_${tabToSync}_${mKey}`, JSON.stringify(data.categoryBudgets[mKey]));
+            } catch {}
+          });
         }
 
         if (Array.isArray(data.categories) && data.categories.length > 0) {
@@ -1070,6 +1165,7 @@ export default function App() {
               expenseCategories={expenseCategories} transactions={transactions}
               selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
               lang={lang} t={t} currentTab={currentTab} monthMappings={monthMappings}
+              onSaveBudget={handleSaveBudget}
             />
           )}
 

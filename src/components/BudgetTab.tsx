@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sliders,
-  DollarSign,
   Plus
 } from 'lucide-react';
 import { Transaction } from '../types';
@@ -21,6 +20,13 @@ import {
 } from '../utils/dateUtils';
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
 
+export interface CategoryBudgetRow {
+  category: string;
+  budget: number;
+  spend: number;
+  remain: number;
+}
+
 interface BudgetTabProps {
   expenseCategories: string[];
   transactions: Transaction[];
@@ -30,6 +36,12 @@ interface BudgetTabProps {
   t: (en: string, bn: string) => string;
   currentTab: string;
   monthMappings: import('../types').MonthMapping[];
+  onSaveBudget?: (
+    monthLabel: string, 
+    totalBudget: number, 
+    categoryBudgets?: Record<string, number>,
+    categoryRows?: CategoryBudgetRow[]
+  ) => void;
 }
 
 export const BudgetTab: React.FC<BudgetTabProps> = ({
@@ -40,7 +52,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   lang,
   t,
   currentTab,
-  monthMappings
+  monthMappings,
+  onSaveBudget
 }) => {
   // Category-wise budgets stored per tab and per month: { [categoryName]: number }
   const storageKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
@@ -53,6 +66,13 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     } catch {}
     return {};
   });
+
+  const currentMapping = useMemo(() => {
+    return findMonthMapping(monthMappings, selectedMonth);
+  }, [monthMappings, selectedMonth]);
+
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const debounceTimerRef = React.useRef<any>(null);
 
   // Reload category budgets when selectedMonth or currentTab changes
   useEffect(() => {
@@ -68,6 +88,98 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     }
   }, [currentTab, selectedMonth]);
 
+  // Total budget is derived directly from category budgets
+  const totalBudget = useMemo(() => {
+    return Object.values(categoryBudgets).reduce((sum, b) => sum + (Number(b) || 0), 0);
+  }, [categoryBudgets]);
+
+  // Calculate actual spending per category for selected month
+  const categorySpending = useMemo(() => {
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    const spendingMap: Record<string, number> = {};
+
+    transactions.forEach(tx => {
+      if (tx.type !== 'Expense') return;
+      const cleanDate = normalizeDate(tx.date);
+      
+      let isMatch = false;
+      if (mapping) {
+        isMatch = cleanDate >= mapping.startDate && cleanDate <= mapping.endDate;
+      } else {
+        const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+        isMatch = cleanDate.startsWith(monthKey);
+      }
+
+      if (isMatch) {
+        const catClean = cleanCategoryName(tx.category, 'en');
+        const val = Number(tx.value) || 0;
+        spendingMap[catClean] = (spendingMap[catClean] || 0) + val;
+      }
+    });
+
+    return spendingMap;
+  }, [transactions, selectedMonth, monthMappings]);
+
+  const totalSpent = useMemo(() => {
+    return Object.values(categorySpending).reduce((sum, s) => sum + (s || 0), 0);
+  }, [categorySpending]);
+
+  const remainingBudget = totalBudget - totalSpent;
+
+  // Month display label
+  const monthLabel = useMemo(() => {
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    if (mapping) {
+      return mapping.label;
+    }
+
+    try {
+      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
+      const [y, m] = monthKey.split('-').map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth, lang, monthMappings]);
+
+  // Save budget handler - sends total budget (sum of categories) + category-wise breakdown (Mapping Month, Category, Budget, Spend, Remain)
+  const handlePerformSave = (newCatBudgets?: Record<string, number>) => {
+    const catsToUse = newCatBudgets || categoryBudgets;
+    const catSum = Object.values(catsToUse).reduce((sum, b) => sum + (Number(b) || 0), 0);
+
+    // Compile distinct categories for category-wise sheet storage
+    const allCategoryNames = Array.from(new Set([
+      ...expenseCategories.map(c => cleanCategoryName(c, 'en')),
+      ...Object.keys(catsToUse),
+      ...Object.keys(categorySpending)
+    ])).filter(Boolean);
+
+    const categoryRows: CategoryBudgetRow[] = allCategoryNames.map(cName => {
+      const b = Number(catsToUse[cName] ?? 0);
+      const s = Number(categorySpending[cName] ?? 0);
+      const r = b - s;
+      return {
+        category: cName,
+        budget: b,
+        spend: s,
+        remain: r
+      };
+    }).filter(row => row.budget > 0 || row.spend > 0);
+
+    setSaveStatus('saving');
+    if (onSaveBudget) {
+      onSaveBudget(selectedMonth, catSum, catsToUse, categoryRows);
+    }
+    setTimeout(() => {
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    }, 400);
+  };
+
   const handleBudgetChange = (category: string, value: string) => {
     const num = parseFloat(value) || 0;
     const updated = { ...categoryBudgets, [category]: num };
@@ -75,6 +187,11 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     try {
       localStorage.setItem(`app_category_budgets_${currentTab}_${selectedMonth}`, JSON.stringify(updated));
     } catch {}
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      handlePerformSave(updated);
+    }, 1200);
   };
 
   // Month shift helper
@@ -107,64 +224,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
     }
   };
-
-  // Month display label
-  const monthLabel = useMemo(() => {
-    const mapping = findMonthMapping(monthMappings, selectedMonth);
-    if (mapping) {
-      return mapping.label;
-    }
-
-    try {
-      const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
-      const [y, m] = monthKey.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'long',
-        year: 'numeric'
-      });
-    } catch {
-      return selectedMonth;
-    }
-  }, [selectedMonth, lang, monthMappings]);
-
-  // Calculate actual spending per category for selected month
-  const categorySpending = useMemo(() => {
-    const mapping = findMonthMapping(monthMappings, selectedMonth);
-    const spendingMap: Record<string, number> = {};
-
-    transactions.forEach(tx => {
-      if (tx.type !== 'Expense') return;
-      const cleanDate = normalizeDate(tx.date);
-      
-      let isMatch = false;
-      if (mapping) {
-        isMatch = cleanDate >= mapping.startDate && cleanDate <= mapping.endDate;
-      } else {
-        const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
-        isMatch = cleanDate.startsWith(monthKey);
-      }
-
-      if (isMatch) {
-        const catClean = cleanCategoryName(tx.category, 'en');
-        const val = Number(tx.value) || 0;
-        spendingMap[catClean] = (spendingMap[catClean] || 0) + val;
-      }
-    });
-
-    return spendingMap;
-  }, [transactions, selectedMonth, monthMappings]);
-
-  // Total budget and total spent across all categories
-  const totalBudget = useMemo(() => {
-    return Object.values(categoryBudgets).reduce((sum, b) => sum + (b || 0), 0);
-  }, [categoryBudgets]);
-
-  const totalSpent = useMemo(() => {
-    return Object.values(categorySpending).reduce((sum, s) => sum + (s || 0), 0);
-  }, [categorySpending]);
-
-  const remainingBudget = totalBudget - totalSpent;
 
   // Month dropdown options
   const monthOptions = useMemo(() => {
@@ -212,19 +271,26 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        <div className="flex-1 flex items-center gap-2 justify-center min-w-0">
-          <Calendar className="w-4 h-4 text-[#475569] shrink-0" />
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="bg-transparent border-none text-[13px] font-bold text-[#0F172A] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
-          >
-            {monthOptions.map(m => (
-              <option key={m.val} value={m.val} className="bg-white text-[#0F172A] normal-case">
-                {m.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+          <div className="flex items-center gap-2 max-w-full">
+            <Calendar className="w-4 h-4 text-[#475569] shrink-0" />
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="bg-transparent border-none text-[13px] font-bold text-[#0F172A] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
+            >
+              {monthOptions.map(m => (
+                <option key={m.val} value={m.val} className="bg-white text-[#0F172A] normal-case">
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {currentMapping && (
+            <span className="text-[10px] text-slate-500 font-mono truncate">
+              {currentMapping.startDate} ~ {currentMapping.endDate}
+            </span>
+          )}
         </div>
 
         <button
@@ -269,18 +335,37 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* CATEGORY-WISE BUDGET LIST */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center shrink-0">
               <Sliders className="w-4 h-4" />
             </div>
-            <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-tight">
-              {t('Category-wise Monthly Budgets', 'ক্যাটাগরি ভিত্তিক মাসিক বাজেট')}
-            </h3>
+            <div className="min-w-0">
+              <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-tight truncate">
+                {t('Category-wise Monthly Budgets', 'ক্যাটাগরি ভিত্তিক মাসিক বাজেট')}
+              </h3>
+              <p className="text-[10px] text-slate-500 font-mono">
+                {expenseCategories.length} {t('categories', 'টি ক্যাটাগরি')}
+              </p>
+            </div>
           </div>
-          <span className="text-[10px] text-slate-500">
-            {expenseCategories.length} {t('categories', 'টি ক্যাটাগরি')}
-          </span>
+
+          <button
+            type="button"
+            onClick={() => handlePerformSave()}
+            disabled={saveStatus === 'saving'}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs shrink-0 ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            {saveStatus === 'saving' && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {saveStatus === 'saved' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />}
+            <span>
+              {saveStatus === 'saving' ? t('Saving...', 'সেভ হচ্ছে...') : saveStatus === 'saved' ? t('Saved to Sheet ✓', 'শিটে সেভ হয়েছে ✓') : t('Save Budget', 'বাজেট সেভ')}
+            </span>
+          </button>
         </div>
 
         <div className="space-y-3 pt-1">
@@ -307,9 +392,21 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       <span className="font-bold text-[#0F172A] text-xs truncate block">
                         {cleanCategoryName(cat, lang)}
                       </span>
-                      <span className="text-[10px] text-slate-500">
-                        {t('Spent:', 'খরচ:')} <strong className="text-[#EF4444]">{formatNumberLocale(spentVal, lang)}</strong>
-                      </span>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                        <span>
+                          {t('Spend:', 'খরচ:')} <strong className="text-[#EF4444] tabular-nums">{formatNumberLocale(spentVal, lang)}</strong>
+                        </span>
+                        {budgetVal > 0 && (
+                          <>
+                            <span>•</span>
+                            <span>
+                              {t('Remain:', 'অবশিষ্ট:')} <strong className={`tabular-nums ${budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
+                                {budgetVal - spentVal >= 0 ? '+' : ''}{formatNumberLocale(budgetVal - spentVal, lang)}
+                              </strong>
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 

@@ -101,6 +101,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [newMappingLabel, setNewMappingLabel] = useState('');
   const [newMappingStart, setNewMappingStart] = useState('');
   const [newMappingEnd, setNewMappingEnd] = useState('');
+  const [newMappingBudget, setNewMappingBudget] = useState('');
   const [newMappingIsDefault, setNewMappingIsDefault] = useState(false);
 
   const handleStartEditMapping = (m: import('../types').MonthMapping) => {
@@ -108,6 +109,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setNewMappingLabel(m.label);
     setNewMappingStart(m.startDate);
     setNewMappingEnd(m.endDate);
+    setNewMappingBudget(m.budget ? String(m.budget) : '');
     setNewMappingIsDefault(Boolean(m.isDefault));
     setIsAddingMapping(true);
     setIsMonthMappingExpanded(true);
@@ -119,18 +121,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       return;
     }
     const cleanLabel = cleanMappingLabel(newMappingLabel) || newMappingLabel.trim();
+    const budgetNum = parseFloat(newMappingBudget);
     
     onAddMonthMapping({
       id: editingMappingId || Date.now().toString(),
       label: cleanLabel,
       startDate: normalizeDate(newMappingStart),
       endDate: normalizeDate(newMappingEnd),
-      isDefault: newMappingIsDefault
+      isDefault: newMappingIsDefault,
+      budget: !isNaN(budgetNum) && budgetNum > 0 ? budgetNum : undefined
     });
 
     setNewMappingLabel('');
     setNewMappingStart('');
     setNewMappingEnd('');
+    setNewMappingBudget('');
     setNewMappingIsDefault(false);
     setIsAddingMapping(false);
     setEditingMappingId(null);
@@ -395,7 +400,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Month Label</label>
                     <input
@@ -422,6 +427,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       value={newMappingEnd}
                       onChange={e => setNewMappingEnd(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t('Budget (৳)', 'বাজেট (৳)')}</label>
+                    <input
+                      type="number"
+                      value={newMappingBudget}
+                      onChange={e => setNewMappingBudget(e.target.value)}
+                      placeholder="e.g. 50000"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none"
                     />
                   </div>
                 </div>
@@ -464,13 +479,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-black text-[#0F172A]">
                             {m.label}
                           </span>
                           {m.isDefault && (
                             <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
                               ⭐ Default
+                            </span>
+                          )}
+                          {m.budget !== undefined && Number(m.budget) > 0 && (
+                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              ৳ {formatNumberLocale(Number(m.budget), lang)}
                             </span>
                           )}
                         </div>
