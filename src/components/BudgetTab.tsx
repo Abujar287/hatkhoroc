@@ -21,7 +21,7 @@ import {
   findMonthMapping,
   getMonthKeyFromLabel
 } from '../utils/dateUtils';
-import { cleanCategoryName } from '../utils/categoryUtils';
+import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
 
 export interface CategoryBudgetRow {
   category: string;
@@ -195,64 +195,118 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
 
       if (isMatch) {
-        const catClean = cleanCategoryName(tx.category, 'en');
+        const catEn = cleanCategoryName(tx.category, 'en');
+        const catBn = cleanCategoryName(tx.category, 'bn');
+        const raw = String(tx.category).trim();
         const val = Number(tx.value) || 0;
-        spendingMap[catClean] = (spendingMap[catClean] || 0) + val;
+
+        spendingMap[catEn] = (spendingMap[catEn] || 0) + val;
+        spendingMap[catEn.toLowerCase()] = (spendingMap[catEn.toLowerCase()] || 0) + val;
+        if (catBn) {
+          spendingMap[catBn] = (spendingMap[catBn] || 0) + val;
+          spendingMap[catBn.toLowerCase()] = (spendingMap[catBn.toLowerCase()] || 0) + val;
+        }
+        if (raw) {
+          spendingMap[raw] = (spendingMap[raw] || 0) + val;
+          spendingMap[raw.toLowerCase()] = (spendingMap[raw.toLowerCase()] || 0) + val;
+        }
       }
     });
 
     return spendingMap;
   }, [transactions, selectedMonth, monthMappings]);
 
+  // Robust getter for category budget
+  const getBudgetVal = (cat: string, budgetsMap: Record<string, number> = categoryBudgets) => {
+    const en = cleanCategoryName(cat, 'en');
+    const bn = cleanCategoryName(cat, 'bn');
+    const raw = String(cat).trim();
+    return Number(
+      budgetsMap[en] ??
+      budgetsMap[en.toLowerCase()] ??
+      budgetsMap[bn] ??
+      budgetsMap[bn.toLowerCase()] ??
+      budgetsMap[raw] ??
+      budgetsMap[raw.toLowerCase()] ??
+      0
+    ) || 0;
+  };
+
+  // Robust getter for category spending
+  const getSpendVal = (cat: string) => {
+    const en = cleanCategoryName(cat, 'en');
+    const bn = cleanCategoryName(cat, 'bn');
+    const raw = String(cat).trim();
+    return Number(
+      categorySpending[en] ??
+      categorySpending[en.toLowerCase()] ??
+      categorySpending[bn] ??
+      categorySpending[bn.toLowerCase()] ??
+      categorySpending[raw] ??
+      categorySpending[raw.toLowerCase()] ??
+      0
+    ) || 0;
+  };
+
   // Total budget & spending derived directly from selected categories
   const totalBudget = useMemo(() => {
-    return selectedCategoryNames.reduce((sum, cName) => sum + (Number(categoryBudgets[cName]) || 0), 0);
+    return selectedCategoryNames.reduce((sum, cName) => sum + getBudgetVal(cName), 0);
   }, [selectedCategoryNames, categoryBudgets]);
 
   const totalSpent = useMemo(() => {
-    return selectedCategoryNames.reduce((sum, cName) => sum + (categorySpending[cName] || 0), 0);
+    return selectedCategoryNames.reduce((sum, cName) => sum + getSpendVal(cName), 0);
   }, [selectedCategoryNames, categorySpending]);
 
   const remainingBudget = totalBudget - totalSpent;
 
-  // Sort selected categories DESC by highest value: (budget + spend)
+  // Sort selected categories DESC by (spend + budget)
   const sortedSelectedCategories = useMemo(() => {
     return [...selectedCategoryNames].sort((a, b) => {
-      const bBudget = Number(categoryBudgets[b]) || 0;
-      const bSpend = Number(categorySpending[b]) || 0;
-      const bTotal = bBudget + bSpend;
+      const bSpend = getSpendVal(b);
+      const bBudget = getBudgetVal(b);
+      const bTotal = bSpend + bBudget; // spend + budget যোগফল
 
-      const aBudget = Number(categoryBudgets[a]) || 0;
-      const aSpend = Number(categorySpending[a]) || 0;
-      const aTotal = aBudget + aSpend;
+      const aSpend = getSpendVal(a);
+      const aBudget = getBudgetVal(a);
+      const aTotal = aSpend + aBudget; // spend + budget যোগফল
 
+      // Descending order: highest (spend + budget) at top
       if (bTotal !== aTotal) {
-        return bTotal - aTotal; // Descending: highest on top
-      }
-      if (bBudget !== aBudget) {
-        return bBudget - aBudget;
+        return bTotal - aTotal;
       }
       if (bSpend !== aSpend) {
         return bSpend - aSpend;
       }
-      return a.localeCompare(b);
+      if (bBudget !== aBudget) {
+        return bBudget - aBudget;
+      }
+      return cleanCategoryName(a, 'en').localeCompare(cleanCategoryName(b, 'en'));
     });
   }, [selectedCategoryNames, categoryBudgets, categorySpending]);
 
-  // Auto-save budget handler - writes selected categories to Google Sheet as pure text (no icon)
+  // Auto-save budget handler - writes selected categories to Google Sheet sorted DESC
   const handlePerformSave = (
     newCatBudgets?: Record<string, number>,
     newSelectedCats?: string[]
   ) => {
     const catsToUse = newCatBudgets || categoryBudgets;
-    const selectedList = newSelectedCats || selectedCategoryNames;
+    const baseList = newSelectedCats || sortedSelectedCategories;
 
-    const catSum = selectedList.reduce((sum, cName) => sum + (Number(catsToUse[cName]) || 0), 0);
+    // Keep rows in exact descending order of (spend + budget)
+    const sortedList = [...baseList].sort((a, b) => {
+      const bS = getSpendVal(b);
+      const bB = getBudgetVal(b, catsToUse);
+      const aS = getSpendVal(a);
+      const aB = getBudgetVal(a, catsToUse);
+      return (bS + bB) - (aS + aB);
+    });
 
-    const categoryRows: CategoryBudgetRow[] = selectedList.map(cName => {
+    const catSum = sortedList.reduce((sum, cName) => sum + getBudgetVal(cName, catsToUse), 0);
+
+    const categoryRows: CategoryBudgetRow[] = sortedList.map(cName => {
       const cleanPlainName = cleanCategoryName(cName, 'en') || cName;
-      const b = Number(catsToUse[cleanPlainName] ?? catsToUse[cName] ?? 0);
-      const s = Number(categorySpending[cleanPlainName] ?? categorySpending[cName] ?? 0);
+      const b = getBudgetVal(cName, catsToUse);
+      const s = getSpendVal(cName);
       const r = b - s;
       return {
         category: cleanPlainName,
@@ -264,7 +318,9 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
     setSaveStatus('saving');
     if (onSaveBudget) {
-      onSaveBudget(selectedMonth, catSum, catsToUse, categoryRows);
+      setTimeout(() => {
+        onSaveBudget(selectedMonth, catSum, catsToUse, categoryRows);
+      }, 0);
     }
     setTimeout(() => {
       setSaveStatus('saved');
@@ -290,15 +346,15 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Toggle category inclusion in active budget list
   const handleToggleCategory = (cleanName: string) => {
-    setSelectedCategoryNames(prev => {
-      const exists = prev.includes(cleanName);
-      const next = exists ? prev.filter(c => c !== cleanName) : [...prev, cleanName];
-      try {
-        localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
-      } catch {}
-      handlePerformSave(categoryBudgets, next);
-      return next;
-    });
+    const exists = selectedCategoryNames.includes(cleanName);
+    const next = exists
+      ? selectedCategoryNames.filter(c => c !== cleanName)
+      : [...selectedCategoryNames, cleanName];
+    setSelectedCategoryNames(next);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
+    } catch {}
+    handlePerformSave(categoryBudgets, next);
   };
 
   // Select all expense categories
@@ -322,14 +378,12 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
   // Remove category from active budget list
   const handleRemoveCategory = (cleanName: string) => {
-    setSelectedCategoryNames(prev => {
-      const next = prev.filter(c => c !== cleanName);
-      try {
-        localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
-      } catch {}
-      handlePerformSave(categoryBudgets, next);
-      return next;
-    });
+    const next = selectedCategoryNames.filter(c => c !== cleanName);
+    setSelectedCategoryNames(next);
+    try {
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
+    } catch {}
+    handlePerformSave(categoryBudgets, next);
   };
 
   // Filtered categories for the selection modal
@@ -533,76 +587,49 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
         ) : (
           <div className="space-y-2.5 pt-1">
             {sortedSelectedCategories.map(catClean => {
-              const budgetVal = categoryBudgets[catClean] || 0;
-              const spentVal = categorySpending[catClean] || 0;
+              const budgetVal = getBudgetVal(catClean);
+              const spentVal = getSpendVal(catClean);
               const pct = budgetVal > 0 ? Math.min(100, (spentVal / budgetVal) * 100) : 0;
               const isOver = budgetVal > 0 && spentVal > budgetVal;
+              const emoji = getCategoryEmoji(catClean);
+              const circleColor = getCategoryColor(catClean);
 
               return (
                 <div
                   key={catClean}
-                  className="p-3 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2 shadow-2xs group relative hover:border-slate-300 transition-colors"
+                  className="p-3 bg-white border border-slate-200 hover:border-slate-300 rounded-2xl transition-all shadow-2xs space-y-2.5 group"
                 >
+                  {/* ROW 1: [Icon] [Category Name]        [% of used] [x] */}
                   <div className="flex items-center justify-between gap-2">
-                    {/* PLAIN TEXT CATEGORY TITLE (NO ICONS IN FRONT) */}
-                    <div className="min-w-0">
-                      <span className="font-bold text-[#0F172A] text-xs sm:text-[13px] truncate block leading-tight">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Icon circle matching DetailsTab */}
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-lg shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-slate-200/50`}>
+                        {emoji}
+                      </div>
+                      <span className="font-bold text-[#0F172A] text-xs sm:text-sm truncate">
                         {cleanCategoryName(catClean, lang)}
                       </span>
-
-                      <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
-                        <span>
-                          {t('Spend:', 'খরচ:')}{' '}
-                          <strong className="text-[#EF4444] tabular-nums font-bold">
-                            {formatNumberLocale(spentVal, lang)}
-                          </strong>
-                        </span>
-                        {budgetVal > 0 && (
-                          <>
-                            <span>•</span>
-                            <span>
-                              {t('Remain:', 'অবশিষ্ট:')}{' '}
-                              <strong
-                                className={`tabular-nums font-bold ${
-                                  budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'
-                                }`}
-                              >
-                                {budgetVal - spentVal >= 0 ? '+' : ''}
-                                {formatNumberLocale(budgetVal - spentVal, lang)}
-                              </strong>
-                            </span>
-                          </>
-                        )}
-                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <label className="text-[9px] text-slate-500 block font-semibold uppercase">
-                          {t('Budget Limit', 'বাজেট লিমিট')}
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={budgetVal || ''}
-                          onChange={e => {
-                            const cleanVal = e.target.value.replace(/[^0-9.]/g, '');
-                            handleBudgetChange(catClean, cleanVal);
-                          }}
-                          onBlur={() => {
-                            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-                            handlePerformSave();
-                          }}
-                          placeholder="0"
-                          className="w-24 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 tabular-nums"
-                        />
-                      </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* % of used */}
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${
+                          isOver
+                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                            : budgetVal > 0
+                            ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                            : 'text-slate-400 bg-slate-50'
+                        }`}
+                      >
+                        {budgetVal > 0 ? `${pct.toFixed(0)}% ${t('used', 'ব্যবহৃত')}` : `--% ${t('used', 'ব্যবহৃত')}`}
+                      </span>
 
-                      {/* QUICK REMOVE BUTTON */}
+                      {/* Remove button */}
                       <button
                         type="button"
                         onClick={() => handleRemoveCategory(catClean)}
-                        className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+                        className="w-6 h-6 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
                         title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
                       >
                         <X className="w-3.5 h-3.5" />
@@ -610,26 +637,73 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                     </div>
                   </div>
 
-                  {budgetVal > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-slate-500">
-                          {pct.toFixed(0)}% {t('used', 'ব্যবহৃত')}
+                  {/* ROW 2: Spend: XXX   Remain: +YYY    Budget [input] */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
+                    <div className="flex items-center gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-400 font-medium text-[10px] block leading-none mb-0.5">
+                          {t('Spend:', 'খরচ:')}
                         </span>
-                        <span className={isOver ? 'text-[#EF4444] font-bold' : 'text-[#16A34A] font-bold'}>
-                          {isOver
-                            ? `⚠️ ${t('Exceeded by', 'অতিরিক্ত')} ${formatNumberLocale(spentVal - budgetVal, lang)}`
-                            : `${formatNumberLocale(budgetVal - spentVal, lang)} ${t('remaining', 'অবশিষ্ট')}`}
-                        </span>
+                        <strong className="text-[#EF4444] font-bold tabular-nums">
+                          {formatNumberLocale(spentVal, lang)}
+                        </strong>
                       </div>
-                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300">
-                        <div
-                          className={`h-full transition-all duration-300 ${
-                            isOver ? 'bg-[#EF4444] animate-pulse' : 'bg-[#16A34A]'
+
+                      <div className="h-5 w-[1px] bg-slate-200" />
+
+                      <div>
+                        <span className="text-slate-400 font-medium text-[10px] block leading-none mb-0.5">
+                          {t('Remain:', 'অবশিষ্ট:')}
+                        </span>
+                        <strong
+                          className={`tabular-nums font-bold ${
+                            budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'
                           }`}
-                          style={{ width: `${pct}%` }}
-                        />
+                        >
+                          {budgetVal > 0 ? (
+                            <>
+                              {budgetVal - spentVal >= 0 ? '+' : ''}
+                              {formatNumberLocale(budgetVal - spentVal, lang)}
+                            </>
+                          ) : (
+                            '-'
+                          )}
+                        </strong>
                       </div>
+                    </div>
+
+                    {/* Budget Input */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        {t('Budget', 'বাজেট')}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={budgetVal || ''}
+                        onChange={e => {
+                          const cleanVal = e.target.value.replace(/[^0-9.]/g, '');
+                          handleBudgetChange(catClean, cleanVal);
+                        }}
+                        onBlur={() => {
+                          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                          handlePerformSave();
+                        }}
+                        placeholder="0"
+                        className="w-20 sm:w-24 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 focus:bg-white tabular-nums shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ROW 3: Sleek Progress Bar */}
+                  {budgetVal > 0 && (
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isOver ? 'bg-[#EF4444] animate-pulse' : 'bg-[#16A34A]'
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   )}
                 </div>
