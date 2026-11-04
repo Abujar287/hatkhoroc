@@ -341,10 +341,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         if (diffDays > 0 && diffDays <= 65) {
           const firstDayOfWeek = start.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
           const emptySlots = Array.from({ length: firstDayOfWeek });
-          const days: { dateStr: string; isToday: boolean; displayLabel: string }[] = [];
+          const rawDays: { dateStr: string; isToday: boolean; dayNum: number; currMonth: number }[] = [];
           
           let curr = new Date(start);
-          const startMonth = start.getMonth();
           const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
           
           while (curr <= end) {
@@ -352,17 +351,32 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             const isToday = dateStr === todayStr;
             const dayNum = curr.getDate();
             const currMonth = curr.getMonth();
-            const displayLabel = (currMonth !== startMonth && dayNum === 1)
-              ? `${dayNum} ${monthsShort[currMonth]}`
-              : String(dayNum);
 
-            days.push({
+            rawDays.push({
               dateStr,
               isToday,
-              displayLabel
+              dayNum,
+              currMonth
             });
             curr.setDate(curr.getDate() + 1);
           }
+
+          const days = rawDays.map((d, idx) => {
+            const isStart = idx === 0;
+            const isEnd = idx === rawDays.length - 1;
+            const isMonthStart = d.dayNum === 1;
+
+            let displayLabel = String(d.dayNum);
+            if (isStart || isEnd || isMonthStart) {
+              displayLabel = `${d.dayNum}-${monthsShort[d.currMonth]}`;
+            }
+
+            return {
+              dateStr: d.dateStr,
+              isToday: d.isToday,
+              displayLabel
+            };
+          });
 
           return { emptySlots, days };
         }
@@ -381,15 +395,21 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     const firstDayIndex = new Date(year, month - 1, 1).getDay();
     const totalDays = new Date(year, month, 0).getDate();
     const emptySlots = Array.from({ length: firstDayIndex });
+    const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const days: { dateStr: string; isToday: boolean; displayLabel: string }[] = [];
 
     for (let dayNum = 1; dayNum <= totalDays; dayNum++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
       const isToday = dateStr === todayStr;
+      const isStart = dayNum === 1;
+      const isEnd = dayNum === totalDays;
+      const displayLabel = (isStart || isEnd)
+        ? `${dayNum}-${monthsShort[month - 1]}`
+        : String(dayNum);
       days.push({
         dateStr,
         isToday,
-        displayLabel: String(dayNum)
+        displayLabel
       });
     }
 

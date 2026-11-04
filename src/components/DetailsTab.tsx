@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Transaction, AppUser } from '../types';
 import { normalizeDate, formatNumberLocale, formatCleanDateTime, formatDateShortDemo, formatDayHeader } from '../utils/dateUtils';
-import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { cleanCategoryName, getCategoryEmoji, getCategoryColor, isOthersCategory } from '../utils/categoryUtils';
 
 
 interface DetailsTabProps {
@@ -41,14 +41,15 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
-  // Extract unique categories across transactions
+  // Extract unique categories across transactions based on selected type filter
   const uniqueCategories = useMemo(() => {
     const set = new Set<string>();
     transactions.forEach(tx => {
+      if (typeFilter !== 'All' && tx.type !== typeFilter) return;
       if (tx.category) set.add(tx.category);
     });
     return Array.from(set);
-  }, [transactions]);
+  }, [transactions, typeFilter]);
 
   // Check if any filter is currently applied
   const isFilterActive = searchTerm.trim() !== '' || typeFilter !== 'All' || categoryFilter !== 'All';
@@ -64,7 +65,20 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
       if (typeFilter !== 'All' && tx.type !== typeFilter) return false;
-      if (categoryFilter !== 'All' && tx.category !== categoryFilter) return false;
+      if (categoryFilter !== 'All') {
+        const filterIsOthers = isOthersCategory(categoryFilter, typeFilter === 'Income' ? 'Income' : 'Expense') ||
+          cleanCategoryName(categoryFilter, 'en').toLowerCase() === 'others' ||
+          cleanCategoryName(categoryFilter, 'en').toLowerCase() === 'other income';
+
+        if (filterIsOthers) {
+          const targetType = typeFilter !== 'All' ? typeFilter : tx.type;
+          if (!isOthersCategory(tx.category, targetType)) return false;
+        } else {
+          const targetClean = cleanCategoryName(categoryFilter, 'en').toLowerCase();
+          const txClean = cleanCategoryName(tx.category, 'en').toLowerCase();
+          if (tx.category !== categoryFilter && txClean !== targetClean) return false;
+        }
+      }
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
         const catMatch = (tx.category || '').toLowerCase().includes(query);

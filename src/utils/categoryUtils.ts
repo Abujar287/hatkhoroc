@@ -137,3 +137,14 @@ export function getCategoryColor(catName: string): string {
   }
   return colors[Math.abs(hash) % colors.length];
 }
+
+export function isOthersCategory(catName: string, type: 'Income' | 'Expense'): boolean {
+  if (!catName) return false;
+  const clean = cleanCategoryName(catName, 'en').toLowerCase();
+  if (type === 'Income') {
+    return clean === 'other income' || clean === 'others' || catName.includes('Other Income') || catName.includes('অন্যান্য আয়');
+  } else {
+    return clean === 'others' || (catName.includes('Others') || catName.includes('অন্যান্য')) && !catName.includes('আয়');
+  }
+}
+

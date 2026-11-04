@@ -263,7 +263,6 @@ export default function App() {
 
   const handleConfirmExit = () => {
     setShowExitModal(false);
-    handleLogout();
     setIsAppExited(true);
     try {
       window.close();
@@ -525,7 +524,8 @@ export default function App() {
       startDate: normalizeDate(m.startDate),
       endDate: normalizeDate(m.endDate),
       label: cleanMappingLabel(m.label),
-      isDefault: Boolean(m.isDefault)
+      isDefault: Boolean(m.isDefault),
+      defaultMonth: m.isDefault ? 'default' : ''
     })).filter(m => m.label && m.startDate && m.endDate);
 
     setMonthMappings(cleaned);
@@ -549,17 +549,38 @@ export default function App() {
     setSelectedMonth(cleanLabel);
     localStorage.setItem(`app_default_selected_month_${currentTab}`, cleanLabel);
 
-    // If matching mapping exists, set it as isDefault: true, others false
     setMonthMappings(prev => {
       let found = false;
-      const updated = prev.map(m => {
+      let updated: MonthMapping[] = prev.map((m): MonthMapping => {
         const isMatch = m.label.toLowerCase() === cleanLabel.toLowerCase();
         if (isMatch) found = true;
         return { ...m, isDefault: isMatch };
       });
-      if (updated.length > 0) {
-        saveMonthMappings(updated);
+
+      // If month label was not present in monthMappings array, auto-create a mapping
+      if (!found) {
+        const monthKey = getMonthKeyFromLabel(cleanLabel) || cleanLabel;
+        let startDate = `${monthKey}-01`;
+        let endDate = `${monthKey}-31`;
+        if (monthKey.includes('-')) {
+          const [y, m] = monthKey.split('-').map(Number);
+          if (!isNaN(y) && !isNaN(m)) {
+            const lastDay = new Date(y, m, 0).getDate();
+            startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+            endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+          }
+        }
+        const newMapping: MonthMapping = {
+          id: Date.now().toString(),
+          label: cleanLabel,
+          startDate,
+          endDate,
+          isDefault: true
+        };
+        updated = [...updated.map((m): MonthMapping => ({ ...m, isDefault: false })), newMapping];
       }
+
+      saveMonthMappings(updated);
       return updated;
     });
 
@@ -572,6 +593,17 @@ export default function App() {
   }, []);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    try {
+      const savedMappings = localStorage.getItem(`app_month_mappings_${currentTab}`);
+      if (savedMappings) {
+        const parsed = JSON.parse(savedMappings);
+        if (Array.isArray(parsed)) {
+          const defMap = parsed.find((m: any) => m.isDefault || String(m['default month'] || m.isDefault).toLowerCase() === 'default');
+          if (defMap && defMap.label) return defMap.label;
+        }
+      }
+    } catch {}
+
     try {
       const savedDefault = localStorage.getItem(`app_default_selected_month_${currentTab}`);
       if (savedDefault) return savedDefault;
@@ -650,10 +682,12 @@ export default function App() {
           const normalized: MonthMapping[] = rawMappings.map((m: any, idx: number) => {
             const rawLabel = m.label || m.MappingMonth || m['Mapping Month'] || '';
             const cleanedLabel = cleanMappingLabel(rawLabel) || `Custom-${idx + 1}`;
+            const defaultVal = m.isDefault ?? m.IsDefault ?? m['Is Default'] ?? m['is_default'] ?? m['default month'] ?? m['Default Month'] ?? m['default_month'] ?? m['default'] ?? m['Default'];
             const rawIsDefault = Boolean(
-              m.isDefault || m.IsDefault || m['Is Default'] || m['is_default'] ||
-              String(m.isDefault || m.IsDefault || m['Is Default']).toLowerCase() === 'true' ||
-              String(m.isDefault || m.IsDefault || m['Is Default']).toLowerCase() === 'yes'
+              defaultVal === true ||
+              String(defaultVal).toLowerCase() === 'true' ||
+              String(defaultVal).toLowerCase() === 'yes' ||
+              String(defaultVal).toLowerCase() === 'default'
             );
             return {
               id: String(m.id || `map_${idx}_${Date.now()}`),

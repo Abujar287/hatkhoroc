@@ -1597,7 +1597,7 @@ function doPost(e) {
         mapSheet = ss.insertSheet('month mapping');
       }
       mapSheet.clear();
-      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'Is Default']);
+      mapSheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
       mapSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
       mapSheet.setFrozenRows(1);
       
@@ -1605,7 +1605,11 @@ function doPost(e) {
       for (var m = 0; m < maps.length; m++) {
         var item = maps[m];
         if (item && item.label) {
-          mapSheet.appendRow([item.startDate, item.endDate, item.label, item.isDefault ? 'TRUE' : 'FALSE']);
+          var isDef = item.isDefault === true ||
+                      String(item.isDefault).toLowerCase() === 'true' ||
+                      String(item.isDefault).toLowerCase() === 'default' ||
+                      String(item.defaultMonth || item['default month']).toLowerCase() === 'default';
+          mapSheet.appendRow([item.startDate, item.endDate, item.label, isDef ? 'default' : '']);
         }
       }
       return ContentService.createTextOutput(JSON.stringify({
@@ -1964,7 +1968,7 @@ function getMonthMappings(ss) {
   if (!sheet) {
     try {
       sheet = ss.insertSheet('month mapping');
-      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'Is Default']);
+      sheet.appendRow(['Start Date', 'End Date', 'Mapping Month', 'default month']);
       sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
       sheet.setFrozenRows(1);
     } catch (e) {
@@ -1979,7 +1983,7 @@ function getMonthMappings(ss) {
     var end = rows[i][1];
     var label = rows[i][2];
     var rawDef = String(rows[i][3] || '').trim().toLowerCase();
-    var isDef = rawDef === 'true' || rawDef === 'yes';
+    var isDef = rawDef === 'true' || rawDef === 'yes' || rawDef === 'default';
     
     if (label && start && end) {
       var cleanLabel = String(label).trim();
