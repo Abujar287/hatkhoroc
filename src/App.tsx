@@ -265,7 +265,15 @@ export default function App() {
     setShowExitModal(false);
     setIsAppExited(true);
     try {
+      if ((window as any).navigator?.app?.exitApp) {
+        (window as any).navigator.app.exitApp();
+      }
+    } catch {}
+    try {
       window.close();
+    } catch {}
+    try {
+      window.history.back();
     } catch {}
   };
 
@@ -1380,11 +1388,25 @@ export default function App() {
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
 
       {isAppExited && (
-        <div className="fixed inset-0 z-[999] bg-[#042F2E] flex flex-col items-center justify-center p-6 text-center animate-fadeIn text-[#F0FDFA]">
-          <Lock className="w-12 h-12 text-teal-300 mb-4" />
-          <h2 className="text-xl font-bold">Closed</h2>
-          <p className="text-teal-200/80 mb-6">You can close this tab now.</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-[#0B3C39] border border-teal-700/70 text-[#F0FDFA] rounded-xl hover:bg-teal-900/80 cursor-pointer">Reopen</button>
+        <div className="fixed inset-0 z-[9999999] bg-[#042F2E] flex flex-col items-center justify-center p-6 text-center animate-fadeIn text-[#F0FDFA]">
+          <div className="w-16 h-16 rounded-full bg-[#062423] border border-teal-700/80 flex items-center justify-center mb-4 shadow-2xl">
+            <Lock className="w-8 h-8 text-rose-400" />
+          </div>
+          <h2 className="text-xl font-bold text-[#F0FDFA] mb-1">
+            {t('HisabKitab Closed', 'অ্যাপস বন্ধ করা হয়েছে')}
+          </h2>
+          <p className="text-xs text-teal-300/80 mb-6 max-w-xs leading-relaxed">
+            {t('You have exited the application. You can close this tab or tap below to reopen.', 'আপনি নিশ্চিতভাবে অ্যাপস থেকে বের হয়ে গেছেন। এই ব্রাউজার ট্যাবটি বন্ধ করতে পারেন অথবা পুনরায় অ্যাপে প্রবেশ করতে পারেন।')}
+          </p>
+          <button
+            onClick={() => {
+              setIsAppExited(false);
+              window.location.reload();
+            }}
+            className="px-6 py-2.5 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-xl shadow-lg cursor-pointer transition-all active:scale-95 text-xs border border-teal-600/80"
+          >
+            {t('Reopen HisabKitab', 'পুনরায় অ্যাপে প্রবেশ করুন')}
+          </button>
         </div>
       )}
     </div>

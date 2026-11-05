@@ -593,20 +593,20 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
           </span>
         </div>
 
-        <div className="bg-rose-950/40 rounded-2xl p-3 border border-rose-900/50 shadow-sm">
-          <span className="text-[10px] text-rose-300 font-semibold block mb-1">
+        <div className="bg-rose-950/50 rounded-2xl p-3 border border-rose-800/60 shadow-sm">
+          <span className="text-[10px] text-rose-200 font-semibold block mb-1">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base font-extrabold text-rose-400 tabular-nums">
+          <span className="text-sm sm:text-base font-extrabold text-[#FF5252] tabular-nums">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
 
-        <div className="bg-emerald-950/40 rounded-2xl p-3 border border-emerald-900/50 shadow-sm">
-          <span className="text-[10px] text-emerald-300 font-semibold block mb-1">
+        <div className="bg-emerald-950/50 rounded-2xl p-3 border border-emerald-800/60 shadow-sm">
+          <span className="text-[10px] text-emerald-200 font-semibold block mb-1">
             {t('Remaining', 'অবশিষ্ট')}
           </span>
-          <span className={`text-sm sm:text-base font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <span className={`text-sm sm:text-base font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'}`}>
             {remainingBudget >= 0 ? '+' : ''}{formatNumberLocale(remainingBudget, lang)}
           </span>
         </div>
@@ -614,17 +614,17 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* CATEGORY-WISE BUDGET LIST */}
       <div className="space-y-3">
-        {/* Header directly on dark background */}
+        {/* Top Action Bar */}
         <div className="flex items-center justify-between px-1 pb-1 border-b border-teal-800/60 gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-xl bg-teal-900/70 text-emerald-400 flex items-center justify-center shrink-0 border border-teal-700/60 shadow-xs">
+            <div className="w-7 h-7 rounded-xl bg-[#062423] text-emerald-400 flex items-center justify-center shrink-0 border border-teal-700/60 shadow-xs">
               <Sliders className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xs font-extrabold text-[#F0FDFA] uppercase tracking-tight truncate">
                 {t('Costing Expense Categories', 'এই মাসে খরচ হওয়া ক্যাটাগরি')}
               </h3>
-              <p className="text-[10px] text-teal-200/80 font-mono">
+              <p className="text-[10px] text-teal-300/80 font-mono">
                 {sortedSelectedCategories.length} {t('categories with cost this month', 'টি ক্যাটাগরিতে এই মাসে খরচ হয়েছে')}
               </p>
             </div>
@@ -634,7 +634,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             <button
               type="button"
               onClick={() => setIsCategoryModalOpen(true)}
-              className="px-2.5 py-1 bg-teal-900/80 hover:bg-teal-800 text-teal-100 border border-teal-700/80 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+              className="px-2.5 py-1 bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
             >
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
               <span>{t('Add Category', 'ক্যাটাগরি যোগ')}</span>
@@ -655,7 +655,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
           </div>
         </div>
 
-        {/* ACTIVE BUDGET ITEMS - INDIVIDUAL SEPARATE CARDS WITH DARK TEAL BACKGROUND */}
+        {/* ACTIVE BUDGET ITEMS - 2-ROW COMPACT CARDS */}
         {sortedSelectedCategories.length === 0 ? (
           <div className="text-center py-8 px-4 space-y-3 bg-[#0B3C39] rounded-2xl border border-teal-800/80">
             <p className="text-xs text-teal-200/90 font-medium">
@@ -683,84 +683,34 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               return (
                 <div
                   key={catClean}
-                  className="p-3.5 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/80 rounded-2xl transition-all shadow-sm space-y-2.5 group"
+                  className="bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/90 rounded-2xl p-3 transition-all shadow-xs space-y-2.5 group"
                 >
-                  {/* ROW 1: [Icon] [Category Name]        [% of used] [x] */}
-                  <div className="flex items-center justify-between gap-2">
+                  {/* ROW 1: CATEGORY NAME & REMOVE BUTTON */}
+                  <div className="flex items-center justify-between gap-2 border-b border-teal-800/60 pb-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Icon circle */}
-                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50`}>
+                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm sm:text-base shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-teal-600/60`}>
                         {emoji}
                       </div>
-                      <span className="font-bold text-[#F0FDFA] text-xs sm:text-sm truncate">
+                      <span className="font-extrabold text-[#F0FDFA] text-xs sm:text-sm truncate">
                         {cleanCategoryName(catClean, lang)}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {/* % of used */}
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${
-                          isOver
-                            ? 'bg-rose-950/70 text-rose-300 border-rose-800/60'
-                            : budgetVal > 0
-                            ? 'bg-teal-950/70 text-teal-200 border-teal-800/60'
-                            : 'text-teal-400/60 bg-teal-950/40 border-teal-900/40'
-                        }`}
-                      >
-                        {budgetVal > 0 ? `${pct.toFixed(0)}% ${t('used', 'ব্যবহৃত')}` : `--% ${t('used', 'ব্যবহৃত')}`}
-                      </span>
-
-                      {/* Remove button */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCategory(catClean)}
-                        className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
-                        title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(catClean)}
+                      className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-[#FF5252] hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                      title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  {/* ROW 2: Spend: XXX   Remain: +YYY    Budget [input] */}
-                  <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
-                    <div className="flex items-center gap-3 text-xs">
-                      <div>
-                        <span className="text-teal-300/80 font-medium text-[10px] block leading-none mb-0.5">
-                          {t('Spend:', 'খরচ:')}
-                        </span>
-                        <strong className="text-rose-400 font-bold tabular-nums">
-                          {formatNumberLocale(spentVal, lang)}
-                        </strong>
-                      </div>
-
-                      <div className="h-5 w-[1px] bg-teal-800/60" />
-
-                      <div>
-                        <span className="text-teal-300/80 font-medium text-[10px] block leading-none mb-0.5">
-                          {t('Remain:', 'অবশিষ্ট:')}
-                        </span>
-                        <strong
-                          className={`tabular-nums font-bold ${
-                            budgetVal - spentVal >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {budgetVal > 0 ? (
-                            <>
-                              {budgetVal - spentVal >= 0 ? '+' : ''}
-                              {formatNumberLocale(budgetVal - spentVal, lang)}
-                            </>
-                          ) : (
-                            '-'
-                          )}
-                        </strong>
-                      </div>
-                    </div>
-
-                    {/* Budget Input */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-semibold text-teal-200">
+                  {/* ROW 2: BUDGET INPUT, SPENT, REMAIN, % */}
+                  <div className="grid grid-cols-4 gap-2 items-center text-center">
+                    {/* 1. Budget Input */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
                         {t('Budget', 'বাজেট')}
                       </span>
                       <input
@@ -776,22 +726,59 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                           handlePerformSave();
                         }}
                         placeholder="0"
-                        className="w-20 sm:w-24 bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1 text-xs text-[#F0FDFA] text-right font-bold focus:outline-none focus:border-emerald-400 tabular-nums shadow-2xs"
+                        className="w-full max-w-[80px] bg-[#062423] border border-teal-700/70 rounded-lg px-2 py-1 text-xs text-[#F0FDFA] text-right font-bold focus:outline-none focus:border-teal-400 tabular-nums shadow-2xs"
                       />
+                    </div>
+
+                    {/* 2. Spent */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
+                        {t('Spent', 'খরচ')}
+                      </span>
+                      <span className="font-extrabold text-[#FF5252] text-xs tabular-nums truncate max-w-full">
+                        {formatNumberLocale(spentVal, lang)}
+                      </span>
+                    </div>
+
+                    {/* 3. Remaining */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
+                        {t('Remain', 'অবশিষ্ট')}
+                      </span>
+                      <span
+                        className={`font-extrabold text-xs tabular-nums truncate max-w-full ${
+                          budgetVal - spentVal >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'
+                        }`}
+                      >
+                        {budgetVal > 0 ? (
+                          <>
+                            {budgetVal - spentVal >= 0 ? '+' : ''}
+                            {formatNumberLocale(budgetVal - spentVal, lang)}
+                          </>
+                        ) : (
+                          '-'
+                        )}
+                      </span>
+                    </div>
+
+                    {/* 4. % Badge */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
+                        %
+                      </span>
+                      <span
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 ${
+                          isOver
+                            ? 'bg-rose-950/80 text-[#FF5252] border-rose-800/80'
+                            : budgetVal > 0
+                            ? 'bg-teal-950/80 text-teal-200 border-teal-800/80'
+                            : 'text-teal-400/50 bg-[#062423] border-teal-800/40'
+                        }`}
+                      >
+                        {budgetVal > 0 ? `${pct.toFixed(0)}%` : `--%`}
+                      </span>
                     </div>
                   </div>
-
-                  {/* ROW 3: Sleek Progress Bar */}
-                  {budgetVal > 0 && (
-                    <div className="w-full bg-teal-950/80 h-1.5 rounded-full overflow-hidden border border-teal-800/60">
-                      <div
-                        className={`h-full transition-all duration-300 ${
-                          isOver ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}
