@@ -1263,42 +1263,42 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[360px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[85vh] overflow-y-auto overscroll-contain my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[360px] rounded-2xl p-4 shadow-2xl relative border border-teal-800/90 animate-modalSpring max-h-[85vh] overflow-y-auto overscroll-contain my-auto"
           onClick={e => e.stopPropagation()}
         >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2.5">
+        <div className="flex items-center justify-between border-b border-teal-800/80 pb-2 mb-2.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Tag className="w-3.5 h-3.5 text-[#475569] shrink-0" />
-            <h3 className="text-xs font-bold text-[#0F172A] truncate max-w-[220px]">
+            <Tag className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+            <h3 className="text-xs font-bold text-[#F0FDFA] truncate max-w-[220px]">
               {cleanCategoryName(categoryName, lang)} {t('Details', 'এর হিসাব')}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer shrink-0"
+            className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/60 cursor-pointer shrink-0 border border-teal-800/80"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Category Total Header */}
-        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between mb-2.5">
+        <div className="p-2.5 bg-[#062423] border border-teal-700/70 rounded-xl flex items-center justify-between mb-2.5">
           <div>
-            <span className="text-[9.5px] text-slate-500 block font-semibold">
+            <span className="text-[9.5px] text-teal-300/80 block font-semibold">
               {t('Total Records', 'মোট সংখ্যা')}
             </span>
-            <span className="text-xs font-bold text-[#0F172A]">
+            <span className="text-xs font-bold text-[#F0FDFA]">
               {catTxs.length} {t('items', 'টি')}
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[9.5px] text-slate-500 block font-semibold">
+            <span className="text-[9.5px] text-teal-300/80 block font-semibold">
               {isExpense ? t('Total Spent', 'মোট খরচ') : t('Total Income', 'মোট আয়')}
             </span>
             <span
               className={`text-xs font-extrabold tabular-nums ${
-                isExpense ? 'text-[#EF4444]' : 'text-[#16A34A]'
+                isExpense ? 'text-[#FF5252]' : 'text-[#34D399]'
               }`}
             >
               {isExpense ? '-' : '+'}
@@ -1309,7 +1309,7 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
 
         {/* Transactions List */}
         {catTxs.length === 0 ? (
-          <p className="text-[11px] text-slate-500 text-center py-6">
+          <p className="text-[11px] text-teal-300/80 text-center py-6">
             {t('No transactions found in this category.', 'এই ক্যাটাগরিতে কোনো হিসাব নেই।')}
           </p>
         ) : (
@@ -1321,23 +1321,23 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
               return (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl transition-all group shadow-2xs"
+                  className="flex items-center justify-between p-2 bg-[#062423] hover:bg-teal-900/60 border border-teal-700/70 rounded-xl transition-all group shadow-2xs"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-slate-200/60`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-teal-600/60`}>
                       {emoji}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-[#0F172A] text-[11px] truncate">
+                        <span className="font-bold text-[#F0FDFA] text-[11px] truncate">
                           {cleanCategoryName(tx.category, lang)}
                         </span>
-                        <span className="text-[9.5px] text-slate-400 shrink-0 font-medium">
+                        <span className="text-[9.5px] text-teal-300/80 shrink-0 font-medium">
                           {formatDateShortDemo(tx.date, lang)}
                         </span>
                       </div>
                       {tx.note && (
-                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        <p className="text-[10px] text-teal-300/80 truncate mt-0.5">
                           {tx.note}
                         </p>
                       )}
@@ -1347,7 +1347,7 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     <span
                       className={`font-extrabold text-[11px] tabular-nums ${
-                        isExpense ? 'text-[#EF4444]' : 'text-[#16A34A]'
+                        isExpense ? 'text-[#FF5252]' : 'text-[#34D399]'
                       }`}
                     >
                       {isExpense ? '-' : '+'}{formatNumberLocale(tx.value, lang)}
@@ -1361,7 +1361,7 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
                             onClose();
                             onEdit(tx);
                           }}
-                          className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-[#475569] rounded hover:bg-white cursor-pointer transition-colors"
+                          className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-white rounded hover:bg-[#042F2E] cursor-pointer transition-colors"
                           title={t('Edit', 'এডিট')}
                         >
                           <Edit3 className="w-3 h-3" />
@@ -1372,7 +1372,7 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
                             onClose();
                             onDelete(tx);
                           }}
-                          className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 rounded hover:bg-white cursor-pointer transition-colors"
+                          className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-[#FF5252] rounded hover:bg-[#042F2E] cursor-pointer transition-colors"
                           title={t('Delete', 'মুছুন')}
                         >
                           <Trash2 className="w-3 h-3" />
@@ -2297,31 +2297,31 @@ function formatDateVal(val) {
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[400px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[88vh] overflow-y-auto overscroll-contain space-y-3 my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[400px] rounded-2xl p-4 shadow-2xl relative border border-teal-800/90 animate-modalSpring max-h-[88vh] overflow-y-auto overscroll-contain space-y-3 my-auto"
           onClick={e => e.stopPropagation()}
         >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="flex items-center justify-between border-b border-teal-800/80 pb-2">
           <div className="flex items-center gap-1.5">
-            <FileSpreadsheet className="w-4 h-4 text-[#475569]" />
-            <h3 className="text-xs font-bold text-[#0F172A]">
+            <FileSpreadsheet className="w-4 h-4 text-teal-300" />
+            <h3 className="text-xs font-bold text-[#F0FDFA]">
               {t('Apps Script Backend Code', 'অ্যাপস স্ক্রিপ্ট কোড')}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer"
+            className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/60 cursor-pointer border border-teal-800/80"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Warning Banner */}
-        <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 font-medium space-y-1">
-          <p className="font-extrabold flex items-center gap-1 text-amber-950">
+        <div className="p-2.5 bg-amber-950/80 rounded-xl border border-amber-800/80 text-[11px] text-amber-200 font-medium space-y-1">
+          <p className="font-extrabold flex items-center gap-1 text-amber-300">
             <span>⚠️</span> {t('Crucial Google Apps Script Deployment Instructions:', 'জরুরী ধাপ (গুগল শিট আপডেট পাওয়ার জন্য):')}
           </p>
-          <p className="text-[10px] leading-snug">
+          <p className="text-[10px] leading-snug text-amber-200/90">
             {t(
               'After replacing code in Apps Script, click: Deploy > New deployment (or Deploy > Manage deployments > Edit > New Version) to activate updates.',
               'অ্যাপস স্ক্রিপ্টে এই কোডটি পেস্ট করার পর অবশ্যই top menu থেকে Deploy > New deployment (অথবা Deploy > Manage deployments > Edit > New Version) দিতে হবে।'
@@ -2330,7 +2330,7 @@ function formatDateVal(val) {
         </div>
 
         <div className="relative">
-          <pre className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-mono text-[#0F172A] overflow-x-auto max-h-48 no-scrollbar">
+          <pre className="p-2.5 rounded-xl bg-[#062423] border border-teal-700/70 text-[10px] font-mono text-emerald-300 overflow-x-auto max-h-48 no-scrollbar">
             {appsScriptCode}
           </pre>
         </div>
@@ -2338,9 +2338,9 @@ function formatDateVal(val) {
         <button
           type="button"
           onClick={handleCopy}
-          className="w-full py-2 bg-[#475569] hover:bg-slate-700 text-white rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98 text-xs"
+          className="w-full py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98 text-xs border border-teal-600/80"
         >
-          {copied ? <CheckCheck className="w-3.5 h-3.5 text-[#16A34A]" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? <CheckCheck className="w-3.5 h-3.5 text-[#34D399]" /> : <Copy className="w-3.5 h-3.5" />}
           <span>{copied ? t('Copied!', 'কপি হয়েছে!') : t('Copy Code', 'কোড কপি করুন')}</span>
         </button>
       </div>
@@ -2412,32 +2412,32 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-md rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring max-h-[85vh] flex flex-col my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl p-4 shadow-2xl relative border border-teal-800/90 animate-modalSpring max-h-[85vh] flex flex-col my-auto"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 shrink-0">
+          <div className="flex items-center justify-between border-b border-teal-800/80 pb-2 mb-3 shrink-0">
             <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-[#475569]" />
-              <h3 className="text-xs font-bold text-[#0F172A] uppercase">
+              <Tag className="w-4 h-4 text-teal-300" />
+              <h3 className="text-xs font-bold text-[#F0FDFA] uppercase">
                 {t('Manage Categories', 'ক্যাটাগরি ম্যানেজমেন্ট')}
               </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-6 h-6 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer"
+              className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/60 cursor-pointer border border-teal-800/80"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Type Tab Selector */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl mb-3 shrink-0">
+          <div className="flex items-center bg-[#062423] p-1 rounded-xl mb-3 shrink-0 border border-teal-800/80">
             <button
               type="button"
               onClick={() => setActiveType('Expense')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeType === 'Expense' ? 'bg-[#EF4444] text-white shadow-sm' : 'text-slate-600 hover:text-[#0F172A]'
+                activeType === 'Expense' ? 'bg-[#FF5252] text-white shadow-sm' : 'text-teal-300 hover:text-white'
               }`}
             >
               {t('Expense Categories', 'খরচের ক্যাটাগরি')} ({expenseCategories.length})
@@ -2446,7 +2446,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               type="button"
               onClick={() => setActiveType('Income')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeType === 'Income' ? 'bg-[#16A34A] text-white shadow-sm' : 'text-slate-600 hover:text-[#0F172A]'
+                activeType === 'Income' ? 'bg-emerald-600 text-white shadow-sm' : 'text-teal-300 hover:text-white'
               }`}
             >
               {t('Income Categories', 'আয়ের ক্যাটাগরি')} ({incomeCategories.length})
@@ -2458,13 +2458,13 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
             {categories.map((cat, idx) => (
               <div
                 key={cat}
-                className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-sm"
+                className="flex items-center justify-between p-2 rounded-xl bg-[#062423] border border-teal-700/70 text-xs shadow-sm"
               >
                 <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <div className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5 rounded border border-slate-200 bg-white" title="Move / Drag">
+                  <div className="text-teal-300 hover:text-white cursor-grab active:cursor-grabbing p-0.5 rounded border border-teal-800/80 bg-[#042F2E]" title="Move / Drag">
                     <GripVertical className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-[#0F172A] truncate">
+                  <span className="font-semibold text-[#F0FDFA] truncate">
                     {cleanCategoryName(cat, lang)}
                   </span>
                 </div>
@@ -2474,7 +2474,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                     type="button"
                     onClick={() => handleMove(idx, 'up')}
                     disabled={idx === 0}
-                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0F172A] disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
+                    className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
                     title="Move Up"
                   >
                     ▲
@@ -2483,7 +2483,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                     type="button"
                     onClick={() => handleMove(idx, 'down')}
                     disabled={idx === categories.length - 1}
-                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0F172A] disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
+                    className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
                     title="Move Down"
                   >
                     ▼
@@ -2491,7 +2491,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleEdit(cat, idx)}
-                    className="p-1 rounded border border-slate-200 bg-white text-[#475569] hover:bg-slate-100 cursor-pointer shadow-sm"
+                    className="p-1 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white hover:bg-teal-900/60 cursor-pointer shadow-sm"
                     title="Edit"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
@@ -2499,7 +2499,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDelete(cat)}
-                    className="p-1 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer shadow-sm"
+                    className="p-1 rounded border border-rose-800/80 bg-rose-950/60 text-[#FF5252] hover:bg-rose-900/80 cursor-pointer shadow-sm"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -2516,7 +2516,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               onClose();
               onOpenAddModal(activeType);
             }}
-            className="w-full py-2.5 bg-[#475569] hover:bg-slate-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-98 shrink-0 text-xs"
+            className="w-full py-2.5 bg-teal-700 hover:bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-98 shrink-0 text-xs border border-teal-600/80"
           >
             <Plus className="w-4 h-4" />
             <span>{t('+ Add New Category', '+ নতুন ক্যাটাগরি যোগ করুন')}</span>
@@ -2616,18 +2616,18 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[340px] rounded-2xl p-5 shadow-xl relative border border-slate-200 animate-modalSpring my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[340px] rounded-2xl p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring my-auto"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div className="flex items-center justify-between border-b border-teal-800/80 pb-3 mb-4">
             <div className="flex items-center gap-2">
-              <Download className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-sm font-bold text-[#0F172A]">{t('Export Report', 'রিপোর্ট এক্সপোর্ট')}</h3>
+              <Download className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-sm font-bold text-[#F0FDFA]">{t('Export Report', 'রিপোর্ট এক্সপোর্ট')}</h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center text-[#475569] hover:text-[#0F172A] rounded-full bg-slate-100 hover:bg-slate-200 cursor-pointer transition-colors"
+              className="w-7 h-7 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/60 cursor-pointer border border-teal-800/80 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -2636,17 +2636,17 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
           <div className="space-y-4">
             {/* Step 1: Select Scope */}
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+              <label className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider block mb-1.5">
                 {t('1. Select Export Type', '১. এক্সপোর্টের ধরন নির্বাচন করুন')}
               </label>
               <select
                 value={exportScope}
                 onChange={e => setExportScope(e.target.value as any)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
+                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
               >
-                <option value="month">{t('Specific Month', 'নির্দিষ্ট মাস অনুযায়ী')}</option>
-                <option value="custom">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী')}</option>
-                <option value="all">{t('Full History (All-Time)', 'শুরু থেকে আজ পর্যন্ত')}</option>
+                <option value="month" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Specific Month', 'নির্দিষ্ট মাস অনুযায়ী')}</option>
+                <option value="custom" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী')}</option>
+                <option value="all" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Full History (All-Time)', 'শুরু থেকে আজ পর্যন্ত')}</option>
               </select>
             </div>
 
@@ -2654,16 +2654,16 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
             <div className="animate-fadeIn">
               {exportScope === 'month' && (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider block">
                     {t('2. Select Month', '২. মাস নির্বাচন করুন')}
                   </label>
                   <select
                     value={selectedMonth}
                     onChange={e => setSelectedMonth(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer shadow-sm"
+                    className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
                   >
                     {monthOptions.map(m => (
-                      <option key={m.val} value={m.val}>{m.label}</option>
+                      <option key={m.val} value={m.val} className="bg-[#0B3C39] text-[#F0FDFA]">{m.label}</option>
                     ))}
                   </select>
                 </div>
@@ -2671,26 +2671,26 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
 
               {exportScope === 'custom' && (
                 <div className="space-y-2.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider block">
                     {t('2. Select Date Range', '২. তারিখ নির্বাচন করুন')}
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('Start', 'শুরু')}</span>
+                      <span className="text-[9px] font-bold text-teal-300/80 uppercase ml-1">{t('Start', 'শুরু')}</span>
                       <input
                         type="date"
                         value={startDate}
                         onChange={e => setStartDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-slate-400"
+                        className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400"
                       />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{t('End', 'শেষ')}</span>
+                      <span className="text-[9px] font-bold text-teal-300/80 uppercase ml-1">{t('End', 'শেষ')}</span>
                       <input
                         type="date"
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-slate-400"
+                        className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400"
                       />
                     </div>
                   </div>
@@ -2698,8 +2698,8 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
               )}
 
               {exportScope === 'all' && (
-                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
-                  <p className="text-[10px] font-medium text-indigo-700 text-center">
+                <div className="p-3 bg-indigo-950/80 border border-indigo-800/80 rounded-xl">
+                  <p className="text-[10px] font-medium text-indigo-200 text-center">
                     {t('This will export all records since the beginning of time.', 'এটি শুরু থেকে আজ পর্যন্ত সমস্ত রেকর্ড এক্সপোর্ট করবে।')}
                   </p>
                 </div>
@@ -2717,14 +2717,14 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
                   });
                   onClose();
                 }}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-100 active:scale-98 transition-all text-sm"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/40 active:scale-98 transition-all text-sm border border-emerald-500/80"
               >
                 <Download className="w-5 h-5" />
                 <span>{t('Download ZIP Report', 'ZIP রিপোর্ট ডাউনলোড করুন')}</span>
               </button>
             </div>
             
-            <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+            <p className="text-[10px] text-teal-300/70 text-center leading-relaxed">
               {t('Report is generated based on the "Date" column (Column E) of your Google Sheet.', 'রিপোর্টটি আপনার গুগল শিটের "Date" কলাম (Column E) অনুযায়ী ফিল্টার করে তৈরি করা হয়।')}
             </p>
           </div>
@@ -2761,18 +2761,18 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-white text-[#0F172A] w-full max-w-[320px] rounded-2xl p-4 shadow-xl relative border border-slate-200 animate-modalSpring text-center space-y-3 my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-4 shadow-2xl relative border border-teal-800/90 animate-modalSpring text-center space-y-3 my-auto"
           onClick={e => e.stopPropagation()}
         >
-          <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center mx-auto">
+          <div className="w-10 h-10 rounded-xl bg-[#062423] text-teal-300 flex items-center justify-center mx-auto border border-teal-800/80">
             <DoorOpen className="w-5 h-5" />
           </div>
 
           <div>
-            <h3 className="text-xs font-bold text-[#0F172A]">
+            <h3 className="text-xs font-bold text-[#F0FDFA]">
               {t('Exit Application?', 'অ্যাপ থেকে বের হতে চান?')}
             </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-[11px] text-teal-300/80 mt-0.5">
               {t('Are you sure you want to close HisabKitab?', 'আপনি কি নিশ্চিত যে আপনি HisabKitab বন্ধ করতে চান?')}
             </p>
           </div>
@@ -2781,14 +2781,14 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer active:scale-95"
+              className="py-1.5 bg-[#062423] hover:bg-teal-900/60 text-teal-200 rounded-lg text-xs font-semibold cursor-pointer active:scale-95 border border-teal-800/80"
             >
               {t('Cancelled', 'বাতিল')}
             </button>
             <button
               type="button"
               onClick={onConfirm}
-              className="py-1.5 bg-[#475569] hover:bg-[#334155] text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer active:scale-95"
+              className="py-1.5 bg-rose-700 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer active:scale-95"
             >
               {t('Exit', 'বের হন')}
             </button>
