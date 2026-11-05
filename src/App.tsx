@@ -1213,15 +1213,15 @@ export default function App() {
   if (!isAuthenticated || !currentUser) {
     return (
       <div className="min-h-screen bg-[#042F2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#0F172A]">
+        <div className="w-full max-w-md bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#F0FDFA]">
           <div className="text-center mb-6">
-            <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-3 rounded-2xl shadow-sm" />
-            <h1 className="text-2xl font-bold text-[#042F2E]">HisabKitab</h1>
+            <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-3 rounded-2xl shadow-sm border border-teal-700/60" />
+            <h1 className="text-2xl font-bold text-[#F0FDFA]">HisabKitab</h1>
           </div>
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D9488] focus:ring-1 focus:ring-[#0D9488]" required />
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D9488] focus:ring-1 focus:ring-[#0D9488]" required />
-            {loginError && <p className="text-rose-500 text-xs">{loginError}</p>}
+            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500" required />
+            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500" required />
+            {loginError && <p className="text-rose-400 text-xs">{loginError}</p>}
             <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md">Sign In</button>
           </form>
         </div>
@@ -1237,7 +1237,7 @@ export default function App() {
       <div className={`w-full flex flex-col h-full bg-[#042F2E] relative overflow-hidden ${viewMode === 'mobile' ? 'max-w-[430px] shadow-2xl' : 'max-w-6xl'}`}>
         
         {toast.show && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white rounded-2xl shadow-xl border border-teal-200 animate-fadeIn text-xs font-bold text-[#042F2E]">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#0B3C39] rounded-2xl shadow-xl border border-teal-700 animate-fadeIn text-xs font-bold text-[#F0FDFA]">
             {toast.message}
           </div>
         )}
@@ -1380,11 +1380,11 @@ export default function App() {
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
 
       {isAppExited && (
-        <div className="fixed inset-0 z-[999] bg-white flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-          <Lock className="w-12 h-12 text-slate-400 mb-4" />
+        <div className="fixed inset-0 z-[999] bg-[#042F2E] flex flex-col items-center justify-center p-6 text-center animate-fadeIn text-[#F0FDFA]">
+          <Lock className="w-12 h-12 text-teal-300 mb-4" />
           <h2 className="text-xl font-bold">Closed</h2>
-          <p className="text-slate-500 mb-6">You can close this tab now.</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-700 text-white rounded-xl">Reopen</button>
+          <p className="text-teal-200/80 mb-6">You can close this tab now.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-[#0B3C39] border border-teal-700/70 text-[#F0FDFA] rounded-xl hover:bg-teal-900/80 cursor-pointer">Reopen</button>
         </div>
       )}
     </div>

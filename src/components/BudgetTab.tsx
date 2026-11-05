@@ -800,17 +800,18 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       </div>
 
       {/* CATEGORY SELECTION MODAL - ONLY EXPENSE CATEGORIES & SELECT ALL OPTION */}
+      {/* CATEGORY SELECTION MODAL - ONLY EXPENSE CATEGORIES & SELECT ALL OPTION */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl shadow-2xl border border-teal-800/90 flex flex-col max-h-[85vh] overflow-hidden">
             {/* MODAL HEADER */}
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50/60">
+            <div className="p-4 border-b border-teal-800/80 flex items-center justify-between gap-3 bg-teal-950/40">
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <Sliders className="w-4 h-4 text-slate-600" />
+                <h3 className="text-sm font-bold text-[#F0FDFA] flex items-center gap-1.5">
+                  <Sliders className="w-4 h-4 text-emerald-400" />
                   <span>{t('Select Expense Categories', 'খরচের ক্যাটাগরি নির্বাচন করুন')}</span>
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] text-teal-200/80 mt-0.5">
                   {t(
                     'Pick which expense categories to include in this month’s budget',
                     'এই মাসের বাজেটে কোন কোন খরচের ক্যাটাগরি রাখবেন তা নির্বাচন করুন'
@@ -820,22 +821,22 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-200/70 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-xl bg-teal-900/80 hover:bg-teal-800 text-teal-200 flex items-center justify-center cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* SEARCH & SELECT ALL / CLEAR ALL ACTION BAR */}
-            <div className="p-3 border-b border-slate-100 space-y-2.5 bg-white">
+            <div className="p-3 border-b border-teal-800/80 space-y-2.5 bg-[#0B3C39]">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-teal-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={modalSearch}
                   onChange={e => setModalSearch(e.target.value)}
                   placeholder={t('Search expense category...', 'খরচের ক্যাটাগরি খুঁজুন...')}
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#0F172A] focus:outline-none focus:border-slate-400 focus:bg-white"
+                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#062423] border border-teal-700/70 text-xs text-[#F0FDFA] placeholder:text-teal-400/60 focus:outline-none focus:border-emerald-400"
                 />
               </div>
 
@@ -847,8 +848,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                     onClick={handleSelectAll}
                     className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                       allSelected
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-teal-900/80 hover:bg-teal-800 text-teal-200 border border-teal-700/60'
                     }`}
                   >
                     <CheckSquare className="w-3.5 h-3.5" />
@@ -858,23 +859,23 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                   <button
                     type="button"
                     onClick={handleDeselectAll}
-                    className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer transition-all"
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-teal-900/80 hover:bg-teal-800 text-teal-200 border border-teal-700/60 cursor-pointer transition-all"
                   >
-                    <Square className="w-3.5 h-3.5 text-slate-400" />
+                    <Square className="w-3.5 h-3.5 text-teal-400" />
                     <span>{t('Clear All', 'সব মুছুন')}</span>
                   </button>
                 </div>
 
-                <span className="text-[11px] font-bold text-slate-600 tabular-nums">
+                <span className="text-[11px] font-bold text-teal-200/90 tabular-nums">
                   {selectedCategoryNames.length}/{validExpenseCategories.length} {t('selected', 'নির্বাচিত')}
                 </span>
               </div>
             </div>
 
             {/* CATEGORIES LIST - PURE PLAIN TEXT (NO ICONS IN FRONT) */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 divide-y divide-slate-100">
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 divide-y divide-teal-900/40">
               {filteredModalCategories.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-xs">
+                <div className="py-8 text-center text-teal-300/60 text-xs">
                   {t('No expense categories found', 'কোনো খরচের ক্যাটাগরি পাওয়া যায়নি')}
                 </div>
               ) : (
@@ -887,8 +888,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       onClick={() => handleToggleCategory(cat.cleanName)}
                       className={`pt-1.5 first:pt-0 pb-1.5 flex items-center justify-between gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-slate-100/90 font-medium'
-                          : 'hover:bg-slate-50'
+                          ? 'bg-teal-900/60 font-medium'
+                          : 'hover:bg-teal-900/30'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -896,20 +897,20 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                         <div
                           className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
                             isSelected
-                              ? 'bg-slate-900 border-slate-900 text-white shadow-2xs'
-                              : 'bg-white border-slate-300'
+                              ? 'bg-emerald-600 border-emerald-500 text-white shadow-2xs'
+                              : 'bg-[#062423] border-teal-700/70'
                           }`}
                         >
                           {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                         </div>
 
-                        {/* PURE PLAIN TEXT CATEGORY NAME (NO ICON PREPENDED) */}
-                        <span className="text-xs text-[#0F172A] font-semibold truncate block">
+                        {/* PURE PLAIN TEXT CATEGORY NAME */}
+                        <span className="text-xs text-[#F0FDFA] font-semibold truncate block">
                           {cleanCategoryName(cat.cleanName, lang)}
                         </span>
                       </div>
 
-                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                      <span className="text-[10px] text-teal-300/80 font-mono shrink-0">
                         {isSelected ? t('Active', 'যুক্ত') : ''}
                       </span>
                     </div>
@@ -919,15 +920,15 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             </div>
 
             {/* MODAL FOOTER */}
-            <div className="p-3 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3">
-              <div className="text-[11px] text-slate-500">
-                <strong className="text-slate-800">{selectedCategoryNames.length}</strong> {t('categories in budget', 'টি খরচের ক্যাটাগরি বাজেটে যুক্ত')}
+            <div className="p-3 border-t border-teal-800/80 bg-teal-950/40 flex items-center justify-between gap-3">
+              <div className="text-[11px] text-teal-200/80">
+                <strong className="text-[#F0FDFA]">{selectedCategoryNames.length}</strong> {t('categories in budget', 'টি খরচের ক্যাটাগরি বাজেটে যুক্ত')}
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-sm"
               >
                 {t('Done', 'সম্পন্ন')}
               </button>

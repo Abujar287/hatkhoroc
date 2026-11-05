@@ -374,13 +374,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   return (
     <div className="max-w-2xl mx-auto space-y-4 pb-14 animate-fadeIn">
       {/* 0. MATRICS AMOUNT (CLEAN & SIMPLE REPORTING FORMAT) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
+      <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden animate-fadeIn">
         {/* Header - Minimal & Clean */}
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-[#0F172A] flex items-center gap-2">
+        <div className="px-4 py-3 border-b border-teal-800/80 flex items-center justify-between">
+          <h3 className="text-sm font-extrabold text-[#F0FDFA] flex items-center gap-2">
             <span>Matrics Amount</span>
             {selectedMonth && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
                 {selectedMonth}
               </span>
             )}
@@ -390,24 +390,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <button
               type="button"
               onClick={handleResetMetrics}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-teal-300/80 hover:text-white flex items-center gap-1 cursor-pointer"
               title="Reset"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
             </button>
           )}
         </div>
 
         {/* Rows for City Bank, Bkash, Nagad, Cash, Money Bag */}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-teal-800/60">
           {/* City Bank */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
               City Bank
             </span>
             <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -415,18 +415,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={metrics.cityBank}
                 onChange={e => updateMetric('cityBank', e.target.value)}
                 placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
               />
             </div>
           </div>
 
           {/* Bkash */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
               Bkash
             </span>
             <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -434,18 +434,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={metrics.bkash}
                 onChange={e => updateMetric('bkash', e.target.value)}
                 placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
               />
             </div>
           </div>
 
           {/* Nagad */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
               Nagad
             </span>
             <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -453,18 +453,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={metrics.nagad}
                 onChange={e => updateMetric('nagad', e.target.value)}
                 placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
               />
             </div>
           </div>
 
           {/* Cash */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
               Cash
             </span>
             <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -472,18 +472,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={metrics.cash}
                 onChange={e => updateMetric('cash', e.target.value)}
                 placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
               />
             </div>
           </div>
 
           {/* Money Bag */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-slate-50/50">
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
               Money Bag
             </span>
             <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">৳</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -491,30 +491,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 value={metrics.moneyBag}
                 onChange={e => updateMetric('moneyBag', e.target.value)}
                 placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-indigo-500 text-xs sm:text-sm"
+                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
               />
             </div>
           </div>
         </div>
 
         {/* 1 Single Row for Total, Monthly Balance, Difference */}
-        <div className="border-t-2 border-slate-200 bg-slate-50/90 grid grid-cols-3 divide-x divide-slate-200 text-center py-2.5 px-1">
+        <div className="border-t border-teal-800/80 bg-teal-950/50 grid grid-cols-3 divide-x divide-teal-800/80 text-center py-2.5 px-1">
           <div className="px-1">
-            <span className="text-[11px] font-semibold text-slate-500 block">Total</span>
-            <span className="text-sm sm:text-base font-extrabold font-mono text-slate-900">
+            <span className="text-[11px] font-semibold text-teal-300/80 block">Total</span>
+            <span className="text-sm sm:text-base font-extrabold font-mono text-[#F0FDFA]">
               ৳{formatNumberLocale(totalMatricsAmount, lang)}
             </span>
           </div>
           <div className="px-1">
-            <span className="text-[11px] font-semibold text-slate-500 block">Monthly Balance</span>
-            <span className="text-sm sm:text-base font-extrabold font-mono text-slate-900">
+            <span className="text-[11px] font-semibold text-teal-300/80 block">Monthly Balance</span>
+            <span className="text-sm sm:text-base font-extrabold font-mono text-[#F0FDFA]">
               ৳{formatNumberLocale(activeMonthlyBalance, lang)}
             </span>
           </div>
           <div className="px-1">
-            <span className="text-[11px] font-semibold text-slate-500 block">Difference</span>
+            <span className="text-[11px] font-semibold text-teal-300/80 block">Difference</span>
             <span className={`text-sm sm:text-base font-extrabold font-mono ${
-              difference < 0 ? 'text-rose-600' : 'text-emerald-600'
+              difference < 0 ? 'text-rose-400' : 'text-emerald-400'
             }`}>
               {difference >= 0 ? '+' : ''}৳{formatNumberLocale(difference, lang)}
             </span>
@@ -523,21 +523,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* 1. USER PROFILE CARD */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5">
+      <div className="bg-[#0B3C39] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-[#475569] flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 border border-emerald-500 text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
               {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-[#0F172A] leading-tight">
+              <h2 className="text-base font-extrabold text-[#F0FDFA] leading-tight">
                 {currentUser?.displayName || 'Abujar Al-Gifari'}
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="text-xs font-semibold text-teal-300/80">
                   @{currentUser?.username || 'abujar287'}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
                   {getRoleLabel(currentUser?.role)}
                 </span>
               </div>
@@ -548,16 +548,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <button
               type="button"
               onClick={onOpenEditProfile}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#475569] text-xs font-bold border border-slate-200 cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] text-xs font-bold border border-teal-700/60 cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
             >
-              <Edit3 className="w-3.5 h-3.5" />
+              <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
               <span>{t('Edit Profile', 'প্রোফাইল এডিট')}</span>
             </button>
             {onLogout && (
               <button
                 type="button"
                 onClick={onLogout}
-                className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-[#EF4444] border border-rose-200 cursor-pointer active:scale-95 transition-all"
+                className="p-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all"
                 title={t('Log Out', 'লগআউট')}
               >
                 <LogOut className="w-4 h-4" />
@@ -568,28 +568,28 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* 2. MONTH MAPPING (DROPDOWN ACCORDION) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+      <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden transition-all">
         {/* Accordion Header - Click to expand/collapse */}
         <div
           onClick={() => setIsMonthMappingExpanded(!isMonthMappingExpanded)}
-          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors select-none"
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-teal-900/30 transition-colors select-none"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-teal-900/80 text-emerald-400 flex items-center justify-center border border-teal-700/60 shrink-0">
               <Calendar className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold text-[#0F172A] tracking-tight">
+                <h3 className="text-sm font-extrabold text-[#F0FDFA] tracking-tight">
                   Month Mapping
                 </h3>
                 {selectedMonth && (
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
                     {selectedMonth}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              <p className="text-[11px] text-teal-300/80 font-medium mt-0.5">
                 {isMonthMappingExpanded
                   ? t('Click to collapse options', 'অপশন হাইড করতে ক্লিক করুন')
                   : t('Click to view month ranges & options', 'মাস রেঞ্জ ও অপশন দেখতে ক্লিক করুন')}
@@ -604,13 +604,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 e.stopPropagation();
                 setIsMonthMappingExpanded(!isMonthMappingExpanded);
               }}
-              className="p-2 text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer border border-slate-200"
+              className="p-2 text-teal-300 hover:text-white bg-teal-900/80 hover:bg-teal-800 rounded-xl transition-all cursor-pointer border border-teal-700/60"
               title={isMonthMappingExpanded ? t('Collapse', 'হাইড করুন') : t('Expand', 'দেখুন')}
             >
               {isMonthMappingExpanded ? (
-                <ChevronUp className="w-4 h-4 text-indigo-600" />
+                <ChevronUp className="w-4 h-4 text-emerald-400" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-600" />
+                <ChevronDown className="w-4 h-4 text-teal-300" />
               )}
             </button>
           </div>
@@ -618,10 +618,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         {/* Collapsable Content Body */}
         {isMonthMappingExpanded && (
-          <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 space-y-3.5 animate-fadeIn">
+          <div className="p-4 sm:p-5 pt-0 border-t border-teal-800/80 space-y-3.5 animate-fadeIn">
             {/* Top Action Bar inside Accordion: Add Range Button */}
             <div className="flex items-center justify-between pt-3 pb-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <span className="text-xs font-bold text-teal-300/80 uppercase tracking-wider">
                 {t('Month Mappings List', 'মাস ম্যাপিং তালিকা')}
               </span>
               <button
@@ -641,13 +641,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs ${
                   isAddingMapping
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    ? 'bg-teal-900/80 hover:bg-teal-800 text-teal-200 border border-teal-700/60'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
               >
                 {isAddingMapping ? (
                   <>
-                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                    <EyeOff className="w-3.5 h-3.5 text-teal-300" />
                     <span>{t('Hide Form', 'হাইড ফর্ম')}</span>
                   </>
                 ) : (
@@ -661,15 +661,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
             {/* Add / Edit Form */}
             {isAddingMapping && (
-              <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-3 transition-all animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
-                  <span className="text-xs font-black text-indigo-950 uppercase tracking-wide">
+              <div className="p-3.5 bg-[#062423] rounded-xl border border-teal-700/70 space-y-3 transition-all animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-teal-800/80 pb-2">
+                  <span className="text-xs font-black text-emerald-400 uppercase tracking-wide">
                     {editingMappingId ? t('Edit Range Mapping', 'রেঞ্জ ম্যপিং এডিট') : t('New Range Mapping', 'নতুন রেঞ্জ ম্যাপিং')}
                   </span>
                   <button
                     type="button"
                     onClick={() => { setIsAddingMapping(false); setEditingMappingId(null); }}
-                    className="text-xs text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+                    className="text-xs text-teal-400/80 hover:text-white font-bold cursor-pointer"
                   >
                     {t('Cancel', 'বাতিল')}
                   </button>
@@ -677,52 +677,52 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Month Label</label>
+                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">Month Label</label>
                     <input
                       type="text"
                       value={newMappingLabel}
                       onChange={e => setNewMappingLabel(e.target.value)}
                       placeholder="e.g. Oct-2026"
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-emerald-400"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Start Date</label>
+                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">Start Date</label>
                     <input
                       type="date"
                       value={newMappingStart}
                       onChange={e => setNewMappingStart(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none"
+                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">End Date</label>
+                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">End Date</label>
                     <input
                       type="date"
                       value={newMappingEnd}
                       onChange={e => setNewMappingEnd(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none"
+                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t('Budget (৳)', 'বাজেট (৳)')}</label>
+                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">{t('Budget (৳)', 'বাজেট (৳)')}</label>
                     <input
                       type="number"
                       value={newMappingBudget}
                       onChange={e => setNewMappingBudget(e.target.value)}
                       placeholder="e.g. 50000"
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0F172A] focus:outline-none"
+                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-teal-200 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={newMappingIsDefault}
                       onChange={e => setNewMappingIsDefault(e.target.checked)}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-teal-700 text-emerald-500 focus:ring-emerald-400"
                     />
                     <span>{t('Make Default Month', 'ডিফল্ট মাস করুন')}</span>
                   </label>
@@ -730,7 +730,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveOrUpdateMapping}
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-xs"
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer active:scale-95 transition-all shadow-xs"
                   >
                     {t('Save Range', 'সংরক্ষণ করুন')}
                   </button>
@@ -741,7 +741,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             {/* List of Mappings */}
             <div className="space-y-2">
               {monthMappings.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-400 italic">
+                <div className="py-4 text-center text-xs text-teal-300/60 italic">
                   {t('No month range mappings added yet.', 'কোন মাস রেঞ্জ যোগ করা হয়নি।')}
                 </div>
               ) : (
@@ -750,26 +750,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     <div
                       key={m.id}
                       className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${
-                        m.isDefault ? 'bg-amber-50/80 border-amber-200 shadow-2xs' : 'bg-slate-50/80 hover:bg-slate-100/80 border-slate-200'
+                        m.isDefault ? 'bg-amber-950/40 border-amber-800/60 shadow-2xs' : 'bg-[#062423] hover:bg-teal-900/40 border-teal-700/70'
                       }`}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-[#0F172A]">
+                          <span className="text-xs font-black text-[#F0FDFA]">
                             {m.label}
                           </span>
                           {m.isDefault && (
-                            <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-900/80 text-amber-300 border border-amber-700/80 flex items-center gap-1">
                               ⭐ Default
                             </span>
                           )}
                           {m.budget !== undefined && Number(m.budget) > 0 && (
-                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
                               ৳ {formatNumberLocale(Number(m.budget), lang)}
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-500 font-mono font-medium block mt-0.5">
+                        <span className="text-[11px] text-teal-300/80 font-mono font-medium block mt-0.5">
                           {m.startDate} ~ {m.endDate}
                         </span>
                       </div>
@@ -779,7 +779,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                           <button
                             type="button"
                             onClick={() => onSetDefaultMonth(m.label)}
-                            className="px-2.5 py-1 text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg border border-amber-300 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            className="px-2.5 py-1 text-[11px] font-bold text-amber-300 bg-amber-950/80 hover:bg-amber-900/80 rounded-lg border border-amber-800/60 cursor-pointer transition-all active:scale-95 shadow-2xs"
                           >
                             {t('Make Default', 'ডিফল্ট করুন')}
                           </button>
@@ -787,7 +787,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         <button
                           type="button"
                           onClick={() => handleStartEditMapping(m)}
-                          className="p-1.5 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors shadow-2xs"
+                          className="p-1.5 text-teal-200 hover:text-white bg-teal-900/80 border border-teal-700/60 rounded-lg cursor-pointer hover:bg-teal-800 transition-colors shadow-2xs"
                           title={t('Edit', 'এডিট')}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -795,7 +795,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         <button
                           type="button"
                           onClick={() => onDeleteMonthMapping(m.id)}
-                          className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 border border-rose-200 rounded-lg cursor-pointer hover:bg-rose-100 transition-colors shadow-2xs"
+                          className="p-1.5 text-rose-300 hover:text-white bg-rose-950/60 border border-rose-800/60 rounded-lg cursor-pointer hover:bg-rose-900/60 transition-colors shadow-2xs"
                           title={t('Remove', 'মুছুন')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -811,14 +811,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* COMPACT ACTIONS & TOOLS (EXPORT ZIP, EXPORT JSON, IMPORT JSON, INSTALL APP/QR, APPS SCRIPT) */}
-      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2">
+      <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-2">
         <div className="grid grid-cols-3 gap-2">
           {/* Export ZIP */}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
             disabled={isExportingZip}
-            className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all shadow-xs"
+            className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all shadow-xs"
             title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
           >
             {isExportingZip ? (
@@ -833,10 +833,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={handleExportJson}
-            className="py-2.5 px-2 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-xs"
+            className="py-2.5 px-2 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-xs"
             title={t('Export Backup (.json)', 'JSON ব্যাকআপ')}
           >
-            <Download className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            <Download className="w-3.5 h-3.5 text-sky-400 shrink-0" />
             <span className="truncate">{t('Export JSON', 'Export JSON')}</span>
           </button>
 
@@ -844,10 +844,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="py-2.5 px-2 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-xs"
+            className="py-2.5 px-2 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-xs"
             title={t('Import Backup (.json)', 'JSON ইমপোর্ট')}
           >
-            <Upload className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <Upload className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="truncate">{t('Import JSON', 'Import JSON')}</span>
           </button>
         </div>
@@ -857,9 +857,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <button
               type="button"
               onClick={onOpenInstallModal}
-              className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
+              className="py-2.5 px-3 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
             >
-              <Smartphone className="w-4 h-4 text-[#16A34A] shrink-0" />
+              <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="truncate">{t('Install App / QR Code', 'Install App / QR Code')}</span>
             </button>
           )}
@@ -868,9 +868,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <button
               type="button"
               onClick={() => setShowAppsScriptModal(true)}
-              className="py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-bold border border-slate-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
+              className="py-2.5 px-3 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-xs"
             >
-              <FileSpreadsheet className="w-4 h-4 text-indigo-600 shrink-0" />
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400 shrink-0" />
               <span className="truncate">{t('Apps Script Code', 'Apps Script Code')}</span>
             </button>
           )}
