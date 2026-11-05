@@ -193,6 +193,10 @@ export default function App() {
     const handlePopState = (event: PopStateEvent) => {
       pushGuardState();
       
+      if (document.querySelector('[data-calc-modal="true"]')) {
+        window.dispatchEvent(new CustomEvent('close-calc-modal'));
+        return;
+      }
       if (selectedDateModal) {
         setSelectedDateModal(null);
         return;

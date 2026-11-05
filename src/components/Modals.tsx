@@ -25,7 +25,7 @@ import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/
 import { evaluateExpression } from '../utils/calcUtils';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
-const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ModalPortal } from './Modals';
 import {
   Calendar,
   Delete,
@@ -115,22 +115,50 @@ export const EntryTab: React.FC<EntryTabProps> = ({
 }) => {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
 
+  // Listen for back button / external close events
   useEffect(() => {
-    if (isCalculatorOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
+    const handleCloseEvent = () => {
+      setIsCalculatorOpen(false);
     };
-  }, [isCalculatorOpen]);
+    window.addEventListener('close-calc-modal', handleCloseEvent);
+    return () => window.removeEventListener('close-calc-modal', handleCloseEvent);
+  }, []);
+
+  // Keyboard navigation when calculator is open
+  useEffect(() => {
+    if (!isCalculatorOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCalculatorOpen(false);
+        return;
+      }
+      // If typing inside input or textarea, let default typing occur
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') {
+        return;
+      }
+      if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '*', '/', '.'].includes(e.key)) {
+        handleKeyClick(e.key);
+      } else if (e.key === 'Backspace') {
+        handleKeyClick('DEL');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveTransaction();
+      } else if (e.key.toLowerCase() === 'c') {
+        handleKeyClick('C');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCalculatorOpen, calcDisplay]);
 
   const currentCategories = entryType === 'Expense' ? expenseCategories : incomeCategories;
 
   // Handle Category Click -> Sets category & Opens Calculator
   const handleSelectCategory = (cat: string) => {
     setEntryCategory(cat);
+    if (!calcDisplay || calcDisplay === '') {
+      setCalcDisplay('0');
+    }
     setIsCalculatorOpen(true);
   };
 
@@ -372,145 +400,128 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </motion.button>
       </motion.div>
 
-      {/* 4. Compact Calculator Bottom Sheet Modal with AnimatePresence */}
-      <AnimatePresence>
-        {isCalculatorOpen && (
-          createPortal(
+      {/* 4. Compact Calculator Bottom Sheet Modal via ModalPortal */}
+      {isCalculatorOpen && (
+        <ModalPortal>
+          <div
+            data-calc-modal="true"
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center z-[999999] p-0 sm:p-4 select-none animate-fadeIn"
+            onClick={() => setIsCalculatorOpen(false)}
+          >
             <div
-              className="fixed inset-0 z-[999999] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none"
+              className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain"
+              onClick={e => e.stopPropagation()}
             >
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setIsCalculatorOpen(false)}
-                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-              />
-
-              {/* Modal Container */}
-              <motion.div
-                initial={{ y: '100%', opacity: 0.5 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: '100%', opacity: 0 }}
-                transition={{ type: 'spring' as const, stiffness: 380, damping: 32 }}
-                className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10"
-                onClick={e => e.stopPropagation()}
-              >
-                {/* Header: Category + Date + Close */}
-                <div className="flex items-center justify-between gap-2 border-b border-teal-800/80 pb-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
-                      entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
-                    }`}>
-                      <CategoryIcon category={entryCategory} />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block max-w-[140px]">
-                        {cleanCategoryName(entryCategory, lang)}
-                      </span>
-                      <span className={`text-[9.5px] font-bold uppercase leading-none block ${
-                        entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
-                      }`}>
-                        {entryType === 'Expense' ? t('Expense', 'খরচ') : t('Income', 'আয়')}
-                      </span>
-                    </div>
+              {/* Header: Category + Date + Close */}
+              <div className="flex items-center justify-between gap-2 border-b border-teal-800/80 pb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
+                    entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
+                  }`}>
+                    <CategoryIcon category={entryCategory} />
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1 bg-[#062423] border border-teal-700/70 rounded-xl px-2.5 py-1">
-                      <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                      <input
-                        type="date"
-                        value={entryDate}
-                        onChange={e => setEntryDate(e.target.value)}
-                        className="bg-transparent text-xs font-bold text-[#F0FDFA] focus:outline-none cursor-pointer"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCalculatorOpen(false)}
-                      className="w-7 h-7 flex items-center justify-center rounded-full bg-teal-900/80 hover:bg-teal-800 text-teal-200 transition-colors cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Note input & Amount Display */}
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={entryNote}
-                    onChange={e => setEntryNote(e.target.value)}
-                    placeholder={t('Add note (optional)...', 'নোট লিখুন (ঐচ্ছিক)...')}
-                    className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-1.5 text-xs text-[#F0FDFA] font-semibold focus:outline-none focus:border-emerald-400 placeholder:text-teal-400/60"
-                  />
-
-                  <div className="bg-[#062423] rounded-2xl px-3.5 py-2 border border-teal-700/70 flex items-baseline justify-between shadow-inner">
-                    <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider">
-                      {t('Amount', 'পরিমাণ')}
+                  <div className="min-w-0">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block max-w-[140px]">
+                      {cleanCategoryName(entryCategory, lang)}
                     </span>
-                    <div className="flex items-baseline gap-2">
-                      {/[+\-*/]/.test(calcDisplay) && (
-                        <span className="text-xs font-bold text-teal-300">
-                          = {formatNumberLocale(evaluateExpression(calcDisplay), lang)}
-                        </span>
-                      )}
-                      <span className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
-                        entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
-                      }`}>
-                        {calcDisplay}
-                      </span>
-                    </div>
+                    <span className={`text-[9.5px] font-bold uppercase leading-none block ${
+                      entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                    }`}>
+                      {entryType === 'Expense' ? t('Expense', 'খরচ') : t('Income', 'আয়')}
+                    </span>
                   </div>
                 </div>
 
-                {/* 4x4 Calculator Keypad with micro-interactions */}
-                <div className="grid grid-cols-4 gap-1.5 bg-[#062423] p-2 rounded-2xl border border-teal-700/70">
-                  {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', '✓'].map(key => {
-                    const isSave = key === '✓';
-                    const isAction = key === 'C' || key === 'DEL' || key === '+' || key === '-';
-
-                    return (
-                      <motion.button
-                        key={key}
-                        whileTap={{ scale: 0.92 }}
-                        type="button"
-                        onClick={() => handleKeyClick(key)}
-                        disabled={isSave && isSubmitting}
-                        className={`h-11 sm:h-12 rounded-xl text-base font-extrabold transition-colors flex items-center justify-center cursor-pointer select-none ${
-                          isSave
-                            ? entryType === 'Expense'
-                              ? 'bg-[#EF4444] hover:bg-red-600 text-white shadow-md'
-                              : 'bg-[#16A34A] hover:bg-green-700 text-white shadow-md'
-                            : key === 'C'
-                            ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60 hover:bg-rose-900/80'
-                            : key === 'DEL'
-                            ? 'bg-amber-950/80 text-amber-300 border border-amber-800/60 hover:bg-amber-900/80'
-                            : isAction
-                            ? 'bg-teal-900/80 text-teal-200 hover:bg-teal-800 border border-teal-700/60'
-                            : 'bg-[#0B3C39] hover:bg-teal-800/80 text-[#F0FDFA] border border-teal-700/60 shadow-xs'
-                        }`}
-                      >
-                        {key === 'DEL' ? (
-                          <Delete className="w-4 h-4" />
-                        ) : isSave ? (
-                          <Check className="w-5 h-5 stroke-[3]" />
-                        ) : (
-                          key
-                        )}
-                      </motion.button>
-                    );
-                  })}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 bg-[#062423] border border-teal-700/70 rounded-xl px-2.5 py-1">
+                    <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                    <input
+                      type="date"
+                      value={entryDate}
+                      onChange={e => setEntryDate(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-[#F0FDFA] focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCalculatorOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-teal-900/80 hover:bg-teal-800 text-teal-200 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              </motion.div>
-            </div>,
-            document.body
-          )
-        )}
-      </AnimatePresence>
+              </div>
+
+              {/* Note input & Amount Display */}
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={entryNote}
+                  onChange={e => setEntryNote(e.target.value)}
+                  placeholder={t('Add note (optional)...', 'নোট লিখুন (ঐচ্ছিক)...')}
+                  className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-[#F0FDFA] font-semibold focus:outline-none focus:border-emerald-400 placeholder:text-teal-400/60"
+                />
+
+                <div className="bg-[#062423] rounded-2xl px-3.5 py-2.5 border border-teal-700/70 flex items-baseline justify-between shadow-inner">
+                  <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider">
+                    {t('Amount', 'পরিমাণ')}
+                  </span>
+                  <div className="flex items-baseline gap-2">
+                    {/[+\-*/]/.test(calcDisplay) && (
+                      <span className="text-xs font-bold text-teal-300 animate-fadeIn">
+                        = {formatNumberLocale(evaluateExpression(calcDisplay), lang)}
+                      </span>
+                    )}
+                    <span className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+                      entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                    }`}>
+                      {calcDisplay}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4x4 Calculator Keypad with micro-interactions */}
+              <div className="grid grid-cols-4 gap-1.5 bg-[#062423] p-2 rounded-2xl border border-teal-700/70">
+                {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', '✓'].map(key => {
+                  const isSave = key === '✓';
+                  const isAction = key === 'C' || key === 'DEL' || key === '+' || key === '-';
+
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleKeyClick(key)}
+                      disabled={isSave && isSubmitting}
+                      className={`h-11 sm:h-12 rounded-xl text-base font-extrabold transition-all active:scale-95 flex items-center justify-center cursor-pointer select-none ${
+                        isSave
+                          ? entryType === 'Expense'
+                            ? 'bg-[#EF4444] hover:bg-red-600 active:bg-red-700 text-white shadow-md'
+                            : 'bg-[#16A34A] hover:bg-green-700 active:bg-green-800 text-white shadow-md'
+                          : key === 'C'
+                          ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60 hover:bg-rose-900/80'
+                          : key === 'DEL'
+                          ? 'bg-amber-950/80 text-amber-300 border border-amber-800/60 hover:bg-amber-900/80'
+                          : isAction
+                          ? 'bg-teal-900/80 text-teal-200 hover:bg-teal-800 border border-teal-700/60'
+                          : 'bg-[#0B3C39] hover:bg-teal-800/80 text-[#F0FDFA] border border-teal-700/60 shadow-xs'
+                      }`}
+                    >
+                      {key === 'DEL' ? (
+                        <Delete className="w-4 h-4" />
+                      ) : isSave ? (
+                        <Check className="w-5 h-5 stroke-[3]" />
+                      ) : (
+                        key
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 };
