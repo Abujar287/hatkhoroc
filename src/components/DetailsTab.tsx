@@ -150,20 +150,20 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
     >
       {/* Search & Filter Header (Always Hidden in Print) */}
       <div className="print:hidden space-y-2">
-        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+        <div className="bg-[#0B3C39] p-2.5 rounded-xl border border-teal-800/80 shadow-sm space-y-2">
           <div className="flex items-center gap-1.5">
             <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-teal-400 absolute left-2.5 top-2.5" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder={t('Search...', 'খুঁজুন...')}
-                className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2.5 text-xs text-[#0F172A] placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition-colors"
+                className="w-full h-8.5 bg-[#062423] border border-teal-700/70 rounded-lg pl-8 pr-2.5 text-xs text-[#F0FDFA] placeholder:text-teal-400/60 focus:outline-none focus:border-emerald-400 transition-colors"
               />
             </div>
             {isFilterActive && (
-              <button onClick={handleClearFilters} className="h-8.5 px-2.5 rounded-lg bg-rose-50 text-[#EF4444] border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer">
+              <button onClick={handleClearFilters} className="h-8.5 px-2.5 rounded-lg bg-rose-950/60 text-rose-300 border border-rose-800/60 hover:bg-rose-900/60 transition-colors cursor-pointer">
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
@@ -172,20 +172,20 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
             <select
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value as any)}
-              className="h-8 bg-slate-50 border border-slate-200 rounded-lg px-2 text-[11px] font-semibold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
+              className="h-8 bg-[#062423] border border-teal-700/70 rounded-lg px-2 text-[11px] font-semibold text-[#F0FDFA] focus:outline-none focus:border-emerald-400 cursor-pointer"
             >
-              <option value="All" className="bg-white text-[#0F172A]">{t('All Types', 'সব ধরন')}</option>
-              <option value="Expense" className="bg-white text-[#0F172A]">{t('Expense', 'খরচ')}</option>
-              <option value="Income" className="bg-white text-[#0F172A]">{t('Income', 'আয়')}</option>
+              <option value="All" className="bg-[#042F2E] text-[#F0FDFA]">{t('All Types', 'সব ধরন')}</option>
+              <option value="Expense" className="bg-[#042F2E] text-[#F0FDFA]">{t('Expense', 'খরচ')}</option>
+              <option value="Income" className="bg-[#042F2E] text-[#F0FDFA]">{t('Income', 'আয়')}</option>
             </select>
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="h-8 bg-slate-50 border border-slate-200 rounded-lg px-2 text-[11px] font-semibold text-[#0F172A] focus:outline-none focus:border-slate-400 cursor-pointer"
+              className="h-8 bg-[#062423] border border-teal-700/70 rounded-lg px-2 text-[11px] font-semibold text-[#F0FDFA] focus:outline-none focus:border-emerald-400 cursor-pointer"
             >
-              <option value="All" className="bg-white text-[#0F172A]">{t('All Categories', 'সব ক্যাটাগরি')}</option>
+              <option value="All" className="bg-[#042F2E] text-[#F0FDFA]">{t('All Categories', 'সব ক্যাটাগরি')}</option>
               {uniqueCategories.map(cat => (
-                <option key={cat} value={cat} className="bg-white text-[#0F172A]">
+                <option key={cat} value={cat} className="bg-[#042F2E] text-[#F0FDFA]">
                   {cleanCategoryName(cat, lang)}
                 </option>
               ))}
@@ -195,12 +195,12 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
 
         {/* Global Summary & Actions Row */}
         <div className="flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2 text-[9px] text-slate-500 font-bold uppercase tracking-tight">
-            <span>{t('Inc:', 'আয়:')} <span className="text-[#16A34A]">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
-            <span>{t('Exp:', 'ব্যয়:')} <span className="text-[#EF4444]">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
+          <div className="flex items-center gap-2 text-[9px] text-teal-200 font-bold uppercase tracking-tight">
+            <span>{t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
+            <span>{t('Exp:', 'ব্যয়:')} <span className="text-rose-400 font-bold">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-sm" title={t('Sort Order', 'সাজানোর ক্রম')}>
+            <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="p-1.5 rounded-lg bg-teal-900/80 border border-teal-700 text-teal-200 hover:text-white transition-colors shadow-sm cursor-pointer" title={t('Sort Order', 'সাজানোর ক্রম')}>
               <SlidersHorizontal className="w-3 h-3" />
             </button>
           </div>
@@ -212,31 +212,31 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
         {dateGroups.map(group => (
           <div key={group.dateStr} className="space-y-1">
             {/* Header: Date and Daily Summary */}
-            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-500 tracking-tight border-b border-slate-200 pb-1.5 mb-1 mt-2 uppercase">
+            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-teal-200 tracking-tight border-b border-teal-800/60 pb-1.5 mb-1 mt-2 uppercase">
               <div className="flex items-center gap-1.5">
-                <span className="text-[#0F172A]">
+                <span className="text-[#F0FDFA] font-extrabold">
                   {formatDayHeader(group.dateStr, lang)}
                 </span>
-                <span className="text-slate-400">
+                <span className="text-teal-300/80 font-semibold">
                   ({group.transactions.length} {t('Records', 'টি রেকর্ড')})
                 </span>
               </div>
               <div className="flex items-center gap-3 tabular-nums">
                 {group.totalExpense > 0 && (
-                  <span className="text-slate-500">
-                    {t('Exp:', 'ব্যয়:')} <span className="text-[#EF4444] font-bold">{formatNumberLocale(group.totalExpense, lang)}</span>
+                  <span className="text-teal-200">
+                    {t('Exp:', 'ব্যয়:')} <span className="text-rose-400 font-bold">{formatNumberLocale(group.totalExpense, lang)}</span>
                   </span>
                 )}
                 {group.totalIncome > 0 && (
-                  <span className="text-slate-500">
-                    {t('Inc:', 'আয়:')} <span className="text-[#16A34A] font-bold">{formatNumberLocale(group.totalIncome, lang)}</span>
+                  <span className="text-teal-200">
+                    {t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">{formatNumberLocale(group.totalIncome, lang)}</span>
                   </span>
                 )}
               </div>
             </div>
 
             {/* Transaction Rows */}
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {group.transactions.map(tx => {
                 const isExpense = tx.type === 'Expense';
                 const emoji = getCategoryEmoji(tx.category);
@@ -245,32 +245,32 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                   <div
                     key={tx.id}
                     onClick={() => !isReadOnly && onEdit(tx)}
-                    className="flex items-center justify-between py-2 px-1.5 bg-white border border-slate-100 hover:border-slate-300 rounded-xl transition-all cursor-pointer group shadow-2xs"
+                    className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/80 rounded-xl transition-all cursor-pointer group shadow-2xs"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Icon Circle */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-xs ${circleColor} text-slate-900`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50`}>
                         {emoji}
                       </div>
                       <div className="min-w-0">
-                        <span className="font-bold text-[#0F172A] text-[11px] block truncate group-hover:text-slate-600 transition-colors">
+                        <span className="font-bold text-[#F0FDFA] text-xs block truncate transition-colors">
                           {cleanCategoryName(tx.category, lang)}
                         </span>
                         {tx.note && (
-                          <span className="text-[10px] text-slate-400 block truncate">
+                          <span className="text-[10px] text-teal-300/80 block truncate">
                             {tx.note}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`font-bold text-[11px] tracking-tight tabular-nums ${isExpense ? 'text-[#EF4444]' : 'text-[#16A34A]'}`}>
+                      <span className={`font-bold text-xs sm:text-sm tracking-tight tabular-nums ${isExpense ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {isExpense ? '-' : '+'}{formatNumberLocale(tx.value, lang)}
                       </span>
                       {!isReadOnly && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onDelete(tx); }}
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="w-8 h-8 flex items-center justify-center text-teal-400/60 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -284,7 +284,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
         ))}
 
         {dateGroups.length === 0 && (
-          <div className="py-20 text-center text-slate-400 font-medium text-xs">
+          <div className="py-20 text-center text-teal-200/80 font-medium text-xs">
             {t('No records found.', 'কোনো হিসাব খুঁজে পাওয়া যায়নি।')}
           </div>
         )}

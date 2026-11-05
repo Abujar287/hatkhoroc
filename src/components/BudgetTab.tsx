@@ -216,29 +216,19 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       setCategoryBudgets({});
     }
 
-    try {
-      const savedCats = localStorage.getItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`);
-      if (savedCats) {
-        const parsed = JSON.parse(savedCats);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSelectedCategoryNames(parsed);
-          return;
-        }
-      }
-    } catch {}
+    // Default ONLY to categories where costing occurred in the selected month or budget > 0
+    const activeCategories = validExpenseCategories
+      .map(c => c.cleanName)
+      .filter(name => getSpendVal(name) > 0 || (loadedBudgets[name] && loadedBudgets[name] > 0));
 
-    // Default to ALL valid expense categories automatically
-    const allNames = validExpenseCategories.map(c => c.cleanName);
-    setSelectedCategoryNames(allNames);
+    setSelectedCategoryNames(activeCategories);
     try {
-      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(allNames));
+      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(activeCategories));
     } catch {}
-    return;
   }, [currentTab, selectedMonth, validExpenseCategories, getSpendVal]);
 
   // Robust getter for category budget
-  // Robust getter for category budget
-  const getBudgetVal = (cat: string, budgetsMap: Record<string, number> = categoryBudgets) => {
+  const getBudgetVal = useCallback((cat: string, budgetsMap: Record<string, number> = categoryBudgets) => {
     const en = cleanCategoryName(cat, 'en');
     const bn = cleanCategoryName(cat, 'bn');
     const raw = String(cat).trim();
@@ -260,30 +250,23 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
     }
     return 0;
-  };
+  }, [categoryBudgets]);
 
-  // Derive visible categories: Show ALL valid expense categories and any saved budgets
+  // Derive visible categories: ALL valid expense categories from mapped expenseCategories (validExpenseCategories)
   const visibleCategories = useMemo(() => {
-    const catSet = new Set<string>();
+    const list: string[] = [];
+    const seen = new Set<string>();
 
-    // 1. All valid expense categories from sheet / app
     validExpenseCategories.forEach(c => {
-      catSet.add(c.cleanName);
+      const canonicalName = c.cleanName;
+      const lower = canonicalName.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      list.push(canonicalName);
     });
 
-    // 2. Any category with saved budget
-    Object.keys(categoryBudgets).forEach(cKey => {
-      const clean = cleanCategoryName(cKey, 'en') || cKey;
-      catSet.add(clean);
-    });
-
-    // 3. User explicitly selected categories
-    selectedCategoryNames.forEach(cName => {
-      catSet.add(cName);
-    });
-
-    return Array.from(catSet);
-  }, [categoryBudgets, validExpenseCategories, selectedCategoryNames]);
+    return list;
+  }, [validExpenseCategories]);
 
   // Total budget & spending derived directly from visible categories
   const totalBudget = useMemo(() => {
@@ -362,7 +345,11 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
     });
 
+    const validLowerSet = new Set(validExpenseCategories.map(c => c.cleanName.toLowerCase()));
+
     const activeList = Array.from(catSet).filter(c => {
+      const clean = (cleanCategoryName(c, 'en') || c).toLowerCase();
+      if (!validLowerSet.has(clean) && !validLowerSet.has(c.toLowerCase())) return false;
       if (removedCats && removedCats.includes(c)) return false;
       return getBudgetVal(c, catsToUse) > 0 || getSpendVal(c) > 0 || explicitList.includes(c);
     });
@@ -462,7 +449,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
     handlePerformSave(categoryBudgets, [], selectedCategoryNames);
   };
 
-  // Remove category from active budget list
+  // Remove category from active budget list (sets budget to 0 for this month without deleting master category from Google Sheet)
   const handleRemoveCategory = (cleanName: string) => {
     const next = selectedCategoryNames.filter(c => c !== cleanName);
     setSelectedCategoryNames(next);
@@ -473,9 +460,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(next));
     } catch {}
     handlePerformSave(updatedBudgets, next, [cleanName]);
-    if (onDeleteCategoryFromSheet) {
-      onDeleteCategoryFromSheet(cleanName);
-    }
   };
 
   // Filtered categories for the selection modal
@@ -556,11 +540,11 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   return (
     <div className="max-w-2xl mx-auto space-y-4 animate-fadeIn pb-16">
       {/* MONTH SELECTOR BAR */}
-      <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+      <div className="bg-[#0B3C39] rounded-2xl p-3.5 border border-teal-800/80 shadow-sm flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => handleShiftMonth(-1)}
-          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200 shrink-0"
+          className="p-2 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
           title={t('Previous Month', 'পূর্ববর্তী মাস')}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -568,21 +552,21 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
         <div className="flex-1 flex flex-col items-center justify-center min-w-0">
           <div className="flex items-center gap-2 max-w-full">
-            <Calendar className="w-4 h-4 text-[#475569] shrink-0" />
+            <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
             <select
               value={selectedMonth}
               onChange={e => setSelectedMonth(e.target.value)}
-              className="bg-transparent border-none text-[13px] font-bold text-[#0F172A] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
+              className="bg-transparent border-none text-[13px] font-bold text-[#F0FDFA] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
             >
               {monthOptions.map(m => (
-                <option key={m.val} value={m.val} className="bg-white text-[#0F172A] normal-case">
+                <option key={m.val} value={m.val} className="bg-[#042F2E] text-[#F0FDFA] normal-case">
                   {m.label}
                 </option>
               ))}
             </select>
           </div>
           {currentMapping && (
-            <span className="text-[10px] text-slate-500 font-mono truncate">
+            <span className="text-[10px] text-teal-300/80 font-mono truncate">
               {currentMapping.startDate} ~ {currentMapping.endDate}
             </span>
           )}
@@ -591,7 +575,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
         <button
           type="button"
           onClick={() => handleShiftMonth(1)}
-          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer active:scale-95 transition-all border border-slate-200 shrink-0"
+          className="p-2 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
           title={t('Next Month', 'পরবর্তী মাস')}
         >
           <ChevronRight className="w-4 h-4" />
@@ -600,84 +584,94 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* BUDGET OVERVIEW CARDS */}
       <div className="grid grid-cols-3 gap-2.5">
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
-          <span className="text-[10px] text-slate-500 font-semibold block mb-1">
+        <div className="bg-[#0B3C39] rounded-2xl p-3 border border-teal-800/80 shadow-sm">
+          <span className="text-[10px] text-teal-300/80 font-semibold block mb-1">
             {t('Total Budget', 'মোট বাজেট')}
           </span>
-          <span className="text-sm sm:text-base font-extrabold text-[#0F172A] tabular-nums">
+          <span className="text-sm sm:text-base font-extrabold text-[#F0FDFA] tabular-nums">
             {formatNumberLocale(totalBudget, lang)}
           </span>
         </div>
 
-        <div className="bg-rose-50/50 rounded-2xl p-3 border border-rose-200 shadow-sm">
-          <span className="text-[10px] text-rose-600 font-semibold block mb-1">
+        <div className="bg-rose-950/40 rounded-2xl p-3 border border-rose-900/50 shadow-sm">
+          <span className="text-[10px] text-rose-300 font-semibold block mb-1">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base font-extrabold text-[#EF4444] tabular-nums">
+          <span className="text-sm sm:text-base font-extrabold text-rose-400 tabular-nums">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
 
-        <div className="bg-emerald-50/50 rounded-2xl p-3 border border-emerald-200 shadow-sm">
-          <span className="text-[10px] text-emerald-700 font-semibold block mb-1">
+        <div className="bg-emerald-950/40 rounded-2xl p-3 border border-emerald-900/50 shadow-sm">
+          <span className="text-[10px] text-emerald-300 font-semibold block mb-1">
             {t('Remaining', 'অবশিষ্ট')}
           </span>
-          <span className={`text-sm sm:text-base font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
+          <span className={`text-sm sm:text-base font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {remainingBudget >= 0 ? '+' : ''}{formatNumberLocale(remainingBudget, lang)}
           </span>
         </div>
       </div>
 
       {/* CATEGORY-WISE BUDGET LIST */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2 flex-wrap">
+      <div className="space-y-3">
+        {/* Header directly on dark background */}
+        <div className="flex items-center justify-between px-1 pb-1 border-b border-teal-800/60 gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-xl bg-slate-100 text-[#475569] flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-xl bg-teal-900/70 text-emerald-400 flex items-center justify-center shrink-0 border border-teal-700/60 shadow-xs">
               <Sliders className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-tight truncate">
-                {t('Selected Expense Budgets', 'নির্বাচিত খরচের বাজেট')}
+              <h3 className="text-xs font-extrabold text-[#F0FDFA] uppercase tracking-tight truncate">
+                {t('Costing Expense Categories', 'এই মাসে খরচ হওয়া ক্যাটাগরি')}
               </h3>
-              <p className="text-[10px] text-slate-500 font-mono">
-                {sortedSelectedCategories.length} {t('expense categories active', 'টি খরচের ক্যাটাগরি যুক্ত')}
+              <p className="text-[10px] text-teal-200/80 font-mono">
+                {sortedSelectedCategories.length} {t('categories with cost this month', 'টি ক্যাটাগরিতে এই মাসে খরচ হয়েছে')}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="px-2.5 py-1 bg-teal-900/80 hover:bg-teal-800 text-teal-100 border border-teal-700/80 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t('Add Category', 'ক্যাটাগরি যোগ')}</span>
+            </button>
+
             {saveStatus === 'saving' && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold animate-pulse">
-                <div className="w-2.5 h-2.5 border-2 border-amber-600/30 border-t-amber-600 rounded-full animate-spin" />
-                <span>{t('Saving to Sheet...', 'শিটে সেভ হচ্ছে...')}</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[11px] font-semibold animate-pulse">
+                <div className="w-2.5 h-2.5 border-2 border-amber-300/30 border-t-amber-300 rounded-full animate-spin" />
+                <span>{t('Saving...', 'সেভ হচ্ছে...')}</span>
               </div>
             )}
             {saveStatus === 'saved' && (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold animate-fadeIn">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{t('Auto Saved to Sheet ✓', 'অটো সেভ হয়েছে ✓')}</span>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-[11px] font-semibold animate-fadeIn">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{t('Saved ✓', 'সেভ হয়েছে ✓')}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* ACTIVE BUDGET ITEMS */}
+        {/* ACTIVE BUDGET ITEMS - INDIVIDUAL SEPARATE CARDS WITH DARK TEAL BACKGROUND */}
         {sortedSelectedCategories.length === 0 ? (
-          <div className="text-center py-8 px-4 space-y-3">
-            <p className="text-xs text-slate-500 font-medium">
-              {t('No budget or expense data found for this month.', 'গুগল শিটে এই মাসের কোনো বাজেট বা খরচের তথ্য নেই।')}
+          <div className="text-center py-8 px-4 space-y-3 bg-[#0B3C39] rounded-2xl border border-teal-800/80">
+            <p className="text-xs text-teal-200/90 font-medium">
+              {t('No expenses recorded for this month yet. Only categories with costing will appear.', 'এই মাসে এখনো কোনো খরচ লিপিবদ্ধ করা হয়নি। শুধুমাত্র যেসব ক্যাটাগরিতে খরচ হবে সেগুলোই এখানে আসবে।')}
             </p>
             <button
               type="button"
               onClick={() => setIsCategoryModalOpen(true)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{t('Set Budget / Add Categories', 'ক্যাটাগরি বাছুন ও বাজেট দিন')}</span>
+              <span>{t('Set Budget / Add Category', 'ক্যাটাগরি বাছুন ও বাজেট দিন')}</span>
             </button>
           </div>
         ) : (
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-2 pt-0.5">
             {sortedSelectedCategories.map(catClean => {
               const budgetVal = getBudgetVal(catClean);
               const spentVal = getSpendVal(catClean);
@@ -689,16 +683,16 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               return (
                 <div
                   key={catClean}
-                  className="p-3 bg-white border border-slate-200 hover:border-slate-300 rounded-2xl transition-all shadow-2xs space-y-2.5 group"
+                  className="p-3.5 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/80 rounded-2xl transition-all shadow-sm space-y-2.5 group"
                 >
                   {/* ROW 1: [Icon] [Category Name]        [% of used] [x] */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Icon circle matching DetailsTab */}
-                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-lg shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-slate-200/50`}>
+                      {/* Icon circle */}
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50`}>
                         {emoji}
                       </div>
-                      <span className="font-bold text-[#0F172A] text-xs sm:text-sm truncate">
+                      <span className="font-bold text-[#F0FDFA] text-xs sm:text-sm truncate">
                         {cleanCategoryName(catClean, lang)}
                       </span>
                     </div>
@@ -706,12 +700,12 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                     <div className="flex items-center gap-1.5 shrink-0">
                       {/* % of used */}
                       <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${
                           isOver
-                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                            ? 'bg-rose-950/70 text-rose-300 border-rose-800/60'
                             : budgetVal > 0
-                            ? 'bg-slate-100 text-slate-700 border border-slate-200'
-                            : 'text-slate-400 bg-slate-50'
+                            ? 'bg-teal-950/70 text-teal-200 border-teal-800/60'
+                            : 'text-teal-400/60 bg-teal-950/40 border-teal-900/40'
                         }`}
                       >
                         {budgetVal > 0 ? `${pct.toFixed(0)}% ${t('used', 'ব্যবহৃত')}` : `--% ${t('used', 'ব্যবহৃত')}`}
@@ -721,7 +715,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveCategory(catClean)}
-                        className="w-6 h-6 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+                        className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-rose-400 hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors active:scale-95"
                         title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
                       >
                         <X className="w-3.5 h-3.5" />
@@ -733,23 +727,23 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                   <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
                     <div className="flex items-center gap-3 text-xs">
                       <div>
-                        <span className="text-slate-400 font-medium text-[10px] block leading-none mb-0.5">
+                        <span className="text-teal-300/80 font-medium text-[10px] block leading-none mb-0.5">
                           {t('Spend:', 'খরচ:')}
                         </span>
-                        <strong className="text-[#EF4444] font-bold tabular-nums">
+                        <strong className="text-rose-400 font-bold tabular-nums">
                           {formatNumberLocale(spentVal, lang)}
                         </strong>
                       </div>
 
-                      <div className="h-5 w-[1px] bg-slate-200" />
+                      <div className="h-5 w-[1px] bg-teal-800/60" />
 
                       <div>
-                        <span className="text-slate-400 font-medium text-[10px] block leading-none mb-0.5">
+                        <span className="text-teal-300/80 font-medium text-[10px] block leading-none mb-0.5">
                           {t('Remain:', 'অবশিষ্ট:')}
                         </span>
                         <strong
                           className={`tabular-nums font-bold ${
-                            budgetVal - spentVal >= 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'
+                            budgetVal - spentVal >= 0 ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
                           {budgetVal > 0 ? (
@@ -766,7 +760,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
                     {/* Budget Input */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-semibold text-slate-500">
+                      <span className="text-[11px] font-semibold text-teal-200">
                         {t('Budget', 'বাজেট')}
                       </span>
                       <input
@@ -782,17 +776,17 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                           handlePerformSave();
                         }}
                         placeholder="0"
-                        className="w-20 sm:w-24 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0F172A] text-right font-bold focus:outline-none focus:border-slate-400 focus:bg-white tabular-nums shadow-2xs"
+                        className="w-20 sm:w-24 bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1 text-xs text-[#F0FDFA] text-right font-bold focus:outline-none focus:border-emerald-400 tabular-nums shadow-2xs"
                       />
                     </div>
                   </div>
 
                   {/* ROW 3: Sleek Progress Bar */}
                   {budgetVal > 0 && (
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                    <div className="w-full bg-teal-950/80 h-1.5 rounded-full overflow-hidden border border-teal-800/60">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          isOver ? 'bg-[#EF4444] animate-pulse' : 'bg-[#16A34A]'
+                          isOver ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'
                         }`}
                         style={{ width: `${pct}%` }}
                       />

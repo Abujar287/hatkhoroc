@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar,
-  FileText,
   Delete,
   Check,
   X,
@@ -26,7 +26,6 @@ import {
   Navigation,
   PiggyBank,
   Handshake,
-  MoreHorizontal,
   Apple,
   Wallet,
   CheckCircle2,
@@ -196,53 +195,45 @@ export const EntryTab: React.FC<EntryTabProps> = ({
     setIsCalculatorOpen(false);
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0, y: 10 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        staggerChildren: 0.03,
+        delayChildren: 0.05
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, scale: 0.85 },
+    show: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 350, damping: 25 } }
+  };
+
   return (
-    <div className="max-w-md mx-auto space-y-3.5 animate-fadeIn pb-12 select-none">
-      {/* 1. Header Bar: Clear | Add | Settings */}
-      <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
-        <button
-          type="button"
-          onClick={() => {
-            setCalcDisplay('0');
-            setEntryNote('');
-          }}
-          className="text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-        >
-          {t('Clear', 'ক্লিয়ার')}
-        </button>
-
-        <h2 className="text-base sm:text-lg font-extrabold text-[#0F172A] tracking-wide">
-          {t('Add', 'যোগ করুন')}
-        </h2>
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onOpenCategoryManager}
-            className="text-[11px] font-bold text-[#475569] hover:text-slate-900 transition-colors cursor-pointer flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 active:scale-95"
-            title={t('Add Category', 'নতুন ক্যাটাগরি')}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{t('Add Category', 'ক্যাটাগরি')}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Type Selector Tabs: Expense | Income */}
-      <div className="bg-white border border-slate-200 p-1 rounded-xl grid grid-cols-2 gap-1 shadow-sm">
+    <div className="max-w-md mx-auto space-y-4 pb-12 select-none pt-1">
+      {/* 1. Sleek Animated Type Selector Tabs: Expense | Income */}
+      <div className="bg-[#0B3C39] border border-teal-800/80 p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 shadow-sm relative overflow-hidden">
         <button
           type="button"
           onClick={() => {
             setEntryType('Expense');
             setEntryCategory('');
           }}
-          className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
-            entryType === 'Expense'
-              ? 'bg-[#EF4444] text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
+          className={`relative py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5 z-10 ${
+            entryType === 'Expense' ? 'text-white' : 'text-teal-200/80 hover:text-white'
           }`}
         >
-          {t('Expense', 'খরচ')}
+          {entryType === 'Expense' && (
+            <motion.div
+              layoutId="entryTypeBg"
+              className="absolute inset-0 bg-[#EF4444] rounded-xl shadow-md z-[-1]"
+              transition={{ type: 'spring' as const, stiffness: 450, damping: 32 }}
+            />
+          )}
+          <span>{t('Expense', 'খরচ')}</span>
         </button>
 
         <button
@@ -251,227 +242,276 @@ export const EntryTab: React.FC<EntryTabProps> = ({
             setEntryType('Income');
             setEntryCategory('');
           }}
-          className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
-            entryType === 'Income'
-              ? 'bg-[#16A34A] text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-800'
+          className={`relative py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5 z-10 ${
+            entryType === 'Income' ? 'text-white' : 'text-teal-200/80 hover:text-white'
           }`}
         >
-          {t('Income', 'আয়')}
+          {entryType === 'Income' && (
+            <motion.div
+              layoutId="entryTypeBg"
+              className="absolute inset-0 bg-[#16A34A] rounded-xl shadow-md z-[-1]"
+              transition={{ type: 'spring' as const, stiffness: 450, damping: 32 }}
+            />
+          )}
+          <span>{t('Income', 'আয়')}</span>
         </button>
       </div>
 
-      {/* 3. Category Selection Prompt OR Selected Category Amount Card */}
-      {entryCategory ? (
-        <div 
-          onClick={() => setIsCalculatorOpen(true)}
-          className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all animate-fadeIn"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
-              entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
-            }`}>
-              <CategoryIcon category={entryCategory} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                {t('Selected Category', 'নির্বাচিত ক্যাটাগরি')}
-              </span>
-              <span className="text-xs font-bold text-[#0F172A] truncate block leading-tight">
-                {cleanCategoryName(entryCategory, lang)}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] font-bold text-slate-400 uppercase">
-                {t('Amount', 'পরিমাণ')}
-              </span>
-              <span className={`text-lg font-extrabold tabular-nums ${
-                entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+      {/* 2. Selected Category Card OR Minimal Prompt */}
+      <AnimatePresence mode="wait">
+        {entryCategory ? (
+          <motion.div
+            key="selected-card"
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            onClick={() => setIsCalculatorOpen(true)}
+            className="bg-[#0B3C39] border border-teal-800/80 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-teal-900/80 transition-all active:scale-98"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
+                entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
               }`}>
-                {calcDisplay}
-              </span>
+                <CategoryIcon category={entryCategory} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[9.5px] font-bold text-teal-300/80 uppercase tracking-wider block">
+                  {t('Selected Category', 'নির্বাচিত ক্যাটাগরি')}
+                </span>
+                <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block leading-tight">
+                  {cleanCategoryName(entryCategory, lang)}
+                </span>
+              </div>
             </div>
-            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-              <Plus className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-1">
-          <p className="text-[11px] font-semibold text-slate-400">
-            {t('Select a category to enter amount', 'টাকার পরিমাণ যোগ করতে যেকোনো একটি ক্যাটাগরি নির্বাচন করুন')}
-          </p>
-        </div>
-      )}
 
-      {/* 4. Circular 4-Column Category Grid */}
-      <div className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-col items-end">
+                <span className="text-[9.5px] font-bold text-teal-300/80 uppercase">
+                  {t('Amount', 'পরিমাণ')}
+                </span>
+                <span className={`text-lg sm:text-xl font-black tabular-nums ${
+                  entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                }`}>
+                  {calcDisplay}
+                </span>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-teal-900/80 border border-teal-700/60 flex items-center justify-center text-teal-200 hover:bg-teal-800">
+                <Plus className="w-4 h-4" />
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty-prompt"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-center py-2"
+          >
+            <p className="text-xs font-bold text-[#F0FDFA] opacity-90 tracking-wide">
+              {t('Select a category to enter amount', 'টাকার পরিমাণ যোগ করতে একটি ক্যাটাগরি ছুনুন')}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Circular 4-Column Category Grid with Stagger & Spring Animations */}
+      <motion.div
+        key={entryType}
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1"
+      >
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
           return (
-            <button
+            <motion.button
               key={cat}
+              variants={itemVariants}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
               type="button"
               onClick={() => handleSelectCategory(cat)}
-              className="flex flex-col items-center group cursor-pointer active:scale-95 transition-transform"
+              className="flex flex-col items-center group cursor-pointer transition-transform"
             >
               {/* Circular Icon Container */}
               <div
-                className={`w-13 h-13 sm:w-15 sm:h-15 rounded-full flex items-center justify-center transition-all shadow-sm ${
+                className={`w-13 h-13 sm:w-15 sm:h-15 rounded-full flex items-center justify-center transition-all shadow-md ${
                   isSelected
-                    ? 'bg-[#475569] text-white ring-2 ring-slate-400 ring-offset-2 ring-offset-[#FAF9F6] scale-105'
-                    : 'bg-white border border-slate-200 text-[#475569] group-hover:border-slate-400 group-hover:bg-slate-50'
+                    ? 'bg-emerald-500 text-white ring-2 ring-emerald-300 ring-offset-2 ring-offset-[#042F2E] scale-105'
+                    : 'bg-[#0B3C39] border border-teal-700/70 text-teal-100 group-hover:border-emerald-400/80 group-hover:bg-teal-800/80'
                 }`}
               >
                 <CategoryIcon category={cat} />
               </div>
 
               {/* Category Name Underneath */}
-              <span className="text-[10px] sm:text-[10.5px] font-semibold text-[#0F172A] group-hover:text-slate-600 text-center leading-tight max-w-[76px] truncate mt-1.5">
+              <span className="text-[10.5px] sm:text-[11px] font-bold text-[#F0FDFA] group-hover:text-teal-200 text-center leading-tight max-w-[78px] truncate mt-1.5">
                 {cleanCategoryName(cat, lang)}
               </span>
-            </button>
+            </motion.button>
           );
         })}
 
-        {/* Plus / Settings Button at the end of grid */}
-        <button
+        {/* Plus / Add Category Button at the end of grid */}
+        <motion.button
+          variants={itemVariants}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
           type="button"
           onClick={onOpenCategoryManager}
-          className="flex flex-col items-center group cursor-pointer active:scale-95 transition-transform"
+          className="flex flex-col items-center group cursor-pointer transition-transform"
         >
-          <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-full bg-white border border-dashed border-slate-300 flex items-center justify-center text-slate-400 group-hover:text-[#475569] group-hover:border-slate-500 transition-all shadow-sm">
-            <Plus className="w-5 h-5" />
+          <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-full bg-teal-900/50 border-2 border-dashed border-teal-500/80 flex items-center justify-center text-teal-200 group-hover:text-white group-hover:border-teal-300 transition-all shadow-md">
+            <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <span className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 group-hover:text-[#0F172A] text-center leading-tight mt-1.5">
-            {t('Category', 'ক্যাটাগরি')}
+          <span className="text-[10.5px] sm:text-[11px] font-bold text-teal-200 group-hover:text-white text-center leading-tight mt-1.5">
+            {t('Add Category', 'ক্যাটাগরি')}
           </span>
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      {/* 4. Compact Calculator Bottom Sheet */}
-      {isCalculatorOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[999999] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
-            onClick={() => setIsCalculatorOpen(false)}
-          >
+      {/* 4. Compact Calculator Bottom Sheet Modal with AnimatePresence */}
+      <AnimatePresence>
+        {isCalculatorOpen && (
+          createPortal(
             <div
-              className="bg-white text-[#0F172A] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-3.5 sm:p-4 border-t sm:border border-slate-200 shadow-2xl space-y-2.5 animate-slideUp overflow-hidden"
-              onClick={e => e.stopPropagation()}
+              className="fixed inset-0 z-[999999] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none"
             >
-              {/* Header: Category + Date + Close */}
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
-                    entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
-                  }`}>
-                    <CategoryIcon category={entryCategory} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-[#0F172A] truncate block max-w-[120px]">
-                      {cleanCategoryName(entryCategory, lang)}
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase leading-none block ${
-                      entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setIsCalculatorOpen(false)}
+                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              />
+
+              {/* Modal Container */}
+              <motion.div
+                initial={{ y: '100%', opacity: 0.5 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: '100%', opacity: 0 }}
+                transition={{ type: 'spring' as const, stiffness: 380, damping: 32 }}
+                className="relative bg-white text-[#0F172A] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 border-t sm:border border-slate-200 shadow-2xl space-y-3 overflow-hidden z-10"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header: Category + Date + Close */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
+                      entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
                     }`}>
-                      {entryType === 'Expense' ? t('Expense', 'খরচ') : t('Income', 'আয়')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                    <Calendar className="w-3 h-3 text-[#475569] shrink-0" />
-                    <input
-                      type="date"
-                      value={entryDate}
-                      onChange={e => setEntryDate(e.target.value)}
-                      className="bg-transparent text-[10.5px] font-semibold text-[#0F172A] focus:outline-none cursor-pointer"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCalculatorOpen(false)}
-                    className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-[#0F172A] transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Note input & Amount Display */}
-              <div className="space-y-1.5">
-                <input
-                  type="text"
-                  value={entryNote}
-                  onChange={e => setEntryNote(e.target.value)}
-                  placeholder={t('Add note (optional)...', 'নোট লিখুন (ঐচ্ছিক)...')}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-[#0F172A] focus:outline-none placeholder:text-slate-400"
-                />
-
-                <div className="bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200 flex items-baseline justify-between shadow-inner">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    {t('Amount', 'পরিমাণ')}
-                  </span>
-                  <div className="flex items-baseline gap-1.5">
-                    {/[+\-*/]/.test(calcDisplay) && (
-                      <span className="text-[10px] font-semibold text-slate-500">
-                        = {formatNumberLocale(evaluateExpression(calcDisplay), lang)}
+                      <CategoryIcon category={entryCategory} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs sm:text-sm font-extrabold text-[#0F172A] truncate block max-w-[140px]">
+                        {cleanCategoryName(entryCategory, lang)}
                       </span>
-                    )}
-                    <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums ${
-                      entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
-                    }`}>
-                      {calcDisplay}
-                    </span>
+                      <span className={`text-[9.5px] font-bold uppercase leading-none block ${
+                        entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+                      }`}>
+                        {entryType === 'Expense' ? t('Expense', 'খরচ') : t('Income', 'আয়')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <input
+                        type="date"
+                        value={entryDate}
+                        onChange={e => setEntryDate(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-[#0F172A] focus:outline-none cursor-pointer"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCalculatorOpen(false)}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-[#0F172A] transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {/* 4x4 Calculator Keypad */}
-              <div className="grid grid-cols-4 gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', '✓'].map(key => {
-                  const isSave = key === '✓';
-                  const isAction = key === 'C' || key === 'DEL' || key === '+' || key === '-';
+                {/* Note input & Amount Display */}
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={entryNote}
+                    onChange={e => setEntryNote(e.target.value)}
+                    placeholder={t('Add note (optional)...', 'নোট লিখুন (ঐচ্ছিক)...')}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-[#0F172A] font-semibold focus:outline-none focus:border-slate-400 placeholder:text-slate-400"
+                  />
 
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleKeyClick(key)}
-                      disabled={isSave && isSubmitting}
-                      className={`h-11 sm:h-12 rounded-xl text-base font-bold transition-all flex items-center justify-center cursor-pointer active:scale-95 select-none ${
-                        isSave
-                          ? entryType === 'Expense'
-                            ? 'bg-[#EF4444] hover:bg-red-600 text-white shadow-md'
-                            : 'bg-[#16A34A] hover:bg-green-700 text-white shadow-md'
-                          : key === 'C'
-                          ? 'bg-rose-50 text-[#EF4444] border border-rose-200 hover:bg-rose-100'
-                          : key === 'DEL'
-                          ? 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100'
-                          : isAction
-                          ? 'bg-slate-200 text-[#475569] hover:bg-slate-300 border border-slate-300'
-                          : 'bg-white hover:bg-slate-100 text-[#0F172A] border border-slate-200 shadow-sm'
-                      }`}
-                    >
-                      {key === 'DEL' ? (
-                        <Delete className="w-4 h-4" />
-                      ) : isSave ? (
-                        <Check className="w-5 h-5 stroke-[2.5]" />
-                      ) : (
-                        key
+                  <div className="bg-slate-50 rounded-2xl px-3.5 py-2 border border-slate-200 flex items-baseline justify-between shadow-inner">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      {t('Amount', 'পরিমাণ')}
+                    </span>
+                    <div className="flex items-baseline gap-2">
+                      {/[+\-*/]/.test(calcDisplay) && (
+                        <span className="text-xs font-bold text-slate-500">
+                          = {formatNumberLocale(evaluateExpression(calcDisplay), lang)}
+                        </span>
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>,
-          document.body
+                      <span className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+                        entryType === 'Expense' ? 'text-[#EF4444]' : 'text-[#16A34A]'
+                      }`}>
+                        {calcDisplay}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4x4 Calculator Keypad with micro-interactions */}
+                <div className="grid grid-cols-4 gap-1.5 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                  {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', '✓'].map(key => {
+                    const isSave = key === '✓';
+                    const isAction = key === 'C' || key === 'DEL' || key === '+' || key === '-';
+
+                    return (
+                      <motion.button
+                        key={key}
+                        whileTap={{ scale: 0.92 }}
+                        type="button"
+                        onClick={() => handleKeyClick(key)}
+                        disabled={isSave && isSubmitting}
+                        className={`h-11 sm:h-12 rounded-xl text-base font-extrabold transition-colors flex items-center justify-center cursor-pointer select-none ${
+                          isSave
+                            ? entryType === 'Expense'
+                              ? 'bg-[#EF4444] hover:bg-red-600 text-white shadow-md'
+                              : 'bg-[#16A34A] hover:bg-green-700 text-white shadow-md'
+                            : key === 'C'
+                            ? 'bg-rose-50 text-[#EF4444] border border-rose-200 hover:bg-rose-100'
+                            : key === 'DEL'
+                            ? 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100'
+                            : isAction
+                            ? 'bg-slate-200 text-[#475569] hover:bg-slate-300 border border-slate-300'
+                            : 'bg-white hover:bg-slate-100 text-[#0F172A] border border-slate-200 shadow-xs'
+                        }`}
+                      >
+                        {key === 'DEL' ? (
+                          <Delete className="w-4 h-4" />
+                        ) : isSave ? (
+                          <Check className="w-5 h-5 stroke-[3]" />
+                        ) : (
+                          key
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </div>,
+            document.body
+          )
         )}
+      </AnimatePresence>
     </div>
   );
 };
+

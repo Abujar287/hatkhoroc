@@ -40,6 +40,7 @@ import {
 } from '../utils/dateUtils';
 import { exportMonthlyReportZip } from '../utils/exportZipReport';
 import { AppsScriptModal, ExportMonthModal } from './Modals';
+import { UsersTab } from './UsersTab';
 
 interface SettingsTabProps {
   currentUser: AppUser | null;
@@ -68,6 +69,12 @@ interface SettingsTabProps {
   onDeleteMonthMapping: (id: string) => void;
   onSelectMonth: (month: string) => void;
   onSetDefaultMonth?: (monthLabel: string) => void;
+  users?: AppUser[];
+  onOpenCreateUserModal?: () => void;
+  onOpenEditUserModal?: (user: AppUser) => void;
+  onRequestDeleteUser?: (user: AppUser) => void;
+  onSwitchUser?: (user: AppUser) => void;
+  onToggleActiveUser?: (user: AppUser) => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -97,7 +104,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onAddMonthMapping,
   onDeleteMonthMapping,
   onSelectMonth,
-  onSetDefaultMonth
+  onSetDefaultMonth,
+  users = [],
+  onOpenCreateUserModal,
+  onOpenEditUserModal,
+  onRequestDeleteUser,
+  onSwitchUser,
+  onToggleActiveUser
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
@@ -869,6 +882,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           accept=".json,application/json"
           onChange={handleFileImport}
           className="hidden"
+        />
+      </div>
+
+      {/* USER & TEAM MANAGEMENT AT THE BOTTOM OF SETTINGS */}
+      <div className="pt-2">
+        <UsersTab
+          users={users}
+          currentUser={currentUser}
+          onOpenCreateModal={onOpenCreateUserModal || (() => {})}
+          onOpenEditModal={onOpenEditUserModal || (() => {})}
+          onRequestDeleteUser={onRequestDeleteUser || (() => {})}
+          onSwitchUser={onSwitchUser}
+          onToggleActiveUser={onToggleActiveUser || (() => {})}
+          lang={lang}
+          t={t}
         />
       </div>
 

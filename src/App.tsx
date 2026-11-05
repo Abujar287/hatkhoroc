@@ -386,9 +386,9 @@ export default function App() {
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`app_expense_categories_${currentTab}`);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return deduplicateCategories(parsed);
         }
       }
@@ -399,9 +399,9 @@ export default function App() {
   const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`app_income_categories_${currentTab}`);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return deduplicateCategories(parsed);
         }
       }
@@ -421,19 +421,15 @@ export default function App() {
   useEffect(() => {
     try {
       const savedExp = localStorage.getItem(`app_expense_categories_${currentTab}`);
-      if (savedExp) {
+      if (savedExp !== null) {
         const parsed = JSON.parse(savedExp);
-        setExpenseCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
-      } else {
-        setExpenseCategories(deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
+        if (Array.isArray(parsed)) setExpenseCategories(deduplicateCategories(parsed));
       }
 
       const savedInc = localStorage.getItem(`app_income_categories_${currentTab}`);
-      if (savedInc) {
+      if (savedInc !== null) {
         const parsed = JSON.parse(savedInc);
-        setIncomeCategories(Array.isArray(parsed) && parsed.length > 0 ? deduplicateCategories(parsed) : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
-      } else {
-        setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
+        if (Array.isArray(parsed)) setIncomeCategories(deduplicateCategories(parsed));
       }
 
       const savedBudget = localStorage.getItem(`app_monthly_budget_${currentTab}`);
@@ -651,10 +647,7 @@ export default function App() {
       localStorage.setItem(`app_month_mappings_${currentTab}`, JSON.stringify(finalList));
     } catch {}
 
-    // Multi-Layer Cloud Sync to Google Sheet:
-    // 1. Server-side proxy /api/sheet-proxy (handles 302 redirect cleanly, returns JSON)
-    // 2. Direct POST with text/plain headers as fallback
-    // 3. GET param ping for redundancy
+    // Multi-Layer Cloud Sync to Google Sheet for Budget:
     const payload = {
       action: 'savebudget',
       sheetTab: currentTab,
@@ -663,8 +656,7 @@ export default function App() {
       categoryBudgets: cleanBudgets,
       categoryRows: categoryRows || [],
       mappings: finalList,
-      removedCategories: removedCategories || [],
-      deletedCategory: (removedCategories && removedCategories.length > 0) ? removedCategories[0] : undefined
+      removedCategories: removedCategories || []
     };
 
     try {
@@ -694,21 +686,6 @@ export default function App() {
       fetch(`${GOOGLE_SCRIPT_URL}?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
         mode: 'no-cors'
       }).catch(() => {});
-
-      // If removedCategories were specified, ensure sheet removes them
-      if (removedCategories && removedCategories.length > 0) {
-        removedCategories.forEach(rCat => {
-          fetch('/api/sheet-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'deletecategory',
-              sheetTab: currentTab,
-              category: rCat
-            })
-          }).catch(() => {});
-        });
-      }
 
       showToast(lang === 'en' ? `Budget updated in Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে আপডেট হয়েছে`, 'success');
     } catch (err) {
@@ -869,7 +846,7 @@ export default function App() {
             rowNumber: t.rowNumber || t.row || t.rowIndex,
             datetime: formatCleanDateTime(t.datetime, 'en') || t.datetime || '',
             type: (String(t.type || '').toLowerCase().includes('inc') || String(t.type || '').includes('আয়')) ? 'Income' : 'Expense',
-            category: t.category || 'Others',
+            category: t.category || '',
             date: normalizeDate(t.date),
             value: Math.abs(Number(t.value) || 0),
             note: t.note || ''
@@ -942,46 +919,53 @@ export default function App() {
           });
         }
 
-        const knownIncomeWords = ['salary', 'arrear', 'borrowed', 'bonus', 'business', 'other income', 'income', 'loan', 'previous month arrears', 'বেতন', 'বকেয়া', 'ধার', 'ব্যবসা', 'বোনাস', 'আয়', 'আয়'];
+        const knownIncomeWords = ['salary', 'arrear', 'borrowed money', 'borrowed', 'bonus', 'business', 'other income', 'others income', 'income', 'previous month arrears', 'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'আয়', 'আয়'];
         const isIncomeCat = (catName: string) => {
           const clean = cleanCategoryName(catName, 'en').toLowerCase().trim();
-          return knownIncomeWords.some(w => clean === w || clean.startsWith(w + ' ') || clean.endsWith(' ' + w));
+          if (clean === 'loan repaid' || clean === 'others expense' || clean === "family's cost") return false;
+          return knownIncomeWords.some(w => clean === w);
         };
 
-        const aggregatedExp: string[] = [...DEFAULT_EXPENSE_CATEGORIES];
-        const aggregatedInc: string[] = [...DEFAULT_INCOME_CATEGORIES];
+        // Load categories EXCLUSIVELY from Google Sheet's Category tab (data.categories)
+        const aggregatedExp: string[] = [];
+        const aggregatedInc: string[] = [];
 
-        if (Array.isArray(data.categories)) {
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
           data.categories.forEach((c: any) => {
-            const name = typeof c === 'string' ? c : c.category || c.name || '';
-            const t = String(c.type || '').toLowerCase();
-            if (name) {
-              if (t === 'income' || t.includes('আয়') || isIncomeCat(name)) {
-                aggregatedInc.push(name);
-              } else {
-                aggregatedExp.push(name);
+            if (typeof c === 'string' && c.trim()) {
+              const str = c.trim();
+              if (isIncomeCat(str)) aggregatedInc.push(str);
+              else aggregatedExp.push(str);
+            } else if (typeof c === 'object' && c !== null) {
+              const catName = String(c.category || c.Category || c.name || c.Name || c.cName || '').trim();
+              const rawType = String(c.type || c.Type || c.cType || '').toLowerCase().trim();
+
+              if (catName) {
+                if (rawType.includes('exp') || rawType.includes('খরচ') || rawType === 'expense') {
+                  aggregatedExp.push(catName);
+                } else if (rawType.includes('inc') || rawType.includes('আয়') || rawType === 'income') {
+                  aggregatedInc.push(catName);
+                } else if (isIncomeCat(catName)) {
+                  aggregatedInc.push(catName);
+                } else {
+                  aggregatedExp.push(catName);
+                }
               }
             }
           });
         }
 
-        if (data.categoryBudgets && typeof data.categoryBudgets === 'object') {
-          Object.values(data.categoryBudgets).forEach((bMap: any) => {
-            if (bMap && typeof bMap === 'object') {
-              Object.keys(bMap).forEach(k => {
-                if (k && !isIncomeCat(k)) {
-                  aggregatedExp.push(k);
-                }
-              });
-            }
-          });
-        }
-
-        if (Array.isArray(data.transactions)) {
+        // Fallback to active transactions ONLY if Category tab returned 0 items
+        if (aggregatedExp.length === 0 && aggregatedInc.length === 0 && Array.isArray(data.transactions)) {
           data.transactions.forEach((tx: any) => {
             const isExp = String(tx.type || '').toLowerCase().includes('exp') || String(tx.type || '').includes('খরচ');
-            if (isExp && tx.category && !isIncomeCat(tx.category)) {
-              aggregatedExp.push(tx.category);
+            if (tx.category && tx.category.trim()) {
+              const catTrim = tx.category.trim();
+              if (isExp) {
+                aggregatedExp.push(catTrim);
+              } else {
+                aggregatedInc.push(catTrim);
+              }
             }
           });
         }
@@ -991,11 +975,15 @@ export default function App() {
 
         if (finalExpList.length > 0) {
           setExpenseCategories(finalExpList);
-          localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(finalExpList));
+          try {
+            localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(finalExpList));
+          } catch {}
         }
         if (finalIncList.length > 0) {
           setIncomeCategories(finalIncList);
-          localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
+          try {
+            localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
+          } catch {}
         }
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
@@ -1025,7 +1013,7 @@ export default function App() {
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       datetime: formatCleanDateTime(new Date().toString(), 'en'),
       type: entryType,
-      category: entryCategory || 'Others',
+      category: entryCategory || (entryType === 'Expense' ? (expenseCategories[0] || '') : (incomeCategories[0] || '')),
       date: entryDate,
       value: val,
       note: entryNote.trim()
@@ -1224,17 +1212,17 @@ export default function App() {
   // ----------------------------------------------------
   if (!isAuthenticated || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl text-[#0F172A]">
+      <div className="min-h-screen bg-[#042F2E] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#0F172A]">
           <div className="text-center mb-6">
             <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-3 rounded-2xl shadow-sm" />
-            <h1 className="text-2xl font-bold">HisabKitab</h1>
+            <h1 className="text-2xl font-bold text-[#042F2E]">HisabKitab</h1>
           </div>
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 border rounded-xl" required />
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 border rounded-xl" required />
+            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D9488] focus:ring-1 focus:ring-[#0D9488]" required />
+            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D9488] focus:ring-1 focus:ring-[#0D9488]" required />
             {loginError && <p className="text-rose-500 text-xs">{loginError}</p>}
-            <button type="submit" className="w-full py-3 bg-[#475569] text-white rounded-xl font-bold">Sign In</button>
+            <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md">Sign In</button>
           </form>
         </div>
       </div>
@@ -1245,18 +1233,18 @@ export default function App() {
   // RENDER: APP
   // ----------------------------------------------------
   return (
-    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#F8FAFC] flex flex-col items-center">
-      <div className={`w-full flex flex-col h-full bg-[#F8FAFC] relative overflow-hidden ${viewMode === 'mobile' ? 'max-w-[430px] border-x border-slate-200' : 'max-w-6xl'}`}>
+    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
+      <div className={`w-full flex flex-col h-full bg-[#042F2E] relative overflow-hidden ${viewMode === 'mobile' ? 'max-w-[430px] shadow-2xl' : 'max-w-6xl'}`}>
         
         {toast.show && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white rounded-2xl shadow-xl border animate-fadeIn text-xs font-bold">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white rounded-2xl shadow-xl border border-teal-200 animate-fadeIn text-xs font-bold text-[#042F2E]">
             {toast.message}
           </div>
         )}
 
         <Header
           currentUser={currentUser}
-          activeTab={activeTab}
+          activeTab={activeTab === 'users' ? 'settings' : activeTab}
           setActiveTab={setActiveTab}
           lastSyncTime={lastSyncTime}
           isSyncing={isSyncing}
@@ -1268,7 +1256,7 @@ export default function App() {
           monthMappings={monthMappings}
         />
 
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
           {activeTab === 'summary' && (
             <SummaryTab
               transactions={transactions}
@@ -1320,18 +1308,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'users' && (
-            <UsersTab
-              users={users} currentUser={currentUser}
-              onOpenCreateModal={() => setShowCreateUserModal(true)}
-              onOpenEditModal={setEditingUser}
-              onRequestDeleteUser={setUserToDelete}
-              onSwitchUser={handleSwitchUser} onToggleActiveUser={handleToggleActiveUser}
-              lang={lang} t={t}
-            />
-          )}
-
-          {activeTab === 'settings' && (
+          {(activeTab === 'settings' || (activeTab as string) === 'users') && (
             <SettingsTab
               currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
               onOpenAddCategoryModal={type => { setCatModalType(type); setShowAddCatModal(true); }}
@@ -1344,30 +1321,49 @@ export default function App() {
               onDeleteMonthMapping={id => saveMonthMappings(monthMappings.filter(x => x.id !== id))}
               onSelectMonth={setSelectedMonth}
               onSetDefaultMonth={handleSetDefaultMonth}
+              users={users}
+              onOpenCreateUserModal={() => setShowCreateUserModal(true)}
+              onOpenEditUserModal={setEditingUser}
+              onRequestDeleteUser={setUserToDelete}
+              onSwitchUser={handleSwitchUser}
+              onToggleActiveUser={handleToggleActiveUser}
             />
           )}
         </main>
 
-        <nav className="shrink-0 bg-white border-t border-slate-200 px-1 py-1.5 pb-safe flex justify-around items-center shadow-md z-40 w-full min-h-[56px]">
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 py-2 pb-safe flex justify-around items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] gap-1 sm:gap-2">
           {[
             { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
             { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
             { id: 'details' as const, label: 'Details', icon: ListOrdered },
             { id: 'budget' as const, label: 'Budget', icon: Sliders },
-            { id: 'users' as const, label: 'Users', icon: Users },
             { id: 'settings' as const, label: 'Settings', icon: Settings }
-          ].filter(x => allowedTabs.includes(x.id)).map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
-                activeTab === item.id ? 'bg-slate-800 text-white font-semibold shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <item.icon className="w-5 h-5 shrink-0" />
-              <span className="text-[10px] sm:text-[11px] mt-0.5 tracking-tight leading-none truncate max-w-full">{item.label}</span>
-            </button>
-          ))}
+          ].filter(x => allowedTabs.includes(x.id)).map(item => {
+            const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer`}
+              >
+                {isActive ? (
+                  <div className="animated-nav-inner">
+                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-[#F0FDFA] drop-shadow-xs" />
+                    <span className="text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none text-[#F0FDFA] truncate max-w-full">
+                      {item.label}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center w-full py-1">
+                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-teal-300/70 group-hover:text-[#14B8A6] transition-colors" />
+                    <span className="text-[9.5px] sm:text-[10.5px] font-semibold mt-1 tracking-tight leading-none text-teal-200/80 truncate max-w-full">
+                      {item.label}
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </nav>
       </div>
 

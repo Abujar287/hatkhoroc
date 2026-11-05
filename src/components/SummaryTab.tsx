@@ -473,7 +473,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
     filteredRangeTransactions.forEach(tx => {
       if (tx.type !== chartType) return;
-      const c = cleanCategoryName(tx.category || 'Others', lang);
+      const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { val: 0, rawCat: tx.category || c };
       catMap[c].val += Math.abs(Number(tx.value) || 0);
     });
@@ -517,7 +517,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
     filteredRangeTransactions.forEach(tx => {
       if (tx.type !== categoryBreakdownType) return;
-      const c = cleanCategoryName(tx.category || 'Others', lang);
+      const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { total: 0, count: 0, rawCat: tx.category || c };
       catMap[c].total += Math.abs(Number(tx.value) || 0);
       catMap[c].count += 1;
@@ -553,7 +553,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       const val = Number(tx.value) || 0;
       if (tx.type === 'Expense') {
         map[monthKey].exp += val;
-        const c = cleanCategoryName(tx.category || 'Others', lang);
+        const c = cleanCategoryName(tx.category || '', lang);
         catByMonth[monthKey][c] = (catByMonth[monthKey][c] || 0) + val;
       } else {
         map[monthKey].inc += val;
