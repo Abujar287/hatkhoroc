@@ -1876,6 +1876,45 @@ function doPost(e) {
         message: 'বাজেট সফলভাবে শিটে সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
+
+    // ৫.৬ টাস্ক যোগ ও সিঙ্ক (INSERT TASK - 'Tasks' শিট ট্যাবে অটো সেভ)
+    if (action === 'inserttask' || action === 'addtask') {
+      var tSheet = getTaskSheet(ss);
+      var tId = data.id || ('task_' + Date.now());
+      var tTitle = String(data.title || '').trim();
+      var tDueDate = formatDateVal(data.dueDate) || String(data.dueDate || '');
+      var tDueTime = String(data.dueTime || '09:00').trim();
+      var tAmount = Number(data.amount || 0);
+      var tCat = String(data.category || 'General').trim();
+      var tPriority = String(data.priority || 'medium').trim();
+      var tNotes = String(data.notes || '').trim();
+      var tStatus = String(data.status || 'pending').trim();
+      var tDays = Number(data.reminderDaysBefore || 1);
+      var tNotify = (data.autoNotify === true || String(data.autoNotify).toLowerCase() === 'true') ? 'Yes' : 'No';
+      var tCreatedBy = String(data.createdBy || data.sheetTab || '').trim();
+      var tCreatedAt = String(data.createdAt || new Date().toISOString()).trim();
+
+      insertTaskRowIfNotExists(tSheet, tId, tTitle, tDueDate, tDueTime, tAmount, tCat, tPriority, tNotes, tStatus, tDays, tNotify, tCreatedBy, tCreatedAt);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        id: tId,
+        sheetTab: 'Tasks',
+        message: 'টাস্ক সফলভাবে Tasks শিটে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৫.৭ টাস্ক আপডেট (UPDATE TASK)
+    if (action === 'updatetask') {
+      var tSheet = getTaskSheet(ss);
+      return handleUpdateTaskRow(tSheet, data);
+    }
+
+    // ৫.৮ টাস্ক ডিলিট (DELETE TASK)
+    if (action === 'deletetask') {
+      var tSheet = getTaskSheet(ss);
+      return handleDeleteTaskRow(tSheet, data, e ? e.parameter : null);
+    }
     
     // ৬. নতুন রো যোগ করা (INSERT ROW)
     if (action === 'insert' || action === 'add' || action === 'create') {
@@ -2127,8 +2166,178 @@ function doGet(e) {
     categories: getCategoriesList(ss),
     monthMappings: getMonthMappings(ss),
     categoryBudgets: getCategoryBudgets(ss),
+    tasks: getTasksList(ss),
     count: transactions.length
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// টাস্ক শিট খোঁজা অথবা তৈরি করা
+function getTaskSheet(ss) {
+  var target = ss.getSheetByName('Tasks');
+  if (target) return target;
+  
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    var name = all[i].getName().trim().toLowerCase();
+    if (name === 'tasks' || name === 'task') {
+      return all[i];
+    }
+  }
+  
+  try {
+    target = ss.insertSheet('Tasks');
+    target.appendRow(['ID', 'Title', 'Due Date', 'Due Time', 'Amount', 'Category', 'Priority', 'Notes', 'Status', 'Reminder Days', 'Auto Notify', 'Created By', 'Created At']);
+    try {
+      target.getRange(1, 1, 1, 13).setFontWeight('bold');
+      target.setFrozenRows(1);
+    } catch (err) {}
+    return target;
+  } catch (e) {
+    return ss.getSheetByName('Tasks') || ss.getActiveSheet();
+  }
+}
+
+// ডুপ্লিকেট চেকিং সহ টাস্ক রো যোগ (নতুন টাস্ক সর্বদা গুগল শিটের নিচে অ্যাপেন্ড হবে)
+function insertTaskRowIfNotExists(tSheet, id, title, dueDate, dueTime, amount, category, priority, notes, status, reminderDays, autoNotify, createdBy, createdAt) {
+  var rawSt = String(status || 'pending').toLowerCase();
+  var finalSt = (rawSt.indexOf('paid') !== -1 || rawSt.indexOf('complete') !== -1 || rawSt.indexOf('done') !== -1) ? 'complete' : 'pending';
+
+  if (id) {
+    var rows = tSheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === String(id).trim()) {
+        var r = i + 1;
+        tSheet.getRange(r, 2).setValue(title);
+        tSheet.getRange(r, 3).setValue(dueDate);
+        tSheet.getRange(r, 4).setValue(dueTime);
+        tSheet.getRange(r, 5).setValue(amount);
+        tSheet.getRange(r, 6).setValue(category);
+        tSheet.getRange(r, 7).setValue(priority);
+        tSheet.getRange(r, 8).setValue(notes);
+        tSheet.getRange(r, 9).setValue(finalSt);
+        tSheet.getRange(r, 10).setValue(reminderDays);
+        tSheet.getRange(r, 11).setValue(autoNotify);
+        return;
+      }
+    }
+  }
+
+  // নতুন টাস্ক সব সময় গুগল শিটের একদম নিচের (লাস্ট) রো তে অ্যাপেন্ড হবে
+  tSheet.appendRow([id, title, dueDate, dueTime, amount, category, priority, notes, finalSt, reminderDays, autoNotify, createdBy, createdAt]);
+}
+
+// টাস্ক রো আপডেট (ID অথবা Title ম্যাচিং সহ)
+function handleUpdateTaskRow(tSheet, data) {
+  var id = String(data.id || '').trim();
+  var title = String(data.title || '').trim().toLowerCase();
+  var rows = tSheet.getDataRange().getValues();
+  var updated = false;
+
+  for (var i = 1; i < rows.length; i++) {
+    var rowId = String(rows[i][0] || '').trim();
+    var rowTitle = String(rows[i][1] || '').trim().toLowerCase();
+
+    var matchById = id && rowId === id;
+    var matchByTitle = title && rowTitle === title;
+
+    if (matchById || matchByTitle) {
+      var r = i + 1;
+      if (data.title !== undefined) tSheet.getRange(r, 2).setValue(data.title);
+      if (data.dueDate !== undefined) tSheet.getRange(r, 3).setValue(formatDateVal(data.dueDate) || data.dueDate);
+      if (data.dueTime !== undefined) tSheet.getRange(r, 4).setValue(data.dueTime);
+      if (data.amount !== undefined) tSheet.getRange(r, 5).setValue(Number(data.amount) || 0);
+      if (data.category !== undefined) tSheet.getRange(r, 6).setValue(data.category);
+      if (data.priority !== undefined) tSheet.getRange(r, 7).setValue(data.priority);
+      if (data.notes !== undefined) tSheet.getRange(r, 8).setValue(data.notes);
+
+      if (data.status !== undefined) {
+        var rawSt = String(data.status).toLowerCase();
+        var finalSt = (rawSt.indexOf('paid') !== -1 || rawSt.indexOf('complete') !== -1 || rawSt.indexOf('done') !== -1) ? 'complete' : 'pending';
+        tSheet.getRange(r, 9).setValue(finalSt);
+      }
+
+      if (data.reminderDaysBefore !== undefined) tSheet.getRange(r, 10).setValue(data.reminderDaysBefore);
+      if (data.autoNotify !== undefined) tSheet.getRange(r, 11).setValue((data.autoNotify === true || String(data.autoNotify).toLowerCase() === 'true') ? 'Yes' : 'No');
+
+      updated = true;
+      break;
+    }
+  }
+
+  if (updated) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      sheetTab: 'Tasks',
+      message: 'Task status updated to complete'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    result: 'not_found',
+    sheetTab: 'Tasks'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// টাস্ক রো মুছে ফেলা (ID অথবা Title + Amount ম্যাচিং)
+function handleDeleteTaskRow(tSheet, data, param) {
+  var id = String((data && data.id) || (param && param.id) || '').trim();
+  var title = String((data && data.title) || (param && param.title) || '').trim().toLowerCase();
+  var amount = Number((data && data.amount) || (param && param.amount) || 0);
+
+  var rows = tSheet.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) {
+    var rowId = String(rows[i][0] || '').trim();
+    var rowTitle = String(rows[i][1] || '').trim().toLowerCase();
+    var rowAmt = Number(rows[i][4] || 0);
+
+    var matchById = id && rowId === id;
+    var matchByTitle = title && rowTitle === title && Math.abs(rowAmt - amount) < 1;
+
+    if (matchById || matchByTitle) {
+      tSheet.deleteRow(i + 1);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: 'Tasks',
+        message: 'Task deleted from sheet'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    result: 'not_found',
+    sheetTab: 'Tasks'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// টাস্ক লিস্ট পড়া
+function getTasksList(ss) {
+  var tSheet = getTaskSheet(ss);
+  var tasks = [];
+  if (!tSheet) return tasks;
+  var rows = tSheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0] && !r[1]) continue;
+    var rawStatus = String(r[8] || 'pending').toLowerCase();
+    var isDone = rawStatus.indexOf('paid') !== -1 || rawStatus.indexOf('complete') !== -1 || rawStatus.indexOf('done') !== -1;
+    tasks.push({
+      id: String(r[0] || ('task_' + i)),
+      title: String(r[1] || ''),
+      dueDate: formatDateVal(r[2]) || String(r[2] || ''),
+      dueTime: String(r[3] || '09:00'),
+      amount: Number(r[4]) || 0,
+      category: String(r[5] || 'General'),
+      priority: String(r[6] || 'medium').toLowerCase(),
+      notes: String(r[7] || ''),
+      status: isDone ? 'completed' : 'pending',
+      action: isDone ? 'complete' : 'pending',
+      reminderDaysBefore: Number(r[9]) || 1,
+      autoNotify: String(r[10]).toLowerCase() === 'yes' || String(r[10]).toLowerCase() === 'true',
+      createdBy: String(r[11] || ''),
+      createdAt: String(r[12] || '')
+    });
+  }
+  return tasks;
 }
 
 // ডুপ্লিকেট রোধ করে রো ইনসার্ট
@@ -2436,12 +2645,12 @@ function formatDateVal(val) {
         {/* Warning Banner */}
         <div className="p-2.5 bg-amber-950/80 rounded-xl border border-amber-800/80 text-[11px] text-amber-200 font-medium space-y-1">
           <p className="font-extrabold flex items-center gap-1 text-amber-300">
-            <span>⚠️</span> {t('Crucial Google Apps Script Deployment Instructions:', 'জরুরী ধাপ (গুগল শিট আপডেট পাওয়ার জন্য):')}
+            <span>⚠️</span> {t('Crucial Apps Script v7.0 Update (Task & Tasks Tab Support):', 'জরুরী ধাপ (টাস্ক ও Tasks শিট ট্যাব অটো-ক্রিয়েশনের জন্য):')}
           </p>
           <p className="text-[10px] leading-snug text-amber-200/90">
             {t(
-              'After replacing code in Apps Script, click: Deploy > New deployment (or Deploy > Manage deployments > Edit > New Version) to activate updates.',
-              'অ্যাপস স্ক্রিপ্টে এই কোডটি পেস্ট করার পর অবশ্যই top menu থেকে Deploy > New deployment (অথবা Deploy > Manage deployments > Edit > New Version) দিতে হবে।'
+              '1. Click Copy Code below. 2. In Google Sheet, go to Extensions > Apps Script and replace Code.gs. 3. Click Deploy > New deployment to save. First task added will automatically create a "Tasks" tab in your Google Sheet!',
+              '১. নিচের কোডটি কপি করুন। ২. আপনার গুগল শিটের Extensions > Apps Script-এ গিয়ে পুরাতন কোডটি রিপ্লেস করুন। ৩. উপরে Deploy > New deployment চাপুন। প্রথম টাস্ক সেভ করলেই আপনার শিটে স্বয়ংক্রিয়ভাবে "Tasks" নামের ট্যাব তৈরি হয়ে ডাটা স্টোর হতে থাকবে।'
             )}
           </p>
         </div>

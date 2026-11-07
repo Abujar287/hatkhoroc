@@ -92,9 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="w-full px-3 py-2 flex items-center justify-between">
         {/* Brand & Identity */}
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 aspect-square rounded-full overflow-hidden shrink-0 shadow-lg border border-teal-500/60 bg-[#062423] flex items-center justify-center p-0.5">
-            <img src="/logo.png" alt="হাত খরচ Logo" className="w-full h-full object-contain aspect-square" />
-          </div>
+          <img src="/logo.png" alt="হাত খরচ Logo" className="w-10 h-10 object-contain rounded-xl shadow-md shrink-0" />
           <div className="min-w-0">
             <span className="text-base font-extrabold block truncate leading-tight text-[#F0FDFA]">
               {t('হাত খরচ', 'হাত খরচ')}

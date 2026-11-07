@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { CostTask, Transaction, TransactionType } from '../types';
 import { DEFAULT_EXPENSE_CATEGORIES } from '../constants';
+import { ModalPortal } from './Modals';
 
 interface TaskTabProps {
   tasks: CostTask[];
@@ -52,9 +53,8 @@ export const TaskTab: React.FC<TaskTabProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showScriptModal, setShowScriptModal] = useState(false);
-  const [copiedScript, setCopiedScript] = useState(false);
   const [editingTask, setEditingTask] = useState<CostTask | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<CostTask | null>(null);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -251,15 +251,6 @@ export const TaskTab: React.FC<TaskTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
-            <button
-              type="button"
-              onClick={() => setShowScriptModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-800/80 hover:bg-teal-700 text-teal-100 border border-teal-600/60 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-            >
-              <CodeIcon className="w-3.5 h-3.5 text-teal-300" />
-              <span>{t('Apps Script Code', 'অ্যাপস স্ক্রিপ্ট কোড')}</span>
-            </button>
-
             {notificationPermission !== 'granted' && (
               <button
                 type="button"
@@ -610,12 +601,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(t('Are you sure you want to delete this task reminder?', 'আপনি কি এই টাস্ক রিমাইন্ডারটি মুছতে চান?'))) {
-                          onDeleteTask(task.id);
-                          showToast(t('Task deleted', 'টাস্ক মোছা হয়েছে'), 'info');
-                        }
-                      }}
+                      onClick={() => setTaskToDelete(task)}
                       className="p-2 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-red-100 border border-red-800/60 transition-all cursor-pointer"
                       title={t('Delete Task', 'মুছুন')}
                     >
@@ -801,170 +787,56 @@ export const TaskTab: React.FC<TaskTabProps> = ({
         </div>
       )}
 
-      {/* GOOGLE APPS SCRIPT CODE MODAL */}
-      {showScriptModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-modalSpring text-white">
-            <div className="px-5 py-4 bg-teal-900/90 border-b border-teal-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CodeIcon className="w-5 h-5 text-teal-300" />
-                <h2 className="text-sm font-bold text-[#F0FDFA]">
-                  Google Apps Script Code (Google Sheet Sync)
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowScriptModal(false)}
-                className="p-1 rounded-lg hover:bg-teal-800 text-teal-200 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-3 max-h-[75vh] overflow-y-auto">
-              <p className="text-xs text-teal-200 leading-relaxed">
-                আপনার Google Sheet এ Extensions &gt; Apps Script এ নিচের কোডটি পেস্ট করে Deploy (Web App) করুন। এটি আপনার মূল <b>Transactions</b> এবং <b>Tasks</b> দুটোই সিঙ্ক করবে।
-              </p>
-
-              <div className="relative bg-slate-950 p-3 rounded-xl border border-teal-800 font-mono text-[11px] text-teal-300 overflow-x-auto max-h-64">
-                <pre>{`function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var action = data.action;
-    var sheetTab = data.sheetTab || "abujar287";
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // 1. Task Actions
-    if (action === "insertTask" || action === "addTask") {
-      var taskSheet = getOrCreateSheet(ss, sheetTab + "_Tasks", ["ID", "Title", "Amount", "DueDate", "DueTime", "Category", "Priority", "Status", "ReminderDays", "Notes", "CreatedAt"]);
-      taskSheet.appendRow([data.id || new Date().getTime().toString(), data.title || "", data.amount || 0, data.dueDate || "", data.dueTime || "", data.category || "", data.priority || "medium", "pending", data.reminderDaysBefore || 1, data.notes || "", new Date().toISOString()]);
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    if (action === "updateTask") {
-      var taskSheet = ss.getSheetByName(sheetTab + "_Tasks");
-      if (taskSheet) {
-        var rows = taskSheet.getDataRange().getValues();
-        for (var i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(data.id)) {
-            if (data.title) taskSheet.getRange(i + 1, 2).setValue(data.title);
-            if (data.amount) taskSheet.getRange(i + 1, 3).setValue(data.amount);
-            if (data.dueDate) taskSheet.getRange(i + 1, 4).setValue(data.dueDate);
-            if (data.dueTime) taskSheet.getRange(i + 1, 5).setValue(data.dueTime);
-            if (data.category) taskSheet.getRange(i + 1, 6).setValue(data.category);
-            if (data.priority) taskSheet.getRange(i + 1, 7).setValue(data.priority);
-            if (data.status) taskSheet.getRange(i + 1, 8).setValue(data.status === "paid" ? "complete" : data.status);
-            if (data.notes !== undefined) taskSheet.getRange(i + 1, 10).setValue(data.notes);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    if (action === "deleteTask") {
-      var taskSheet = ss.getSheetByName(sheetTab + "_Tasks");
-      if (taskSheet) {
-        var rows = taskSheet.getDataRange().getValues();
-        for (var i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(data.id)) {
-            taskSheet.deleteRow(i + 1);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 2. Transaction Actions
-    var txSheet = getOrCreateSheet(ss, sheetTab, ["ID", "Datetime", "Type", "Category", "Date", "Value", "Note"]);
-    if (action === "insert") {
-      txSheet.appendRow([data.id || new Date().getTime().toString(), data.datetime || "", data.type || "Expense", data.category || "", data.date || "", data.value || 0, data.note || ""]);
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    if (action === "update") {
-      var rows = txSheet.getDataRange().getValues();
-      for (var i = 1; i < rows.length; i++) {
-        if (String(rows[i][0]) === String(data.id)) {
-          txSheet.getRange(i + 1, 2).setValue(data.datetime);
-          txSheet.getRange(i + 1, 3).setValue(data.type);
-          txSheet.getRange(i + 1, 4).setValue(data.category);
-          txSheet.getRange(i + 1, 5).setValue(data.date);
-          txSheet.getRange(i + 1, 6).setValue(data.value);
-          txSheet.getRange(i + 1, 7).setValue(data.note);
-          break;
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    if (action === "delete") {
-      var rows = txSheet.getDataRange().getValues();
-      for (var i = 1; i < rows.length; i++) {
-        if (String(rows[i][0]) === String(data.id)) {
-          txSheet.deleteRow(i + 1);
-          break;
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function doGet(e) {
-  try {
-    var sheetTab = (e.parameter && e.parameter.sheetTab) || "abujar287";
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var txSheet = getOrCreateSheet(ss, sheetTab, ["ID", "Datetime", "Type", "Category", "Date", "Value", "Note"]);
-    var txRows = txSheet.getDataRange().getValues();
-    var transactions = [];
-    for (var i = 1; i < txRows.length; i++) {
-      if (txRows[i][0]) {
-        transactions.push({ id: txRows[i][0], datetime: txRows[i][1], type: txRows[i][2], category: txRows[i][3], date: txRows[i][4], value: txRows[i][5], note: txRows[i][6], rowNumber: i + 1 });
-      }
-    }
-    var taskSheet = getOrCreateSheet(ss, sheetTab + "_Tasks", ["ID", "Title", "Amount", "DueDate", "DueTime", "Category", "Priority", "Status", "ReminderDays", "Notes", "CreatedAt"]);
-    var taskRows = taskSheet.getDataRange().getValues();
-    var tasks = [];
-    for (var j = 1; j < taskRows.length; j++) {
-      if (taskRows[j][0]) {
-        tasks.push({ id: taskRows[j][0], title: taskRows[j][1], amount: taskRows[j][2], dueDate: taskRows[j][3], dueTime: taskRows[j][4], category: taskRows[j][5], priority: taskRows[j][6], status: taskRows[j][7], reminderDaysBefore: taskRows[j][8], notes: taskRows[j][9], createdAt: taskRows[j][10] });
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({ result: "success", sheetTab: sheetTab, transactions: transactions, tasks: tasks })).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function getOrCreateSheet(ss, sheetName, headers) {
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    if (headers && headers.length > 0) sheet.appendRow(headers);
-  }
-  return sheet;
-}`}</pre>
+      {/* DELETE CONFIRMATION MODAL */}
+      {taskToDelete && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+            onClick={() => setTaskToDelete(null)}
+          >
+            <div
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring text-center space-y-3.5 my-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-rose-950/80 text-rose-300 border border-rose-800/80 flex items-center justify-center mx-auto shadow-md">
+                <Trash2 className="w-5 h-5" />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div>
+                <h3 className="text-sm font-bold text-[#F0FDFA]">
+                  {t('Delete Task Reminder?', 'টাস্কটি মুছতে চান?')}
+                </h3>
+                <p className="text-xs text-amber-300/90 mt-1 font-semibold truncate px-2">
+                  "{taskToDelete.title}" · ৳{taskToDelete.amount.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-teal-300/70 mt-0.5">
+                  {t('This will permanently delete this task from Google Sheet.', 'এটি গুগল শিট থেকেও স্থায়ীভাবে ডিলিট হয়ে যাবে।')}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTaskToDelete(null)}
+                  className="py-2.5 bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 rounded-xl text-xs font-bold cursor-pointer active:scale-95 transition-all"
+                >
+                  {t('Cancel', 'বাতিল')}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
-                    const scriptText = `function doPost(e) {\n  try {\n    var data = JSON.parse(e.postData.contents);\n    var action = data.action;\n    var sheetTab = data.sheetTab || "abujar287";\n    var ss = SpreadsheetApp.getActiveSpreadsheet();\n\n    if (action === "insertTask" || action === "addTask") {\n      var taskSheet = getOrCreateSheet(ss, sheetTab + "_Tasks", ["ID", "Title", "Amount", "DueDate", "DueTime", "Category", "Priority", "Status", "ReminderDays", "Notes", "CreatedAt"]);\n      taskSheet.appendRow([data.id || new Date().getTime().toString(), data.title || "", data.amount || 0, data.dueDate || "", data.dueTime || "", data.category || "", data.priority || "medium", "pending", data.reminderDaysBefore || 1, data.notes || "", new Date().toISOString()]);\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n    if (action === "updateTask") {\n      var taskSheet = ss.getSheetByName(sheetTab + "_Tasks");\n      if (taskSheet) {\n        var rows = taskSheet.getDataRange().getValues();\n        for (var i = 1; i < rows.length; i++) {\n          if (String(rows[i][0]) === String(data.id)) {\n            if (data.title) taskSheet.getRange(i + 1, 2).setValue(data.title);\n            if (data.amount) taskSheet.getRange(i + 1, 3).setValue(data.amount);\n            if (data.dueDate) taskSheet.getRange(i + 1, 4).setValue(data.dueDate);\n            if (data.dueTime) taskSheet.getRange(i + 1, 5).setValue(data.dueTime);\n            if (data.category) taskSheet.getRange(i + 1, 6).setValue(data.category);\n            if (data.priority) taskSheet.getRange(i + 1, 7).setValue(data.priority);\n            if (data.status) taskSheet.getRange(i + 1, 8).setValue(data.status === "paid" ? "complete" : data.status);\n            if (data.notes !== undefined) taskSheet.getRange(i + 1, 10).setValue(data.notes);\n            break;\n          }\n        }\n      }\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n    if (action === "deleteTask") {\n      var taskSheet = ss.getSheetByName(sheetTab + "_Tasks");\n      if (taskSheet) {\n        var rows = taskSheet.getDataRange().getValues();\n        for (var i = 1; i < rows.length; i++) {\n          if (String(rows[i][0]) === String(data.id)) {\n            taskSheet.deleteRow(i + 1);\n            break;\n          }\n        }\n      }\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n\n    var txSheet = getOrCreateSheet(ss, sheetTab, ["ID", "Datetime", "Type", "Category", "Date", "Value", "Note"]);\n    if (action === "insert") {\n      txSheet.appendRow([data.id || new Date().getTime().toString(), data.datetime || "", data.type || "Expense", data.category || "", data.date || "", data.value || 0, data.note || ""]);\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n    if (action === "update") {\n      var rows = txSheet.getDataRange().getValues();\n      for (var i = 1; i < rows.length; i++) {\n        if (String(rows[i][0]) === String(data.id)) {\n          txSheet.getRange(i + 1, 2).setValue(data.datetime);\n          txSheet.getRange(i + 1, 3).setValue(data.type);\n          txSheet.getRange(i + 1, 4).setValue(data.category);\n          txSheet.getRange(i + 1, 5).setValue(data.date);\n          txSheet.getRange(i + 1, 6).setValue(data.value);\n          txSheet.getRange(i + 1, 7).setValue(data.note);\n          break;\n        }\n      }\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n    if (action === "delete") {\n      var rows = txSheet.getDataRange().getValues();\n      for (var i = 1; i < rows.length; i++) {\n        if (String(rows[i][0]) === String(data.id)) {\n          txSheet.deleteRow(i + 1);\n          break;\n        }\n      }\n      return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n    }\n    return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);\n  } catch (err) {\n    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);\n  }\n}\n\nfunction doGet(e) {\n  try {\n    var sheetTab = (e.parameter && e.parameter.sheetTab) || "abujar287";\n    var ss = SpreadsheetApp.getActiveSpreadsheet();\n    var txSheet = getOrCreateSheet(ss, sheetTab, ["ID", "Datetime", "Type", "Category", "Date", "Value", "Note"]);\n    var txRows = txSheet.getDataRange().getValues();\n    var transactions = [];\n    for (var i = 1; i < txRows.length; i++) {\n      if (txRows[i][0]) {\n        transactions.push({ id: txRows[i][0], datetime: txRows[i][1], type: txRows[i][2], category: txRows[i][3], date: txRows[i][4], value: txRows[i][5], note: txRows[i][6], rowNumber: i + 1 });\n      }\n    }\n    var taskSheet = getOrCreateSheet(ss, sheetTab + "_Tasks", ["ID", "Title", "Amount", "DueDate", "DueTime", "Category", "Priority", "Status", "ReminderDays", "Notes", "CreatedAt"]);\n    var taskRows = taskSheet.getDataRange().getValues();\n    var tasks = [];\n    for (var j = 1; j < taskRows.length; j++) {\n      if (taskRows[j][0]) {\n        tasks.push({ id: taskRows[j][0], title: taskRows[j][1], amount: taskRows[j][2], dueDate: taskRows[j][3], dueTime: taskRows[j][4], category: taskRows[j][5], priority: taskRows[j][6], status: taskRows[j][7], reminderDaysBefore: taskRows[j][8], notes: taskRows[j][9], createdAt: taskRows[j][10] });\n      }\n    }\n    return ContentService.createTextOutput(JSON.stringify({ result: "success", sheetTab: sheetTab, transactions: transactions, tasks: tasks })).setMimeType(ContentService.MimeType.JSON);\n  } catch (err) {\n    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);\n  }\n}\n\nfunction getOrCreateSheet(ss, sheetName, headers) {\n  var sheet = ss.getSheetByName(sheetName);\n  if (!sheet) {\n    sheet = ss.insertSheet(sheetName);\n    if (headers && headers.length > 0) sheet.appendRow(headers);\n  }\n  return sheet;\n}`;
-                    navigator.clipboard.writeText(scriptText);
-                    setCopiedScript(true);
-                    showToast(t('Script code copied to clipboard!', 'কোড কপি হয়েছে!'), 'success');
-                    setTimeout(() => setCopiedScript(false), 3000);
+                    onDeleteTask(taskToDelete.id);
+                    setTaskToDelete(null);
+                    showToast(t('Task deleted', 'টাস্ক মোছা হয়েছে'), 'info');
                   }}
-                  className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-teal-950 rounded-xl font-bold text-xs cursor-pointer active:scale-95 transition-all shadow-md"
+                  className="py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold shadow-md cursor-pointer active:scale-95 transition-all"
                 >
-                  {copiedScript ? t('Copied!', 'কপি হয়েছে!') : t('Copy Script Code', 'কোড কপি করুন')}
+                  {t('Yes, Delete', 'হ্যাঁ, মুছুন')}
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
     </div>

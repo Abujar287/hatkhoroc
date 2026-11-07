@@ -557,42 +557,142 @@ export default function App() {
     saveTasks(updated);
     playSound('success');
 
+    const payload = { action: 'insertTask', sheetTab: currentTab, ...newTask };
+
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'insertTask', sheetTab: currentTab, ...newTask })
-      });
-    } catch {}
+      let isSaved = false;
+      try {
+        const proxyRes = await fetch('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (proxyRes.ok) {
+          const resJson = await proxyRes.json();
+          if (resJson && (resJson.result === 'success' || resJson.message)) {
+            isSaved = true;
+          }
+        }
+      } catch (err) {
+        console.warn('Proxy insert task error:', err);
+      }
+
+      if (!isSaved) {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const qParams = new URLSearchParams({
+        action: 'insertTask',
+        sheetTab: currentTab,
+        id: newTask.id,
+        title: newTask.title,
+        dueDate: newTask.dueDate,
+        dueTime: newTask.dueTime || '09:00',
+        amount: String(newTask.amount),
+        category: newTask.category,
+        priority: newTask.priority,
+        notes: newTask.notes || '',
+        status: newTask.status,
+        reminderDaysBefore: String(newTask.reminderDaysBefore),
+        autoNotify: newTask.autoNotify ? 'true' : 'false'
+      }).toString();
+
+      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
+
+      showToast(lang === 'en' ? 'Task saved & synced to Google Sheet!' : 'টাস্ক সেভ এবং গুগল শিটে যুক্ত হয়েছে!', 'success');
+    } catch (err) {
+      showToast(lang === 'en' ? 'Task saved locally' : 'টাস্ক লোকালি সেভ হয়েছে', 'info');
+    }
   };
 
   const handleUpdateTask = async (updatedTask: CostTask) => {
     const updated = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
     saveTasks(updated);
 
+    const payload = { action: 'updateTask', sheetTab: currentTab, ...updatedTask };
+
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'updateTask', sheetTab: currentTab, ...updatedTask })
-      });
+      let isSaved = false;
+      try {
+        const proxyRes = await fetch('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (proxyRes.ok) isSaved = true;
+      } catch {}
+
+      if (!isSaved) {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const qParams = new URLSearchParams({
+        action: 'updateTask',
+        sheetTab: currentTab,
+        id: updatedTask.id,
+        title: updatedTask.title,
+        dueDate: updatedTask.dueDate,
+        dueTime: updatedTask.dueTime || '09:00',
+        amount: String(updatedTask.amount),
+        category: updatedTask.category,
+        priority: updatedTask.priority,
+        notes: updatedTask.notes || '',
+        status: updatedTask.status,
+        reminderDaysBefore: String(updatedTask.reminderDaysBefore),
+        autoNotify: updatedTask.autoNotify ? 'true' : 'false'
+      }).toString();
+
+      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
     } catch {}
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    const taskToDeleteObj = tasks.find(t => t.id === taskId);
     const updated = tasks.filter(t => t.id !== taskId);
     saveTasks(updated);
     playSound('delete');
 
+    const payload = {
+      action: 'deleteTask',
+      sheetTab: currentTab,
+      id: taskId,
+      title: taskToDeleteObj?.title || '',
+      amount: taskToDeleteObj?.amount || 0
+    };
+
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'deleteTask', sheetTab: currentTab, id: taskId })
-      });
+      let isSaved = false;
+      try {
+        const proxyRes = await fetch('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (proxyRes.ok) isSaved = true;
+      } catch {}
+
+      if (!isSaved) {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      fetch(`${GOOGLE_SCRIPT_URL}?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`, { mode: 'no-cors' }).catch(() => {});
+
+      showToast(lang === 'en' ? 'Task deleted from Google Sheet' : 'টাস্ক গুগল শিট থেকে ডিলিট হয়েছে', 'info');
     } catch {}
   };
 
@@ -988,6 +1088,28 @@ export default function App() {
           saveTransactionsLocally(formatted);
         }
         
+        if (Array.isArray(data.tasks)) {
+          const cloudTasks: CostTask[] = data.tasks.map((t: any) => ({
+            id: String(t.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`),
+            title: String(t.title || t.Title || ''),
+            dueDate: normalizeDate(t.dueDate || t['Due Date'] || new Date().toISOString().split('T')[0]),
+            dueTime: String(t.dueTime || t['Due Time'] || '09:00'),
+            amount: Number(t.amount || t.Amount || 0),
+            category: String(t.category || t.Category || 'General'),
+            priority: (String(t.priority || t.Priority || 'medium').toLowerCase() as any),
+            notes: String(t.notes || t.Notes || ''),
+            status: (String(t.status || t.Status || t.action || 'pending').toLowerCase() as any),
+            reminderDaysBefore: Number(t.reminderDaysBefore || t['Reminder Days'] || 1),
+            autoNotify: t.autoNotify === true || String(t.autoNotify).toLowerCase() === 'true' || String(t.autoNotify).toLowerCase() === 'yes',
+            createdBy: String(t.createdBy || t['Created By'] || tabToSync),
+            createdAt: String(t.createdAt || t['Created At'] || new Date().toISOString())
+          })).filter((t: CostTask) => Boolean(t.title));
+
+          if (cloudTasks.length > 0) {
+            saveTasks(cloudTasks);
+          }
+        }
+        
         const rawMappings = data.monthMappings || data.mappings;
         if (Array.isArray(rawMappings)) {
           const mapDeduplicated = new Map<string, MonthMapping>();
@@ -1185,7 +1307,7 @@ export default function App() {
     };
 
     saveTransactionsLocally([newTx, ...transactions]);
-    handleUpdateTask({ ...task, status: 'paid' });
+    handleUpdateTask({ ...task, status: 'completed' });
     playSound('success');
 
     try {
@@ -1377,9 +1499,7 @@ export default function App() {
       <div className="min-h-screen bg-[#042F2E] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#F0FDFA]">
           <div className="text-center mb-6">
-            <div className="w-24 h-24 aspect-square mx-auto mb-3 rounded-full shadow-xl border border-teal-500/60 p-1 bg-[#062423] flex items-center justify-center overflow-hidden">
-              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain aspect-square" />
-            </div>
+            <img src="/logo.png" alt="হাত খরচ Logo" className="w-24 h-24 mx-auto mb-3 object-contain rounded-2xl shadow-xl border border-teal-600/60" />
             <h1 className="text-2xl font-extrabold text-[#F0FDFA]">হাত খরচ</h1>
             <p className="text-xs text-teal-300/80 mt-1">Smart Expense, Task Reminder & Budget Manager</p>
           </div>
