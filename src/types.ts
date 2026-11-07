@@ -2,7 +2,23 @@ export type TransactionType = 'Expense' | 'Income';
 
 export type UserRole = 'super_admin' | 'super_admin_2' | 'senior_member' | 'member' | 'admin';
 
-export type AppTab = 'summary' | 'entry' | 'details' | 'budget' | 'users' | 'settings';
+export type AppTab = 'summary' | 'entry' | 'details' | 'budget' | 'task' | 'users' | 'settings';
+
+export interface CostTask {
+  id: string;
+  title: string;
+  dueDate: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
+  amount: number;
+  category: string;
+  priority: 'high' | 'medium' | 'low';
+  notes?: string;
+  status: 'pending' | 'completed' | 'paid';
+  reminderDaysBefore: number; // e.g. 0 = on due date, 1 = 1 day before, 2 = 2 days before
+  autoNotify: boolean;
+  createdBy: string;
+  createdAt: string;
+}
 
 export interface Transaction {
   id: string;

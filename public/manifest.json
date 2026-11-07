@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "HisabKitab",
-  "short_name": "HisabKitab",
-  "description": "Smart personal expense and income tracker with monthly budget planning and analytics.",
+  "name": "হাত খরচ",
+  "short_name": "হাত খরচ",
+  "description": "Smart personal expense, task reminder & income tracker with monthly budget planning and analytics.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

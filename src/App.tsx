@@ -16,9 +16,10 @@ import {
   HelpCircle,
   BarChart3,
   Plus,
-  Sliders
+  Sliders,
+  CalendarClock
 } from 'lucide-react';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES,
@@ -41,6 +42,7 @@ import { SummaryTab } from './components/SummaryTab';
 import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
+import { TaskTab } from './components/TaskTab';
 import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
@@ -70,7 +72,7 @@ const DEFAULT_ADMIN: AppUser = {
   createdAt: '2026-10-01',
   role: 'super_admin',
   isActive: true,
-  allowedTabs: ['summary', 'entry', 'details', 'budget', 'users', 'settings'],
+  allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings'],
   isReadOnly: false
 };
 
@@ -363,11 +365,14 @@ export default function App() {
       if (currentUser?.role === 'super_admin_2') {
         tabs = ['summary', 'details'];
       } else {
-        tabs = ['summary', 'entry', 'details', 'budget', 'users', 'settings'];
+        tabs = ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings'];
       }
     }
     if (!tabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
       tabs = [...tabs, 'budget'];
+    }
+    if (!tabs.includes('task') && currentUser?.role !== 'super_admin_2') {
+      tabs = [...tabs, 'task'];
     }
     return tabs;
   }, [currentUser]);
@@ -478,6 +483,123 @@ export default function App() {
       localStorage.setItem(`app_transactions_${currentTab}`, JSON.stringify(updated));
     } catch {}
   }, [currentTab]);
+
+  // ----------------------------------------------------
+  // 6.5 TASKS & REMINDERS STATE
+  // ----------------------------------------------------
+  const [tasks, setTasks] = useState<CostTask[]>(() => {
+    try {
+      const saved = localStorage.getItem(`app_tasks_${currentTab}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    // Initial sample tasks
+    return [
+      {
+        id: 'task_sample_1',
+        title: 'বিদ্যুৎ বিল (Electricity Bill)',
+        dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+        dueTime: '10:00',
+        amount: 1450,
+        category: 'Bills',
+        priority: 'high',
+        notes: 'Pay via Bkash / Nagad',
+        status: 'pending',
+        reminderDaysBefore: 1,
+        autoNotify: true,
+        createdBy: currentTab,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'task_sample_2',
+        title: 'বাসা ভাড়া (House Rent)',
+        dueDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
+        dueTime: '09:00',
+        amount: 15000,
+        category: 'House',
+        priority: 'high',
+        notes: 'Monthly house rent to landlord',
+        status: 'pending',
+        reminderDaysBefore: 2,
+        autoNotify: true,
+        createdBy: currentTab,
+        createdAt: new Date().toISOString()
+      }
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`app_tasks_${currentTab}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setTasks(parsed);
+      }
+    } catch {}
+  }, [currentTab]);
+
+  const saveTasks = useCallback((updated: CostTask[]) => {
+    setTasks(updated);
+    try {
+      localStorage.setItem(`app_tasks_${currentTab}`, JSON.stringify(updated));
+    } catch {}
+  }, [currentTab]);
+
+  const handleAddTask = async (newTaskData: Omit<CostTask, 'id' | 'createdAt'>) => {
+    const newTask: CostTask = {
+      ...newTaskData,
+      id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      createdAt: new Date().toISOString()
+    };
+    const updated = [newTask, ...tasks];
+    saveTasks(updated);
+    playSound('success');
+
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'insertTask', sheetTab: currentTab, ...newTask })
+      });
+    } catch {}
+  };
+
+  const handleUpdateTask = async (updatedTask: CostTask) => {
+    const updated = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+    saveTasks(updated);
+
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateTask', sheetTab: currentTab, ...updatedTask })
+      });
+    } catch {}
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    const updated = tasks.filter(t => t.id !== taskId);
+    saveTasks(updated);
+    playSound('delete');
+
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'deleteTask', sheetTab: currentTab, id: taskId })
+      });
+    } catch {}
+  };
+
+  const taskDueCount = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr).length;
+  }, [tasks]);
 
   // ----------------------------------------------------
   // 7. VIEW & FILTER STATE
@@ -1050,6 +1172,34 @@ export default function App() {
     showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
   };
 
+  const handleConvertTaskToExpense = async (task: CostTask) => {
+    if (isReadOnly) return;
+    const newTx: Transaction = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      datetime: formatCleanDateTime(new Date().toString(), 'en'),
+      type: 'Expense',
+      category: task.category || (expenseCategories[0] || 'Uncategorized'),
+      date: task.dueDate || new Date().toISOString().split('T')[0],
+      value: task.amount,
+      note: `[Task] ${task.title}${task.notes ? ' - ' + task.notes : ''}`
+    };
+
+    saveTransactionsLocally([newTx, ...transactions]);
+    handleUpdateTask({ ...task, status: 'paid' });
+    playSound('success');
+
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
+      });
+    } catch {}
+
+    showToast(t(`৳${task.amount} paid & added to expenses!`, `৳${task.amount} খরচে যোগ করা হয়েছে!`), 'success');
+  };
+
   const handleUpdateTransaction = async (updatedTx: Transaction) => {
     const updatedList = transactions.map(t => (t.id === updatedTx.id ? updatedTx : t));
     saveTransactionsLocally(updatedList);
@@ -1227,14 +1377,17 @@ export default function App() {
       <div className="min-h-screen bg-[#042F2E] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#F0FDFA]">
           <div className="text-center mb-6">
-            <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-3 rounded-2xl shadow-sm border border-teal-700/60" />
-            <h1 className="text-2xl font-bold text-[#F0FDFA]">HisabKitab</h1>
+            <div className="w-24 h-24 aspect-square mx-auto mb-3 rounded-full shadow-xl border border-teal-500/60 p-1 bg-[#062423] flex items-center justify-center overflow-hidden">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain aspect-square" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-[#F0FDFA]">হাত খরচ</h1>
+            <p className="text-xs text-teal-300/80 mt-1">Smart Expense, Task Reminder & Budget Manager</p>
           </div>
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500" required />
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500" required />
+            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
+            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
             {loginError && <p className="text-rose-400 text-xs">{loginError}</p>}
-            <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md">Sign In</button>
+            <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md text-sm">Sign In</button>
           </form>
         </div>
       </div>
@@ -1266,6 +1419,7 @@ export default function App() {
           lang={lang}
           selectedMonth={selectedMonth}
           monthMappings={monthMappings}
+          taskDueCount={taskDueCount}
         />
 
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
@@ -1320,6 +1474,20 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'task' && (
+            <TaskTab
+              tasks={tasks}
+              onAddTask={handleAddTask}
+              onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
+              onConvertTaskToExpense={handleConvertTaskToExpense}
+              t={t}
+              showToast={showToast}
+              currentUser={currentUser}
+              categories={expenseCategories}
+            />
+          )}
+
           {(activeTab === 'settings' || (activeTab as string) === 'users') && (
             <SettingsTab
               currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
@@ -1349,6 +1517,7 @@ export default function App() {
             { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
             { id: 'details' as const, label: 'Details', icon: ListOrdered },
             { id: 'budget' as const, label: 'Budget', icon: Sliders },
+            { id: 'task' as const, label: 'Task', icon: CalendarClock },
             { id: 'settings' as const, label: 'Settings', icon: Settings }
           ].filter(x => allowedTabs.includes(x.id)).map(item => {
             const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
@@ -1356,7 +1525,7 @@ export default function App() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer`}
+                className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer relative`}
               >
                 {isActive ? (
                   <div className="animated-nav-inner">
@@ -1366,11 +1535,14 @@ export default function App() {
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center w-full py-1">
+                  <div className="flex flex-col items-center justify-center w-full py-1 relative">
                     <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-teal-300/70 group-hover:text-[#14B8A6] transition-colors" />
                     <span className="text-[9.5px] sm:text-[10.5px] font-semibold mt-1 tracking-tight leading-none text-teal-200/80 truncate max-w-full">
                       {item.label}
                     </span>
+                    {item.id === 'task' && taskDueCount > 0 && (
+                      <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                    )}
                   </div>
                 )}
               </button>
@@ -1397,7 +1569,7 @@ export default function App() {
             <Lock className="w-8 h-8 text-rose-400" />
           </div>
           <h2 className="text-xl font-bold text-[#F0FDFA] mb-1">
-            {t('HisabKitab Closed', 'অ্যাপস বন্ধ করা হয়েছে')}
+            {t('হাত খরচ Closed', 'অ্যাপস বন্ধ করা হয়েছে')}
           </h2>
           <p className="text-xs text-teal-300/80 mb-6 max-w-xs leading-relaxed">
             {t('You have exited the application. You can close this tab or tap below to reopen.', 'আপনি নিশ্চিতভাবে অ্যাপস থেকে বের হয়ে গেছেন। এই ব্রাউজার ট্যাবটি বন্ধ করতে পারেন অথবা পুনরায় অ্যাপে প্রবেশ করতে পারেন।')}
@@ -1409,7 +1581,7 @@ export default function App() {
             }}
             className="px-6 py-2.5 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-xl shadow-lg cursor-pointer transition-all active:scale-95 text-xs border border-teal-600/80"
           >
-            {t('Reopen HisabKitab', 'পুনরায় অ্যাপে প্রবেশ করুন')}
+            {t('Reopen হাত খরচ', 'পুনরায় অ্যাপে প্রবেশ করুন')}
           </button>
         </div>
       )}

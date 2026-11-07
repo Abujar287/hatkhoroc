@@ -8,7 +8,8 @@ import {
   Users,
   Settings,
   Sliders,
-  Smartphone
+  Smartphone,
+  CalendarClock
 } from 'lucide-react';
 import { AppUser, AppTab } from '../types';
 import { findMonthMapping, formatDateShortDemo, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -27,6 +28,7 @@ interface HeaderProps {
   onLogout?: () => void;
   selectedMonth: string;
   monthMappings: import('../types').MonthMapping[];
+  taskDueCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -40,7 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   t,
   lang = 'en',
   selectedMonth,
-  monthMappings
+  monthMappings,
+  taskDueCount = 0
 }) => {
   const activeMonthLabel = React.useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
@@ -60,21 +63,26 @@ export const Header: React.FC<HeaderProps> = ({
       return selectedMonth;
     }
   }, [selectedMonth, lang, monthMappings]);
+
   const allNavItems = [
     { id: 'summary' as const, label: t('Summary', 'সারাংশ'), icon: BarChart3 },
     { id: 'entry' as const, label: t('Add Entry', 'হিসাব যোগ'), icon: PlusCircle },
     { id: 'details' as const, label: t('Details', 'বিস্তারিত'), icon: ListOrdered },
     { id: 'budget' as const, label: t('Budget', 'বাজেট'), icon: Sliders },
+    { id: 'task' as const, label: t('Task', 'টাস্ক খরচ'), icon: CalendarClock },
     { id: 'settings' as const, label: t('Settings', 'সেটিংস'), icon: Settings }
   ];
 
   let allowedTabs: AppTab[] = currentUser?.allowedTabs || (
     currentUser?.role === 'super_admin_2'
       ? ['summary', 'details']
-      : ['summary', 'entry', 'details', 'budget', 'users', 'settings']
+      : ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
   );
   if (!allowedTabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
     allowedTabs = [...allowedTabs, 'budget'];
+  }
+  if (!allowedTabs.includes('task') && currentUser?.role !== 'super_admin_2') {
+    allowedTabs = [...allowedTabs, 'task'];
   }
 
   const navItems = allNavItems.filter(item => allowedTabs.includes(item.id));
@@ -84,18 +92,23 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="w-full px-3 py-2 flex items-center justify-between">
         {/* Brand & Identity */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-sm border border-teal-800 bg-[#0B3C39]">
-            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain p-0.5" />
+          <div className="w-10 h-10 aspect-square rounded-full overflow-hidden shrink-0 shadow-lg border border-teal-500/60 bg-[#062423] flex items-center justify-center p-0.5">
+            <img src="/logo.png" alt="হাত খরচ Logo" className="w-full h-full object-contain aspect-square" />
           </div>
           <div className="min-w-0">
-            <span className="text-sm font-bold block truncate leading-tight text-[#F0FDFA]">
-              {t('HisabKitab', 'HisabKitab')}
+            <span className="text-base font-extrabold block truncate leading-tight text-[#F0FDFA]">
+              {t('হাত খরচ', 'হাত খরচ')}
             </span>
-            <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse shrink-0" />
               <span className="text-[10px] font-bold text-teal-200 truncate">
                 {activeMonthLabel}
               </span>
+              {taskDueCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-bold rounded-full animate-bounce">
+                  {taskDueCount} Due
+                </span>
+              )}
             </div>
           </div>
         </div>

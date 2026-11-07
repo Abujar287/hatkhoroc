@@ -555,7 +555,7 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
   // 3. PACK INTO A SINGLE CLEAN ZIP ARCHIVE WITH JSZIP
   // =========================================================================
   const zip = new JSZip();
-  const filePrefix = isAllTime ? 'HisabKitab_All_Time_Report' : `HisabKitab_Monthly_Report_${month}`;
+  const filePrefix = isAllTime ? 'HatKhoroch_All_Time_Report' : `HatKhoroch_Monthly_Report_${month}`;
 
   // Add the beautifully designed PDF report
   zip.file(`${filePrefix}_Summary.pdf`, pdfArrayBuffer);

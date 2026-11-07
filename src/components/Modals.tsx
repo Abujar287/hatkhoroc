@@ -17,7 +17,10 @@ import {
   Plus,
   GripVertical,
   Download,
-  DoorOpen
+  DoorOpen,
+  Calculator as CalculatorIcon,
+  Delete,
+  Check
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -204,6 +207,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [amountInput, setAmountInput] = useState<string>(String(tx.value));
   const [note, setNote] = useState<string>(tx.note || '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isCalcOpen, setIsCalcOpen] = useState<boolean>(false);
 
   const categories = type === 'Expense' ? expenseCategories : incomeCategories;
 
@@ -211,7 +215,6 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const evaluatedAmount = useMemo(() => {
     if (!amountInput) return 0;
     const trimmed = amountInput.trim();
-    // If user starts with an operator like +30 or -10, prepend original value
     let exprToEvaluate = trimmed;
     if (trimmed.startsWith('+') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('/')) {
       exprToEvaluate = `${tx.value}${trimmed}`;
@@ -229,6 +232,47 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       if (!trimmed || trimmed === '0') return String(addVal);
       return `${trimmed}+${addVal}`;
     });
+  };
+
+  const handleKeyClick = (key: string) => {
+    if (key === 'C') {
+      setAmountInput('0');
+      return;
+    }
+    if (key === 'DEL') {
+      if (amountInput.length <= 1) {
+        setAmountInput('0');
+      } else {
+        setAmountInput(amountInput.slice(0, -1));
+      }
+      return;
+    }
+    if (key === '✓') {
+      const evalVal = evaluateExpression(amountInput);
+      if (evalVal > 0) {
+        setAmountInput(String(evalVal));
+      }
+      setIsCalcOpen(false);
+      return;
+    }
+    if (key === '+' || key === '-') {
+      if (amountInput.endsWith('+') || amountInput.endsWith('-')) {
+        setAmountInput(amountInput.slice(0, -1) + key);
+        return;
+      }
+    }
+    if (amountInput === '0' && key !== '.') {
+      setAmountInput(key);
+    } else {
+      if (key === '.') {
+        const parts = amountInput.split(/[+\-*/]/);
+        const lastPart = parts[parts.length - 1];
+        if (lastPart.includes('.')) return;
+      }
+      if (amountInput.length < 15) {
+        setAmountInput(amountInput + key);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -320,11 +364,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               </button>
             </div>
 
-            {/* Smart Amount Field with Arithmetic Support */}
+            {/* Smart Amount Field with Arithmetic & Calculator Modal Pop-up */}
             <div className="space-y-1.5 bg-[#062423] p-3 rounded-xl border border-teal-700/70">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider">
-                  {t('Amount', 'টাকার পরিমাণ')}
+                <label className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider flex items-center gap-1">
+                  <span>{t('Amount', 'টাকার পরিমাণ')}</span>
+                  <span className="text-[9px] text-teal-400 font-normal">({t('Click to open calculator', 'ক্যালকুলেটর ওপেন করতে ট্যাপ করুন')})</span>
                 </label>
                 {hasMathExpression && evaluatedAmount > 0 && (
                   <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-800 animate-fadeIn">
@@ -333,14 +378,24 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 )}
               </div>
 
-              <div className="relative flex items-center">
+              <div className="relative flex items-center gap-2">
                 <input
                   type="text"
+                  readOnly
+                  onClick={() => setIsCalcOpen(true)}
                   value={amountInput}
                   onChange={e => setAmountInput(e.target.value)}
-                  placeholder="e.g. 40+30"
-                  className="w-full bg-[#042F2E] border border-teal-700/70 focus:border-teal-400 rounded-xl px-3 py-2 text-base font-black text-[#F0FDFA] tracking-tight focus:outline-none shadow-xs"
+                  placeholder="0"
+                  className="w-full bg-[#042F2E] border border-teal-700/70 hover:border-teal-400 focus:border-teal-400 rounded-xl px-3 py-2 text-lg font-black text-amber-300 tracking-tight focus:outline-none shadow-xs cursor-pointer"
                 />
+                <button
+                  type="button"
+                  onClick={() => setIsCalcOpen(true)}
+                  className="px-3 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-md cursor-pointer active:scale-95"
+                  title={t('Open Calculator', 'ক্যালকুলেটর খুলুন')}
+                >
+                  <CalculatorIcon className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Quick Arithmetic Sum Helper Pills */}
@@ -360,6 +415,66 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Calculator Popup Overlay inside Edit Transaction */}
+            {isCalcOpen && (
+              <div className="fixed inset-0 z-[9999999] bg-black/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-3 animate-fadeIn">
+                <div className="bg-[#0B3C39] border border-teal-600 rounded-2xl p-4 w-full max-w-xs shadow-2xl space-y-3 animate-modalSpring">
+                  <div className="flex items-center justify-between pb-2 border-b border-teal-800">
+                    <span className="text-xs font-bold text-teal-200 flex items-center gap-1">
+                      <CalculatorIcon className="w-4 h-4 text-amber-400" />
+                      {t('Calculator Keypad', 'ক্যালকুলেটর')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCalcOpen(false)}
+                      className="p-1 text-teal-300 hover:text-white rounded-lg bg-teal-950"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Calculator Display */}
+                  <div className="bg-[#042F2E] border border-teal-700/80 rounded-xl p-3 text-right">
+                    <div className="text-[10px] text-teal-400 font-semibold">
+                      {/[+\-*/]/.test(amountInput) ? `Value = ${evaluateExpression(amountInput)}` : 'Amount'}
+                    </div>
+                    <div className="text-2xl font-black text-amber-300 tabular-nums truncate">
+                      {amountInput || '0'}
+                    </div>
+                  </div>
+
+                  {/* Keypad Grid */}
+                  <div className="grid grid-cols-4 gap-1.5 bg-[#062423] p-2 rounded-xl border border-teal-700/70">
+                    {['7', '8', '9', 'DEL', '4', '5', '6', '+', '1', '2', '3', '-', 'C', '0', '.', '✓'].map(k => {
+                      const isSave = k === '✓';
+                      const isAction = k === 'C' || k === 'DEL' || k === '+' || k === '-';
+
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => handleKeyClick(k)}
+                          className={`h-11 rounded-xl text-sm font-extrabold transition-all active:scale-95 flex items-center justify-center cursor-pointer select-none ${
+                            isSave
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                              : k === 'C'
+                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                              : k === 'DEL'
+                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                              : isAction
+                              ? 'bg-teal-900 text-teal-200 border border-teal-700'
+                              : 'bg-[#0B3C39] hover:bg-teal-800 text-[#F0FDFA] border border-teal-700/60'
+                          }`}
+                        >
+                          {k === 'DEL' ? <Delete className="w-4 h-4" /> : isSave ? <Check className="w-5 h-5 stroke-[3]" /> : k}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Category */}
             <div className="space-y-1">
@@ -921,7 +1036,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="HisabKitab Logo" className="w-6 h-6 rounded-lg object-cover shadow-sm border border-teal-700/60" />
             <div>
-              <h3 className="text-xs font-bold text-[#F0FDFA]">HisabKitab</h3>
+              <h3 className="text-xs font-bold text-[#F0FDFA]">হাত খরচ</h3>
               <p className="text-[9px] text-teal-300/80">{t('Install App', 'অ্যাপ ইনস্টল করুন')}</p>
             </div>
           </div>
@@ -936,11 +1051,13 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
 
         {/* App Banner Card */}
         <div className="p-3 bg-[#062423] rounded-xl border border-teal-700/70 flex items-center gap-3">
-          <img src="/logo.png" alt="HisabKitab" className="w-12 h-12 rounded-xl object-cover shadow-sm border border-teal-700/70 shrink-0" />
+          <div className="w-12 h-12 aspect-square rounded-full overflow-hidden shrink-0 shadow-sm border border-teal-500/60 bg-[#042F2E] flex items-center justify-center p-0.5">
+            <img src="/logo.png" alt="হাত খরচ" className="w-full h-full object-contain aspect-square" />
+          </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-[#F0FDFA] truncate">HisabKitab</h4>
+            <h4 className="text-xs font-bold text-[#F0FDFA] truncate">হাত খরচ</h4>
             <p className="text-[10px] text-teal-300/80 leading-tight mt-0.5">
-              {t('Smart Expense & Income Tracker', 'স্মার্ট হিসাব কিতাব ও বাজেট ট্র্যাকার')}
+              {t('Smart Expense & Task Reminder Tracker', 'স্মার্ট হাত খরচ, টাস্ক রিমাইন্ডার ও বাজেট ট্র্যাকার')}
             </p>
           </div>
         </div>
@@ -949,7 +1066,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
         <div className="p-2.5 bg-[#062423] border border-teal-700/70 rounded-xl flex flex-col items-center justify-center">
           <img
             src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(window.location.origin)}`}
-            alt="HisabKitab App QR Code"
+            alt="হাত খরচ App QR Code"
             className="w-28 h-28 rounded-lg bg-white p-1"
           />
           <span className="text-[10px] font-bold text-teal-200 mt-1.5">
@@ -974,14 +1091,14 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
             }
             alert(
               lang === 'en'
-                ? 'To install HisabKitab:\n1. Open in Chrome or Safari\n2. Tap Browser Menu (⋮ or Share)\n3. Tap "Install App" or "Add to Home Screen"'
-                : 'HisabKitab ইনস্টল করতে:\n১. ক্রোম বা সাফারি ব্রাউজারে সাইটটি ওপেন করুন\n২. থ্রি-ডট (⋮) বা শেয়ার আইকন চাপুন\n৩. "Install App" বা "Add to Home Screen" অপশনে ট্যাপ করুন'
+                ? 'To install হাত খরচ:\n1. Open in Chrome or Safari\n2. Tap Browser Menu (⋮ or Share)\n3. Tap "Install App" or "Add to Home Screen"'
+                : 'হাত খরচ ইনস্টল করতে:\n১. ক্রোম বা সাফারি ব্রাউজারে সাইটটি ওপেন করুন\n২. থ্রি-ডট (⋮) বা শেয়ার আইকন চাপুন\n৩. "Install App" বা "Add to Home Screen" অপশনে ট্যাপ করুন'
             );
           }}
           className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95 text-sm transition-all"
         >
           <Smartphone className="w-4 h-4" />
-          <span>{t('Install HisabKitab Now', 'HisabKitab ইন্সটল করুন')}</span>
+          <span>{t('Install হাত খরচ Now', 'হাত খরচ ইন্সটল করুন')}</span>
         </button>
 
         <button
@@ -990,7 +1107,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
           className="w-full py-2.5 bg-[#062423] hover:bg-teal-900/80 text-teal-100 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95 text-xs transition-all border border-teal-700/70"
         >
           {copied ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-teal-300" />}
-          <span>{copied ? t('Copied Link!', 'লিংক কপি হয়েছে!') : t('Copy HisabKitab Link', ' HisabKitab লিংক কপি করুন')}</span>
+          <span>{copied ? t('Copied Link!', 'লিংক কপি হয়েছে!') : t('Copy হাত খরচ Link', ' হাত খরচ লিংক কপি করুন')}</span>
         </button>
 
         <div className="p-2 bg-[#062423] rounded-xl border border-teal-700/70 text-[10px] text-teal-300/80 space-y-0.5">
@@ -2773,7 +2890,7 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
               {t('Exit Application?', 'অ্যাপ থেকে বের হতে চান?')}
             </h3>
             <p className="text-[11px] text-teal-300/80 mt-0.5">
-              {t('Are you sure you want to close HisabKitab?', 'আপনি কি নিশ্চিত যে আপনি HisabKitab বন্ধ করতে চান?')}
+              {t('Are you sure you want to close হাত খরচ?', 'আপনি কি নিশ্চিত যে আপনি হাত খরচ বন্ধ করতে চান?')}
             </p>
           </div>
 
