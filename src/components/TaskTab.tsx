@@ -8,23 +8,28 @@ import {
   CheckCircle2,
   AlertCircle,
   TrendingDown,
-  Tag,
   Trash2,
   Edit3,
   Search,
-  Filter,
-  DollarSign,
-  ArrowRight,
-  Sparkles,
-  CalendarDays,
-  AlertTriangle,
-  Layers,
   Check,
-  X
+  X,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
-import { CostTask, Transaction, TransactionType } from '../types';
+import { CostTask } from '../types';
 import { DEFAULT_EXPENSE_CATEGORIES } from '../constants';
 import { ModalPortal } from './Modals';
+import {
+  playTaskAlarmSound,
+  stopTaskAlarmSound,
+  sendSystemNotification,
+  vibrateDevice,
+  initAudioUnlock
+} from '../utils/taskAlarmManager';
+import { normalizeTime, formatTime12h } from '../utils/dateUtils';
 
 interface TaskTabProps {
   tasks: CostTask[];
@@ -36,6 +41,9 @@ interface TaskTabProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   currentUser: { username: string; displayName?: string } | null;
   categories?: string[];
+  activeRingingTask?: CostTask | null;
+  onStopRingingAlarm?: () => void;
+  onTestTaskAlarm?: (task?: CostTask) => void;
 }
 
 export const TaskTab: React.FC<TaskTabProps> = ({
@@ -47,22 +55,22 @@ export const TaskTab: React.FC<TaskTabProps> = ({
   t,
   showToast,
   currentUser,
-  categories = DEFAULT_EXPENSE_CATEGORIES
+  categories = DEFAULT_EXPENSE_CATEGORIES,
+  activeRingingTask,
+  onStopRingingAlarm
 }) => {
-  const [filterStatus, setFilterStatus] = useState<'pending' | 'due' | 'upcoming' | 'completed' | 'all'>('pending');
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'due' | 'upcoming' | 'completed' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<CostTask | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<CostTask | null>(null);
+  const [isTestingSound, setIsTestingSound] = useState(false);
 
   // Form states
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [dueDate, setDueDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [dueTime, setDueTime] = useState('09:00');
   const [category, setCategory] = useState(categories[0] || 'Uncategorized');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
@@ -72,7 +80,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Request Notification permission
+  // Request Notification permission & auto-set alarm
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       return Notification.permission;
@@ -80,20 +88,64 @@ export const TaskTab: React.FC<TaskTabProps> = ({
     return 'default';
   });
 
+  useEffect(() => {
+    initAudioUnlock();
+  }, []);
+
   const requestNotificationPermission = async () => {
+    initAudioUnlock();
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission === 'granted') {
-        showToast(t('Notifications enabled for task reminders!', 'টাস্ক রিমাইন্ডারের জন্য নোটিফিকেশন চালু হয়েছে!'), 'success');
-      } else {
-        showToast(t('Notification permission denied', 'নোটিফিকেশন অনুমতি পাওয়া যায়নি'), 'error');
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+          showToast(t('Notification & Alarm Sound Auto-Enabled!', 'নোটিফিকেশন ও অ্যালার্ম সাউন্ড অটো-সেট হয়েছে!'), 'success');
+          
+          tasks.forEach(taskObj => {
+            if (!taskObj.autoNotify) {
+              onUpdateTask({ ...taskObj, autoNotify: true });
+            }
+          });
+
+          sendSystemNotification('হাত খরচ Task Reminder', {
+            body: t('Notifications & sound alarms are active!', 'নোটিফিকেশন এবং সাউন্ড অ্যালার্ম সক্রিয় হয়েছে!')
+          });
+        } else {
+          showToast(t('Notification permission denied', 'নোটিফিকেশন অনুমতি পাওয়া যায়নি'), 'error');
+        }
+      } catch (e) {
+        console.warn('Error requesting notification permission:', e);
       }
     }
   };
 
-  // Reset or set modal form when editing
+  const handleTestAlarmSound = (taskObj?: CostTask) => {
+    initAudioUnlock();
+    if (isTestingSound) {
+      stopTaskAlarmSound();
+      setIsTestingSound(false);
+      showToast(t('Alarm test stopped', 'অ্যালার্ম পরীক্ষা বন্ধ করা হয়েছে'), 'info');
+      return;
+    }
+
+    setIsTestingSound(true);
+    playTaskAlarmSound();
+    vibrateDevice([200, 100, 200, 100, 300]);
+
+    sendSystemNotification('🔔 Alarm Sound Test', {
+      body: taskObj ? `Task: ${taskObj.title} (৳${taskObj.amount})` : 'Testing task reminder alarm sound & alert notification.'
+    });
+
+    showToast(t('Playing alarm sound... Tap button to stop', 'অ্যালার্ম সাউন্ড বাজছে... বন্ধ করতে আবার চাপুন'), 'success');
+
+    setTimeout(() => {
+      stopTaskAlarmSound();
+      setIsTestingSound(false);
+    }, 8000);
+  };
+
   const openFormModal = (taskToEdit?: CostTask) => {
+    initAudioUnlock();
     if (taskToEdit) {
       setEditingTask(taskToEdit);
       setTitle(taskToEdit.title);
@@ -102,8 +154,8 @@ export const TaskTab: React.FC<TaskTabProps> = ({
       setDueTime(taskToEdit.dueTime || '09:00');
       setCategory(taskToEdit.category);
       setPriority(taskToEdit.priority);
-      setReminderDaysBefore(taskToEdit.reminderDaysBefore);
-      setAutoNotify(taskToEdit.autoNotify);
+      setReminderDaysBefore(taskToEdit.reminderDaysBefore ?? 1);
+      setAutoNotify(taskToEdit.autoNotify ?? true);
       setNotes(taskToEdit.notes || '');
     } else {
       setEditingTask(null);
@@ -155,12 +207,12 @@ export const TaskTab: React.FC<TaskTabProps> = ({
         category,
         priority,
         reminderDaysBefore,
-        autoNotify,
+        autoNotify: true,
         notes: notes.trim(),
         status: 'pending',
         createdBy: currentUser?.username || 'user'
       });
-      showToast(t('New task reminder added!', 'নতুন টাস্ক রিমাইন্ডার সেভ হয়েছে!'), 'success');
+      showToast(t('New task reminder saved!', 'নতুন টাস্ক রিমাইন্ডার সেভ হয়েছে!'), 'success');
     }
 
     setShowAddModal(false);
@@ -169,15 +221,12 @@ export const TaskTab: React.FC<TaskTabProps> = ({
   // Filter tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      // Search
       const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (task.notes && task.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
         task.category.toLowerCase().includes(searchQuery.toLowerCase());
       
-      // Category filter
       const matchesCategory = selectedCategory === 'all' || task.category === selectedCategory;
 
-      // Status filter
       let matchesStatus = true;
       if (filterStatus === 'pending') {
         matchesStatus = task.status === 'pending';
@@ -191,7 +240,6 @@ export const TaskTab: React.FC<TaskTabProps> = ({
 
       return matchesSearch && matchesCategory && matchesStatus;
     }).sort((a, b) => {
-      // Pending tasks first, sorted by due date
       if (a.status === 'pending' && b.status !== 'pending') return -1;
       if (a.status !== 'pending' && b.status === 'pending') return 1;
       return a.dueDate.localeCompare(b.dueDate);
@@ -205,6 +253,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
     let upcomingCount = 0;
     let upcomingAmount = 0;
     let completedAmount = 0;
+    let completedCount = 0;
 
     tasks.forEach(task => {
       if (task.status === 'pending') {
@@ -216,6 +265,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
           upcomingAmount += task.amount;
         }
       } else {
+        completedCount++;
         completedAmount += task.amount;
       }
     });
@@ -225,193 +275,200 @@ export const TaskTab: React.FC<TaskTabProps> = ({
       dueTodayOrOverdueAmount,
       upcomingCount,
       upcomingAmount,
+      completedCount,
       completedAmount,
       totalPendingAmount: dueTodayOrOverdueAmount + upcomingAmount
     };
   }, [tasks, todayStr]);
 
+  // Helper date distance text
+  const getDaysDifferenceText = (targetDateStr: string) => {
+    const target = new Date(targetDateStr);
+    const today = new Date();
+    target.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return t('Due Today', 'আজকের দিন');
+    if (diffDays === 1) return t('Tomorrow', 'আগামীকাল');
+    if (diffDays > 1) return t(`In ${diffDays} days`, `${diffDays} দিন বাকি`);
+    if (diffDays === -1) return t('1 day overdue', '১ দিন পার');
+    return t(`${Math.abs(diffDays)} days overdue`, `${Math.abs(diffDays)} দিন পার`);
+  };
+
   return (
-    <div className="w-full h-full flex flex-col bg-[#042F2E] overflow-y-auto pb-24 p-3 md:p-6 space-y-4">
+    <div className="w-full flex flex-col space-y-3 pb-28 p-2 md:p-4">
       
-      {/* Top Banner & Header */}
-      <div className="bg-gradient-to-r from-teal-900/90 via-[#0B3C39] to-teal-950 p-4 md:p-5 rounded-2xl border border-teal-700/60 shadow-lg text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center shrink-0 shadow-inner">
-              <BellRing className="w-6 h-6 text-teal-300 animate-pulse" />
-            </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#F0FDFA] flex items-center gap-2">
-                হাত খরচ Task & Reminders
-              </h1>
-              <p className="text-xs text-teal-200 mt-0.5">
-                {t('Schedule upcoming costs and receive automatic date reminders', 'ভবিষ্যতের খরচের তারিখ ও বাজেট সেট করুন এবং রিমাইন্ডার পান')}
-              </p>
+      {/* RINGING ALARM BANNER */}
+      {activeRingingTask && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-3 rounded-xl border-2 border-amber-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-2.5 animate-bounce">
+          <div className="flex items-center gap-2.5">
+            <BellRing className="w-5 h-5 text-amber-200 animate-spin shrink-0" />
+            <div className="text-xs">
+              <span className="font-extrabold uppercase bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded text-[10px] mr-1.5">
+                {t('Alarm Ringing!', 'অ্যালার্ম বাজছে!')}
+              </span>
+              <span className="font-bold">{activeRingingTask.title}</span> — <span className="font-extrabold">{activeRingingTask.amount.toLocaleString()}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
-            {notificationPermission !== 'granted' && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onStopRingingAlarm && (
               <button
                 type="button"
-                onClick={requestNotificationPermission}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+                onClick={onStopRingingAlarm}
+                className="px-3 py-1 rounded-lg bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
               >
-                <Bell className="w-3.5 h-3.5" />
-                <span>{t('Enable Notifications', 'নোটিফিকেশন चालू করুন')}</span>
+                <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                <span>{t('Stop', 'থামান')}</span>
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => openFormModal()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-bold text-sm transition-all shadow-md active:scale-95 cursor-pointer"
+              onClick={() => {
+                if (onStopRingingAlarm) onStopRingingAlarm();
+                onConvertTaskToExpense(activeRingingTask);
+              }}
+              className="px-3 py-1 rounded-lg bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>{t('Add New Task', 'নতুন টাস্ক যোগ করুন')}</span>
+              <Zap className="w-3.5 h-3.5" />
+              <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
             </button>
           </div>
         </div>
+      )}
 
-        {/* Dynamic Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-teal-800/80">
-          {/* Overdue / Due Today Card */}
-          <div className={`p-3 rounded-xl border ${stats.dueTodayOrOverdueCount > 0 ? 'bg-red-950/40 border-red-500/50 text-red-200' : 'bg-teal-950/50 border-teal-800/70 text-teal-100'}`}>
-            <div className="flex items-center justify-between text-xs font-medium">
-              <span className="flex items-center gap-1">
-                <AlertTriangle className={`w-3.5 h-3.5 ${stats.dueTodayOrOverdueCount > 0 ? 'text-red-400' : 'text-teal-400'}`} />
-                {t('Due / Overdue', 'আজকের বা পার হওয়া')}
-              </span>
-              {stats.dueTodayOrOverdueCount > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] bg-red-600 text-white font-bold rounded-full animate-bounce">
-                  {stats.dueTodayOrOverdueCount}
-                </span>
-              )}
-            </div>
-            <div className="text-lg md:text-xl font-bold mt-1">
-              ৳{stats.dueTodayOrOverdueAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-            </div>
+      {/* Compact Header Bar */}
+      <div className="bg-[#0B3C39] p-3 rounded-xl border border-teal-800/80 shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        
+        {/* Title & Quick Stats Summary */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center shrink-0">
+            <BellRing className="w-4 h-4 text-teal-300" />
           </div>
-
-          {/* Upcoming Costs Card */}
-          <div className="p-3 rounded-xl bg-teal-950/50 border border-teal-800/70 text-teal-100">
-            <div className="flex items-center justify-between text-xs font-medium">
-              <span className="flex items-center gap-1 text-teal-300">
-                <CalendarDays className="w-3.5 h-3.5 text-teal-400" />
-                {t('Upcoming Costs', 'সামনের খরচ')}
-              </span>
-              <span className="text-[10px] text-teal-300 font-bold">{stats.upcomingCount} {t('tasks', 'টি')}</span>
-            </div>
-            <div className="text-lg md:text-xl font-bold mt-1 text-teal-200">
-              ৳{stats.upcomingAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-            </div>
-          </div>
-
-          {/* Total Pending Card */}
-          <div className="p-3 rounded-xl bg-teal-950/50 border border-teal-800/70 text-teal-100">
-            <div className="text-xs font-medium text-teal-300 flex items-center gap-1">
-              <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />
-              {t('Total Planned Cost', 'মোট টাস্ক বাজেট')}
-            </div>
-            <div className="text-lg md:text-xl font-bold mt-1 text-amber-300">
-              ৳{stats.totalPendingAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-            </div>
-          </div>
-
-          {/* Paid / Completed Card */}
-          <div className="p-3 rounded-xl bg-teal-950/50 border border-teal-800/70 text-teal-100">
-            <div className="text-xs font-medium text-teal-300 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-              {t('Completed & Paid', 'পরিশোধিত খরচ')}
-            </div>
-            <div className="text-lg md:text-xl font-bold mt-1 text-teal-300">
-              ৳{stats.completedAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+          <div>
+            <h1 className="text-base font-bold text-[#F0FDFA] flex items-center gap-2 leading-tight">
+              {t('Cost Tasks & Reminders', 'টাস্ক ও খরচ রিমাইন্ডার')}
+            </h1>
+            <div className="flex items-center gap-2 text-xs text-teal-200 mt-0.5">
+              <span>Planned: <strong className="text-amber-300">{stats.totalPendingAmount.toLocaleString()}</strong></span>
+              <span>•</span>
+              <span>Due Today: <strong className={stats.dueTodayOrOverdueCount > 0 ? 'text-red-400' : 'text-teal-300'}>{stats.dueTodayOrOverdueCount}</strong></span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Filter and Controls Toolbar */}
-      <div className="bg-[#0B3C39] p-3 rounded-xl border border-teal-800/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md">
-        
-        {/* Status Filter Tabs */}
-        <div className="flex items-center bg-teal-950/70 p-1 rounded-xl border border-teal-800/60 overflow-x-auto no-scrollbar">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 flex-wrap self-end sm:self-center">
           <button
             type="button"
-            onClick={() => setFilterStatus('pending')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              filterStatus === 'pending'
-                ? 'bg-teal-500 text-teal-950 shadow-sm'
+            onClick={() => handleTestAlarmSound()}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer border ${
+              isTestingSound
+                ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+                : 'bg-teal-950 hover:bg-teal-900 text-amber-300 border-teal-700/80'
+            }`}
+          >
+            {isTestingSound ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+            <span>{isTestingSound ? 'Stop Sound' : 'Test Sound 🔔'}</span>
+          </button>
+
+          {notificationPermission !== 'granted' && (
+            <button
+              type="button"
+              onClick={requestNotificationPermission}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/40 text-xs font-semibold active:scale-95 cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>Notification</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => openFormModal()}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <span>{t('Add Task', 'নতুন টাস্ক')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shadow-sm">
+        
+        {/* Status Filter Chips */}
+        <div className="flex items-center bg-teal-950/80 p-1 rounded-lg border border-teal-800/60 overflow-x-auto no-scrollbar gap-1">
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              filterStatus === 'all'
+                ? 'bg-teal-500 text-teal-950'
                 : 'text-teal-200 hover:text-white'
             }`}
           >
-            <span>{t('Pending Tasks', 'বকেয়া টাস্ক')}</span>
-            <span className="px-1.5 py-0.2 bg-teal-950 text-teal-200 text-[10px] rounded-full font-extrabold">
-              {stats.dueTodayOrOverdueCount + stats.upcomingCount}
-            </span>
+            All Tasks ({tasks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('pending')}
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              filterStatus === 'pending'
+                ? 'bg-teal-500 text-teal-950'
+                : 'text-teal-200 hover:text-white'
+            }`}
+          >
+            Pending ({stats.dueTodayOrOverdueCount + stats.upcomingCount})
           </button>
           <button
             type="button"
             onClick={() => setFilterStatus('due')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               filterStatus === 'due'
-                ? 'bg-red-500 text-white shadow-sm'
+                ? 'bg-red-500 text-white'
                 : 'text-red-300 hover:text-red-200'
             }`}
           >
-            <span>{t('Due Today', 'আজকের টাস্ক')}</span>
-            {stats.dueTodayOrOverdueCount > 0 && (
-              <span className="px-1.5 py-0.2 bg-red-950 text-red-200 text-[10px] rounded-full font-extrabold">
-                {stats.dueTodayOrOverdueCount}
-              </span>
-            )}
+            Due Today ({stats.dueTodayOrOverdueCount})
           </button>
           <button
             type="button"
             onClick={() => setFilterStatus('upcoming')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               filterStatus === 'upcoming'
-                ? 'bg-teal-500 text-teal-950 shadow-sm'
+                ? 'bg-teal-500 text-teal-950'
                 : 'text-teal-200 hover:text-white'
             }`}
           >
-            {t('Upcoming', 'সামনের')} ({stats.upcomingCount})
+            Upcoming ({stats.upcomingCount})
           </button>
           <button
             type="button"
             onClick={() => setFilterStatus('completed')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               filterStatus === 'completed'
-                ? 'bg-teal-500 text-teal-950 shadow-sm'
+                ? 'bg-teal-500 text-teal-950'
                 : 'text-teal-200 hover:text-white'
             }`}
           >
-            {t('Paid / Done', 'পরিশোধিত')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterStatus('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'all'
-                ? 'bg-teal-500 text-teal-950 shadow-sm'
-                : 'text-teal-200 hover:text-white'
-            }`}
-          >
-            {t('All', 'সকল')} ({tasks.length})
+            Paid ({stats.completedCount})
           </button>
         </div>
 
-        {/* Search & Category Select */}
-        <div className="flex items-center gap-2">
-          {/* Search Box */}
-          <div className="relative flex-1 md:w-48">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        {/* Search & Category Filter */}
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 sm:w-40">
+            <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder={t('Search task...', 'টাস্ক খুঁজুন...')}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-slate-400"
+              placeholder="Search..."
+              className="w-full pl-7 pr-2 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 focus:outline-none placeholder:text-slate-400 font-medium"
             />
             {searchQuery && (
               <button
@@ -419,18 +476,17 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
-          {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 font-medium focus:outline-none focus:ring-2 focus:ring-teal-400"
+            className="px-2 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 font-medium focus:outline-none"
           >
-            <option value="all">{t('All Categories', 'সকল ক্যাটাগরি')}</option>
+            <option value="all">All Category</option>
             {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -439,174 +495,288 @@ export const TaskTab: React.FC<TaskTabProps> = ({
 
       </div>
 
-      {/* Task List Grid / Empty State */}
+      {/* ULTRA-COMPACT TASK LIST VIEW */}
       {filteredTasks.length === 0 ? (
-        <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 p-8 text-center flex flex-col items-center justify-center my-4">
-          <div className="w-14 h-14 rounded-full bg-teal-950 border border-teal-800 flex items-center justify-center mb-3 text-teal-400">
-            <CalendarDays className="w-7 h-7" />
-          </div>
-          <h3 className="text-base font-bold text-[#F0FDFA]">
-            {t('No task reminders found', 'কোনো টাস্ক রিমাইন্ডার পাওয়া যায়নি')}
-          </h3>
-          <p className="text-xs text-teal-200/80 max-w-sm mt-1 mb-4">
-            {searchQuery || selectedCategory !== 'all' || filterStatus !== 'all'
-              ? t('Try clearing your search or filter settings.', 'ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন।')
-              : t('Set up upcoming bill payments, monthly rent, or shopping costing dates to get auto reminders!', 'আপনার ভবিষ্যতের বিদ্যুৎ বিল, বাসা ভাড়া বা কেনাকাটার তারিখ সেট করুন।')}
-          </p>
+        <div className="bg-[#0B3C39] rounded-xl border border-teal-800/80 p-6 text-center flex flex-col items-center justify-center my-2">
+          <Clock className="w-6 h-6 text-teal-400 mb-2" />
+          <p className="text-xs font-bold text-teal-100">No task reminders found</p>
           <button
             type="button"
             onClick={() => openFormModal()}
-            className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-teal-950 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            className="mt-3 px-3 py-1.5 bg-teal-500 text-teal-950 font-bold text-xs rounded-lg shadow-sm"
           >
-            + {t('Add First Task Reminder', 'প্রথম টাস্ক যোগ করুন')}
+            + Add Task
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="bg-[#0B3C39] rounded-xl border border-teal-800/80 overflow-hidden shadow-md divide-y divide-teal-800/60">
+          
+          {/* Table Header Row (Desktop/Tablet) */}
+          <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-2 bg-teal-950/80 text-[11px] font-extrabold uppercase tracking-wider text-teal-300">
+            <div className="col-span-3">Task Name</div>
+            <div className="col-span-2">Date & Time</div>
+            <div className="col-span-2">In How Many Days</div>
+            <div className="col-span-2">Amount</div>
+            <div className="col-span-1 text-center">Alarm</div>
+            <div className="col-span-2 text-right">Actions</div>
+          </div>
+
+          {/* List Rows */}
           {filteredTasks.map(task => {
             const isDone = task.status === 'completed' || task.status === 'paid';
             const isOverdue = !isDone && task.dueDate < todayStr;
             const isToday = !isDone && task.dueDate === todayStr;
+            const daysText = getDaysDifferenceText(task.dueDate);
 
             return (
               <div
                 key={task.id}
-                className={`group relative rounded-2xl p-4 transition-all duration-200 border shadow-md flex flex-col justify-between ${
+                className={`p-3 transition-all hover:bg-teal-900/40 shadow-xs ${
                   isDone
-                    ? 'bg-slate-900/60 border-slate-800 opacity-75'
+                    ? 'bg-[#062423]/60 border-l-4 border-l-slate-600 opacity-85'
                     : isOverdue
-                    ? 'bg-gradient-to-b from-red-950/60 to-red-900/40 border-red-500/70 ring-1 ring-red-500/30'
+                    ? 'bg-red-950/30 border-l-4 border-l-red-500'
                     : isToday
-                    ? 'bg-gradient-to-b from-amber-950/60 to-amber-900/40 border-amber-500/80 ring-1 ring-amber-500/40'
-                    : 'bg-[#0B3C39] hover:bg-[#0E4744] border-teal-800/80'
+                    ? 'bg-amber-950/30 border-l-4 border-l-amber-400'
+                    : 'bg-[#0B3C39] border-l-4 border-l-teal-500'
                 }`}
               >
-                {/* Header Row */}
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        {/* Status Badge */}
-                        {isDone ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40 flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            {t('Paid & Saved', 'পরিশোধিত')}
-                          </span>
-                        ) : isOverdue ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white flex items-center gap-1 animate-pulse">
-                            <AlertTriangle className="w-3 h-3" />
-                            {t('Overdue', 'বকেয়া অতিক্রান্ত')}
-                          </span>
-                        ) : isToday ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-amber-950 flex items-center gap-1 font-extrabold">
-                            <Clock className="w-3 h-3" />
-                            {t('Due Today', 'আজকের টাস্ক')}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-900/80 text-teal-200 border border-teal-700/60">
-                            {t('Upcoming', 'আসন্ন')}
-                          </span>
-                        )}
-
-                        {/* Priority Badge */}
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          task.priority === 'high'
-                            ? 'bg-rose-950 text-rose-300 border border-rose-700/60'
-                            : task.priority === 'medium'
-                            ? 'bg-amber-950 text-amber-300 border border-amber-700/60'
-                            : 'bg-teal-950 text-teal-300 border border-teal-700/60'
-                        }`}>
-                          {task.priority.toUpperCase()}
-                        </span>
-
-                        {/* Category */}
-                        <span className="text-[10px] text-teal-200/80 bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-800/60">
-                          {task.category}
-                        </span>
-                      </div>
-
-                      <h3 className={`text-base font-bold truncate ${isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'}`}>
-                        {task.title}
-                      </h3>
+                {/* DESKTOP ROW (md:grid) */}
+                <div className="hidden md:grid grid-cols-12 items-center gap-2">
+                  {/* 1. Name + Priority + Category */}
+                  <div className="col-span-3 min-w-0 flex items-center gap-2">
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                        task.priority === 'high'
+                          ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                          : task.priority === 'medium'
+                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                          : 'bg-teal-950 text-teal-300 border border-teal-800'
+                      }`}>
+                        {task.priority ? task.priority.substring(0, 3).toUpperCase() : 'MED'}
+                      </span>
+                      <span className="text-[10px] text-teal-200 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-800 truncate">
+                        {task.category}
+                      </span>
                     </div>
-
-                    {/* Amount */}
-                    <div className="text-right shrink-0">
-                      <span className="text-xs text-teal-300 block font-semibold">{t('Est. Cost', 'খরচ')}</span>
-                      <span className={`text-lg font-bold ${isDone ? 'text-slate-400' : 'text-amber-300'}`}>
-                        ৳{task.amount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                    <div className="min-w-0 flex-1">
+                      <span className={`text-sm font-bold truncate block ${isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'}`}>
+                        {task.title}
                       </span>
                     </div>
                   </div>
 
-                  {/* Notes if available */}
-                  {task.notes && (
-                    <p className="text-xs text-teal-200/90 bg-teal-950/40 p-2 rounded-lg border border-teal-800/40 my-2 italic line-clamp-2">
-                      "{task.notes}"
-                    </p>
-                  )}
-
-                  {/* Date & Time info */}
-                  <div className="flex items-center gap-3 text-xs text-teal-200/80 mt-2">
-                    <div className="flex items-center gap-1 font-medium">
-                      <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{task.dueDate}</span>
-                    </div>
+                  {/* 2. Date & Time */}
+                  <div className="col-span-2 text-xs text-teal-200 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-teal-400 shrink-0" />
+                    <span className="font-semibold">{task.dueDate}</span>
                     {task.dueTime && (
-                      <div className="flex items-center gap-1 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-teal-400" />
-                        <span>{task.dueTime}</span>
-                      </div>
-                    )}
-                    {task.reminderDaysBefore > 0 && (
-                      <div className="flex items-center gap-1 text-[11px] text-teal-300/80">
-                        <Bell className="w-3 h-3 text-amber-400" />
-                        <span>{task.reminderDaysBefore}d before</span>
-                      </div>
+                      <span className="text-[11px] text-amber-300 font-medium">({formatTime12h(task.dueTime)})</span>
                     )}
                   </div>
-                </div>
 
-                {/* Bottom Action Row */}
-                <div className="mt-4 pt-3 border-t border-teal-800/60 flex items-center justify-between gap-2">
-                  {!isDone ? (
+                  {/* 3. Days Countdown */}
+                  <div className="col-span-2">
+                    {isDone ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700">
+                        <Check className="w-3 h-3 stroke-[3]" /> Paid
+                      </span>
+                    ) : isOverdue ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
+                        <AlertTriangle className="w-3 h-3" /> {daysText}
+                      </span>
+                    ) : isToday ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-full">
+                        <Clock className="w-3 h-3 stroke-[2.5]" /> Due Today
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800">
+                        {daysText}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 4. Amount */}
+                  <div className="col-span-2 text-left">
+                    <span className={`text-base font-extrabold ${isDone ? 'text-slate-400' : 'text-amber-300'}`}>
+                      {task.amount.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* 5. Alarm */}
+                  <div className="col-span-1 text-center flex items-center justify-center">
                     <button
                       type="button"
-                      onClick={() => onConvertTaskToExpense(task)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+                      onClick={() => handleTestAlarmSound(task)}
+                      className={`p-1 rounded-md transition-all cursor-pointer ${
+                        task.autoNotify && !isDone
+                          ? 'text-amber-300 hover:bg-amber-950/60'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                      title="Test Alarm Sound"
                     >
-                      <TrendingDown className="w-3.5 h-3.5" />
-                      <span>{t('Pay Now & Add Expense', 'পে করুন ও খরচে যোগ করুন')}</span>
+                      {task.autoNotify && !isDone ? <Bell className="w-3.5 h-3.5 fill-amber-400/20" /> : <VolumeX className="w-3.5 h-3.5" />}
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onUpdateTask({ ...task, status: 'pending' })}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>{t('Mark Unpaid', 'পেন্ডিং করুন')}</span>
-                    </button>
-                  )}
+                  </div>
 
-                  <div className="flex items-center gap-1">
+                  {/* 6. Actions */}
+                  <div className="col-span-2 flex items-center justify-end gap-1.5 shrink-0">
+                    {!isDone ? (
+                      <button
+                        type="button"
+                        onClick={() => onConvertTaskToExpense(task)}
+                        className="px-2.5 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-extrabold shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                      >
+                        <Zap className="w-3 h-3" />
+                        <span>Pay Now</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateTask({ ...task, status: 'pending' })}
+                        className="px-2 py-1 rounded-lg bg-slate-800 text-teal-300 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Unpaid</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => openFormModal(task)}
-                      className="p-2 rounded-lg bg-teal-900/60 hover:bg-teal-800 text-teal-200 hover:text-white border border-teal-700/60 transition-all cursor-pointer"
-                      title={t('Edit Task', 'এডিট')}
+                      className="p-1.5 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-200 border border-teal-800 transition-all cursor-pointer"
+                      title="Edit Task"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3 h-3" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setTaskToDelete(task)}
-                      className="p-2 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-red-100 border border-red-800/60 transition-all cursor-pointer"
-                      title={t('Delete Task', 'মুছুন')}
+                      className="p-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800/80 transition-all cursor-pointer"
+                      title="Delete Task"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
+                  </div>
+                </div>
+
+                {/* MOBILE COMPACT CARD (md:hidden) */}
+                <div className="flex md:hidden flex-col space-y-2">
+                  {/* Mobile Top Row: Priority + Title + Status */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
+                        task.priority === 'high'
+                          ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                          : task.priority === 'medium'
+                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                          : 'bg-teal-950 text-teal-300 border border-teal-800'
+                      }`}>
+                        {task.priority ? task.priority.substring(0, 3).toUpperCase() : 'MED'}
+                      </span>
+                      <h3 className={`text-sm font-bold truncate ${isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'}`}>
+                        {task.title}
+                      </h3>
+                    </div>
+
+                    <div className="shrink-0">
+                      {isDone ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700">
+                          <Check className="w-3 h-3 stroke-[3]" /> Paid
+                        </span>
+                      ) : isOverdue ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
+                          <AlertTriangle className="w-3 h-3" /> {daysText}
+                        </span>
+                      ) : isToday ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-full">
+                          <Clock className="w-3 h-3 stroke-[2.5]" /> Due Today
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800">
+                          {daysText}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mobile Middle Row: Category + Date & Time + Amount */}
+                  <div className="flex items-center justify-between gap-2 text-xs text-teal-200/90 pt-1 border-t border-teal-800/40">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] text-teal-300 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-800">
+                        {task.category}
+                      </span>
+                      <div className="flex items-center gap-1 text-[11px] font-medium">
+                        <Calendar className="w-3 h-3 text-teal-400 shrink-0" />
+                        <span>{task.dueDate}</span>
+                        {task.dueTime && (
+                          <span className="text-amber-300">({formatTime12h(task.dueTime)})</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`text-base font-extrabold ${isDone ? 'text-slate-400' : 'text-amber-300'}`}>
+                        {task.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mobile Bottom Action Row */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-teal-800/40">
+                    <button
+                      type="button"
+                      onClick={() => handleTestAlarmSound(task)}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer border ${
+                        task.autoNotify && !isDone
+                          ? 'bg-amber-950/40 text-amber-300 border-amber-800/60'
+                          : 'bg-teal-950 text-slate-400 border-teal-800'
+                      }`}
+                    >
+                      {task.autoNotify && !isDone ? <Bell className="w-3 h-3 text-amber-400" /> : <VolumeX className="w-3 h-3" />}
+                      <span>Alarm</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {!isDone ? (
+                        <button
+                          type="button"
+                          onClick={() => onConvertTaskToExpense(task)}
+                          className="px-3 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <Zap className="w-3 h-3" />
+                          <span>Pay Now</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateTask({ ...task, status: 'pending' })}
+                          className="px-2 py-1 rounded-lg bg-slate-800 text-teal-300 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Unpaid</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => openFormModal(task)}
+                        className="p-1.5 rounded-lg bg-teal-950 text-teal-200 border border-teal-800 cursor-pointer"
+                        title="Edit"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTaskToDelete(task)}
+                        className="p-1.5 rounded-lg bg-red-950/80 text-red-300 border border-red-800 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -624,9 +794,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
             {/* Modal Header */}
             <div className="px-5 py-4 bg-teal-900/90 border-b border-teal-800 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
-                <CalendarClockIcon className="w-5 h-5 text-teal-300" />
+                <BellRing className="w-5 h-5 text-teal-300" />
                 <h2 className="text-base font-bold text-[#F0FDFA]">
-                  {editingTask ? t('Edit Task Reminder', 'টাস্ক রিমাইন্ডার এডিট করুন') : t('Add Upcoming Cost Task', 'ভবিষ্যতের খরচের টাস্ক যোগ করুন')}
+                  {editingTask ? t('Edit Task Reminder', 'টাস্ক এডিট করুন') : t('Add Cost Task', 'নতুন খরচের টাস্ক')}
                 </h2>
               </div>
               <button
@@ -639,27 +809,25 @@ export const TaskTab: React.FC<TaskTabProps> = ({
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleFormSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-              {/* Task Title */}
+            <form onSubmit={handleFormSubmit} className="p-4 space-y-3.5 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-teal-200 mb-1">
-                  {t('Task Name / Purpose', 'টাস্কের নাম / খরচের বিবরণ')} *
+                  Task Name *
                 </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder="e.g., Electricity Bill, House Rent, Laptop EMI"
-                  className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-slate-400 font-medium"
+                  placeholder="e.g., Electricity Bill, Rent"
+                  className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                 />
               </div>
 
-              {/* Amount & Category Row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Expected Cost (৳)', 'আনমানিক খরচ (৳)')} *
+                    Amount *
                   </label>
                   <input
                     type="number"
@@ -668,18 +836,18 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-bold"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-bold"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Category', 'ক্যাটাগরি')}
+                    Category
                   </label>
                   <select
                     value={category}
                     onChange={e => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-medium"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   >
                     {categories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
@@ -688,97 +856,95 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                 </div>
               </div>
 
-              {/* Due Date & Time Row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Costing Target Date', 'খরচের মূল তারিখ')} *
+                    Target Date *
                   </label>
                   <input
                     type="date"
                     required
                     value={dueDate}
                     onChange={e => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-medium"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Reminder Time', 'রিমাইন্ডার সময়')}
+                    Alarm Time
                   </label>
                   <input
                     type="time"
                     value={dueTime}
                     onChange={e => setDueTime(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-medium"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   />
                 </div>
               </div>
 
-              {/* Priority & Reminder Notification setting */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Priority Level', 'গুরুত্ব (Priority)')}
+                    Priority
                   </label>
                   <select
                     value={priority}
                     onChange={e => setPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-medium"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   >
-                    <option value="high">🔴 High (জরুরী)</option>
-                    <option value="medium">🟡 Medium (সাধারণ)</option>
-                    <option value="low">🔵 Low (কম)</option>
+                    <option value="high">🔴 High</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="low">🔵 Low</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-teal-200 mb-1">
-                    {t('Remind Me Before', 'কয়দিন আগে জানাবে')}
+                    Remind Before
                   </label>
                   <select
                     value={reminderDaysBefore}
                     onChange={e => setReminderDaysBefore(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 font-medium"
+                    className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   >
-                    <option value={0}>On the same day (একই দিনে)</option>
-                    <option value={1}>1 Day Before (১ দিন আগে)</option>
-                    <option value={2}>2 Days Before (২ দিন আগে)</option>
-                    <option value={3}>3 Days Before (৩ দিন আগে)</option>
-                    <option value={7}>1 Week Before (১ সপ্তাহ আগে)</option>
+                    <option value={0}>Same day</option>
+                    <option value={1}>1 Day Before</option>
+                    <option value={2}>2 Days Before</option>
+                    <option value={3}>3 Days Before</option>
+                    <option value={7}>1 Week Before</option>
                   </select>
                 </div>
               </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-bold text-teal-200 mb-1">
-                  {t('Notes / Details', 'অতিরিক্ত নোট (ঐচ্ছিক)')}
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="e.g. Account number, bkash details, special instructions..."
-                  className="w-full px-3 py-2 text-xs bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              <div className="flex items-center justify-between p-2.5 bg-teal-950/60 rounded-xl border border-teal-800">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-amber-300" />
+                  <span className="text-xs font-bold text-teal-100">
+                    Enable Sound Alarm
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={autoNotify}
+                  onChange={e => setAutoNotify(e.target.checked)}
+                  className="w-4 h-4 accent-teal-400 rounded cursor-pointer"
                 />
               </div>
 
-              {/* Submit Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-teal-800">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-teal-950 hover:bg-teal-900 text-teal-200 text-xs font-semibold border border-teal-800 transition-all"
+                  className="px-3 py-2 rounded-xl bg-teal-950 text-teal-200 text-xs font-semibold border border-teal-800"
                 >
-                  {t('Cancel', 'বাতিল')}
+                  Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-bold shadow-md transition-all active:scale-95"
+                  className="px-4 py-2 rounded-xl bg-teal-500 text-teal-950 text-xs font-bold shadow-md"
                 >
-                  {editingTask ? t('Update Task', 'আপডেট করুন') : t('Save Task Reminder', 'সেভ করুন')}
+                  {editingTask ? 'Update Task' : 'Save Task'}
                 </button>
               </div>
 
@@ -795,22 +961,19 @@ export const TaskTab: React.FC<TaskTabProps> = ({
             onClick={() => setTaskToDelete(null)}
           >
             <div
-              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring text-center space-y-3.5 my-auto"
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-4 shadow-2xl relative border border-teal-800 animate-modalSpring text-center space-y-3 my-auto"
               onClick={e => e.stopPropagation()}
             >
-              <div className="w-11 h-11 rounded-2xl bg-rose-950/80 text-rose-300 border border-rose-800/80 flex items-center justify-center mx-auto shadow-md">
+              <div className="w-10 h-10 rounded-2xl bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center justify-center mx-auto shadow-md">
                 <Trash2 className="w-5 h-5" />
               </div>
 
               <div>
                 <h3 className="text-sm font-bold text-[#F0FDFA]">
-                  {t('Delete Task Reminder?', 'টাস্কটি মুছতে চান?')}
+                  Delete Task Reminder?
                 </h3>
-                <p className="text-xs text-amber-300/90 mt-1 font-semibold truncate px-2">
-                  "{taskToDelete.title}" · ৳{taskToDelete.amount.toLocaleString()}
-                </p>
-                <p className="text-[10px] text-teal-300/70 mt-0.5">
-                  {t('This will permanently delete this task from Google Sheet.', 'এটি গুগল শিট থেকেও স্থায়ীভাবে ডিলিট হয়ে যাবে।')}
+                <p className="text-xs text-amber-300 mt-1 font-semibold truncate">
+                  "{taskToDelete.title}" · {taskToDelete.amount.toLocaleString()}
                 </p>
               </div>
 
@@ -818,20 +981,20 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setTaskToDelete(null)}
-                  className="py-2.5 bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 rounded-xl text-xs font-bold cursor-pointer active:scale-95 transition-all"
+                  className="py-2 bg-[#062423] text-teal-200 border border-teal-700 rounded-xl text-xs font-bold"
                 >
-                  {t('Cancel', 'বাতিল')}
+                  Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     onDeleteTask(taskToDelete.id);
                     setTaskToDelete(null);
-                    showToast(t('Task deleted', 'টাস্ক মোছা হয়েছে'), 'info');
+                    showToast('Task deleted', 'info');
                   }}
-                  className="py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold shadow-md cursor-pointer active:scale-95 transition-all"
+                  className="py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md"
                 >
-                  {t('Yes, Delete', 'হ্যাঁ, মুছুন')}
+                  Delete
                 </button>
               </div>
             </div>
@@ -842,47 +1005,3 @@ export const TaskTab: React.FC<TaskTabProps> = ({
     </div>
   );
 };
-
-function CalendarClockIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
-      <path d="M16 2v4" />
-      <path d="M8 2v4" />
-      <path d="M3 10h18" />
-      <circle cx="16" cy="16" r="6" />
-      <path d="M16 14v2l1 1" />
-    </svg>
-  );
-}
-
-function CodeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
-    </svg>
-  );
-}

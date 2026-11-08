@@ -7,16 +7,25 @@ export function normalizeDate(rawDate: any): string {
     return `${y}-${m}-${d}`;
   }
 
-  // If already a Date object (sometimes happens with certain APIs)
+  const s = String(rawDate).trim();
+
+  // Ignore 1899 (Google Sheets default epoch for time-only cells)
+  if (s.includes('1899')) {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  // If already a Date object
   if (rawDate instanceof Date) {
-    if (isNaN(rawDate.getTime())) return normalizeDate(null);
+    if (isNaN(rawDate.getTime()) || rawDate.getFullYear() < 2000) return normalizeDate(null);
     const y = rawDate.getFullYear();
     const m = String(rawDate.getMonth() + 1).padStart(2, '0');
     const d = String(rawDate.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-
-  const s = String(rawDate).trim();
 
   // 1. Standard ISO format or partial: YYYY-MM-DD
   const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
@@ -113,6 +122,56 @@ export function normalizeDate(rawDate: any): string {
   // Fallback: today's date
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+export function normalizeTime(rawTime: any): string {
+  if (!rawTime) return '09:00';
+  const s = String(rawTime).trim();
+  if (!s) return '09:00';
+
+  // Extract HH:MM from strings like "21:00", "09:30 AM", "Sat Dec 30 1899 21:00:00 GMT+0553 (孟加拉標準時間)"
+  const timeMatch = s.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const ampm = timeMatch[4] ? timeMatch[4].toUpperCase() : null;
+
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+
+    const hrStr = String(hours % 24).padStart(2, '0');
+    const minStr = String(minutes % 60).padStart(2, '0');
+    return `${hrStr}:${minStr}`;
+  }
+
+  return '09:00';
+}
+
+export function formatTime12h(rawTime: any): string {
+  if (!rawTime) return '9:00AM';
+  const s = String(rawTime).trim();
+  if (!s) return '9:00AM';
+
+  const timeMatch = s.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/i);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    let ampm = timeMatch[4] ? timeMatch[4].toUpperCase() : null;
+
+    if (ampm) {
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+    }
+
+    const period = hours >= 12 ? 'PM' : 'AM';
+    let h12 = hours % 12;
+    if (h12 === 0) h12 = 12;
+
+    const minStr = String(minutes % 60).padStart(2, '0');
+    return `${h12}:${minStr}${period}`;
+  }
+
+  return '9:00AM';
 }
 
 export function formatSyncDateTime(date: Date, lang: 'en' | 'bn'): string {

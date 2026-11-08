@@ -17,8 +17,20 @@ import {
   BarChart3,
   Plus,
   Sliders,
-  CalendarClock
+  CalendarClock,
+  BellRing,
+  VolumeX,
+  Zap
 } from 'lucide-react';
+import {
+  playTaskAlarmSound,
+  stopTaskAlarmSound,
+  vibrateDevice,
+  sendSystemNotification,
+  hasTaskBeenNotified,
+  markTaskAsNotified,
+  initAudioUnlock
+} from './utils/taskAlarmManager';
 import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
@@ -27,6 +39,8 @@ import {
 } from './constants';
 import {
   normalizeDate,
+  normalizeTime,
+  formatTime12h,
   formatSyncDateTime,
   formatCleanDateTime,
   cleanMappingLabel,
@@ -529,6 +543,60 @@ export default function App() {
       }
     ];
   });
+
+  const [activeRingingTask, setActiveRingingTask] = useState<CostTask | null>(null);
+
+  const handleStopRingingAlarm = useCallback(() => {
+    stopTaskAlarmSound();
+    setActiveRingingTask(null);
+  }, []);
+
+  useEffect(() => {
+    initAudioUnlock();
+  }, []);
+
+  // Background Task Alarm Engine
+  useEffect(() => {
+    const checkTaskAlarms = () => {
+      if (!tasks || tasks.length === 0) return;
+
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMins = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMins}`;
+
+      tasks.forEach(task => {
+        if (task.status !== 'pending' || task.autoNotify === false) return;
+
+        const remDays = task.reminderDaysBefore ?? 1;
+        const targetDate = new Date(task.dueDate);
+        targetDate.setDate(targetDate.getDate() - remDays);
+        const targetDateStr = targetDate.toISOString().split('T')[0];
+
+        const targetTime = task.dueTime || '09:00';
+
+        if (todayStr >= targetDateStr) {
+          if (todayStr > targetDateStr || currentTimeStr >= targetTime) {
+            const triggerKey = `${task.id}_${todayStr}_${targetTime}`;
+            if (!hasTaskBeenNotified(task.id, triggerKey)) {
+              markTaskAsNotified(task.id, triggerKey);
+              playTaskAlarmSound();
+              vibrateDevice([300, 150, 300, 150, 400]);
+              sendSystemNotification(`⏰ ${t('Task Reminder', 'টাস্ক রিমাইন্ডার')}: ${task.title}`, {
+                body: `৳${task.amount.toLocaleString()} | ${t('Due', 'তারিখ')}: ${task.dueDate} ${task.dueTime || ''}`
+              });
+              setActiveRingingTask(task);
+            }
+          }
+        }
+      });
+    };
+
+    checkTaskAlarms();
+    const timer = setInterval(checkTaskAlarms, 20000);
+    return () => clearInterval(timer);
+  }, [tasks, t]);
 
   useEffect(() => {
     try {
@@ -1089,24 +1157,54 @@ export default function App() {
         }
         
         if (Array.isArray(data.tasks)) {
-          const cloudTasks: CostTask[] = data.tasks.map((t: any) => ({
-            id: String(t.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`),
-            title: String(t.title || t.Title || ''),
-            dueDate: normalizeDate(t.dueDate || t['Due Date'] || new Date().toISOString().split('T')[0]),
-            dueTime: String(t.dueTime || t['Due Time'] || '09:00'),
-            amount: Number(t.amount || t.Amount || 0),
-            category: String(t.category || t.Category || 'General'),
-            priority: (String(t.priority || t.Priority || 'medium').toLowerCase() as any),
-            notes: String(t.notes || t.Notes || ''),
-            status: (String(t.status || t.Status || t.action || 'pending').toLowerCase() as any),
-            reminderDaysBefore: Number(t.reminderDaysBefore || t['Reminder Days'] || 1),
-            autoNotify: t.autoNotify === true || String(t.autoNotify).toLowerCase() === 'true' || String(t.autoNotify).toLowerCase() === 'yes',
-            createdBy: String(t.createdBy || t['Created By'] || tabToSync),
-            createdAt: String(t.createdAt || t['Created At'] || new Date().toISOString())
-          })).filter((t: CostTask) => Boolean(t.title));
+          const cloudTasks: CostTask[] = data.tasks.map((t: any, idx: number) => {
+            const titleVal = String(
+              t.title || t.Title || t.task || t.Task || t.name || t.Name ||
+              t['Task Name'] || t['Task Title'] || t.description || t.Details || t['টাস্ক'] || t['নাম'] || ''
+            ).trim();
+
+            const dueDateRaw = t.dueDate || t['Due Date'] || t['Target Date'] || t.date || t.Date || t['তারিখ'] || new Date().toISOString().split('T')[0];
+            const dueTimeRaw = t.dueTime || t['Due Time'] || t.time || t.Time || t['সময়'] || '09:00';
+
+            const amountVal = Number(t.amount || t.Amount || t.cost || t.Cost || t.expense || t.Expense || t['পরিমাণ'] || t['খরচ'] || 0);
+
+            const categoryVal = String(t.category || t.Category || t['ক্যাটাগরি'] || 'General');
+            const notesVal = String(t.notes || t.Notes || t.note || t.Note || t['নোট'] || '');
+            const prioRaw = String(t.priority || t.Priority || t['গুরুত্ব'] || 'medium').toLowerCase();
+            const priorityVal = prioRaw.includes('high') ? 'high' : prioRaw.includes('low') ? 'low' : 'medium';
+
+            const statusRaw = String(t.status || t.Status || t.state || t.State || t.action || t['স্ট্যাটাস'] || 'pending').toLowerCase().trim();
+            const isCompleted = statusRaw.includes('complete') || statusRaw.includes('paid') || statusRaw.includes('done') || statusRaw.includes('পরিশোধ') || statusRaw.includes('সম্পন্ন');
+            const statusVal: 'pending' | 'completed' = isCompleted ? 'completed' : 'pending';
+
+            return {
+              id: String(t.id || `task_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`),
+              title: titleVal,
+              dueDate: normalizeDate(dueDateRaw),
+              dueTime: normalizeTime(dueTimeRaw),
+              amount: amountVal,
+              category: categoryVal,
+              priority: priorityVal as any,
+              notes: notesVal,
+              status: statusVal,
+              reminderDaysBefore: Number(t.reminderDaysBefore || t['Reminder Days'] || 1),
+              autoNotify: t.autoNotify === false || String(t.autoNotify).toLowerCase() === 'false' || String(t.autoNotify).toLowerCase() === 'no' ? false : true,
+              createdBy: String(t.createdBy || t['Created By'] || tabToSync),
+              createdAt: String(t.createdAt || t['Created At'] || new Date().toISOString())
+            };
+          }).filter((t: CostTask) => Boolean(t.title));
 
           if (cloudTasks.length > 0) {
-            saveTasks(cloudTasks);
+            setTasks(prevTasks => {
+              const taskMap = new Map<string, CostTask>();
+              prevTasks.forEach(t => taskMap.set(t.id, t));
+              cloudTasks.forEach(t => taskMap.set(t.id, t));
+              const merged = Array.from(taskMap.values());
+              try {
+                localStorage.setItem(`app_tasks_${tabToSync}`, JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
           }
         }
         
@@ -1306,6 +1404,7 @@ export default function App() {
       note: `[Task] ${task.title}${task.notes ? ' - ' + task.notes : ''}`
     };
 
+    handleStopRingingAlarm();
     saveTransactionsLocally([newTx, ...transactions]);
     handleUpdateTask({ ...task, status: 'completed' });
     playSound('success');
@@ -1543,6 +1642,49 @@ export default function App() {
         />
 
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
+          {activeRingingTask && activeTab !== 'task' && (
+            <div className="mb-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-3.5 rounded-2xl border-2 border-amber-300 shadow-2xl text-white animate-bounce flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
+                  <BellRing className="w-6 h-6 text-amber-200 animate-spin" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-amber-400 text-amber-950 font-black text-[10px] uppercase tracking-wider">
+                      {t('Alarm Ringing Now!', 'অ্যালার্ম বাজছে!')}
+                    </span>
+                    <span className="text-xs text-white/90">{activeRingingTask.dueDate} ({formatTime12h(activeRingingTask.dueTime)})</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white mt-0.5">
+                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleStopRingingAlarm}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{t('Stop Alarm', 'অ্যালার্ম থামান')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleStopRingingAlarm();
+                    handleConvertTaskToExpense(activeRingingTask);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-300 text-amber-950 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'summary' && (
             <SummaryTab
               transactions={transactions}
@@ -1605,6 +1747,8 @@ export default function App() {
               showToast={showToast}
               currentUser={currentUser}
               categories={expenseCategories}
+              activeRingingTask={activeRingingTask}
+              onStopRingingAlarm={handleStopRingingAlarm}
             />
           )}
 

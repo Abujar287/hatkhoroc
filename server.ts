@@ -72,7 +72,7 @@ async function startServer() {
     try {
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({
-        model: model || 'gemini-1.5-flash',
+        model: model || 'gemini-2.5-flash',
         contents,
         config
       });
