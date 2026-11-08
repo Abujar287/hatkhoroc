@@ -340,159 +340,84 @@ export const TaskTab: React.FC<TaskTabProps> = ({
         </div>
       )}
 
-      {/* Compact Header Bar */}
-      <div className="bg-[#0B3C39] p-3 rounded-xl border border-teal-800/80 shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        
-        {/* Title & Quick Stats Summary */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center shrink-0">
-            <BellRing className="w-4 h-4 text-teal-300" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-[#F0FDFA] flex items-center gap-2 leading-tight">
-              {t('Cost Tasks & Reminders', 'টাস্ক ও খরচ রিমাইন্ডার')}
-            </h1>
-            <div className="flex items-center gap-2 text-xs text-teal-200 mt-0.5">
-              <span>Planned: <strong className="text-amber-300">{stats.totalPendingAmount.toLocaleString()}</strong></span>
-              <span>•</span>
-              <span>Due Today: <strong className={stats.dueTodayOrOverdueCount > 0 ? 'text-red-400' : 'text-teal-300'}>{stats.dueTodayOrOverdueCount}</strong></span>
-            </div>
-          </div>
-        </div>
+      {/* 1-Row Top Action Buttons Bar */}
+      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 shadow-md flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
+        {/* 1. Task Sound Button */}
+        <button
+          type="button"
+          onClick={() => handleTestAlarmSound()}
+          className={`flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer whitespace-nowrap border ${
+            isTestingSound
+              ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+              : 'bg-teal-950 hover:bg-teal-900 text-amber-300 border-teal-700/80'
+          }`}
+        >
+          {isTestingSound ? <VolumeX className="w-3.5 h-3.5 shrink-0" /> : <Volume2 className="w-3.5 h-3.5 shrink-0" />}
+          <span>{isTestingSound ? 'Stop Sound' : 'Task Sound 🔔'}</span>
+        </button>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 flex-wrap self-end sm:self-center">
+        {/* 2. Notification Button */}
+        {notificationPermission !== 'granted' ? (
           <button
             type="button"
-            onClick={() => handleTestAlarmSound()}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer border ${
-              isTestingSound
-                ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
-                : 'bg-teal-950 hover:bg-teal-900 text-amber-300 border-teal-700/80'
-            }`}
+            onClick={requestNotificationPermission}
+            className="flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-bold active:scale-95 cursor-pointer whitespace-nowrap"
           >
-            {isTestingSound ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            <span>{isTestingSound ? 'Stop Sound' : 'Test Sound 🔔'}</span>
+            <Bell className="w-3.5 h-3.5 shrink-0" />
+            <span>Notification 🔔</span>
           </button>
+        ) : (
+          <div className="flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-950/80 text-teal-300 border border-teal-700/60 text-xs font-bold whitespace-nowrap">
+            <Bell className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+            <span>Notification On</span>
+          </div>
+        )}
 
-          {notificationPermission !== 'granted' && (
-            <button
-              type="button"
-              onClick={requestNotificationPermission}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/40 text-xs font-semibold active:scale-95 cursor-pointer"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>Notification</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => openFormModal()}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>{t('Add Task', 'নতুন টাস্ক')}</span>
-          </button>
-        </div>
+        {/* 3. Add Task Button */}
+        <button
+          type="button"
+          onClick={() => openFormModal()}
+          className="flex-1 min-w-[95px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+        >
+          <Plus className="w-3.5 h-3.5 stroke-[3] shrink-0" />
+          <span>Add Task</span>
+        </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shadow-sm">
-        
-        {/* Status Filter Chips */}
-        <div className="flex items-center bg-teal-950/80 p-1 rounded-lg border border-teal-800/60 overflow-x-auto no-scrollbar gap-1">
-          <button
-            type="button"
-            onClick={() => setFilterStatus('all')}
-            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'all'
-                ? 'bg-teal-500 text-teal-950'
-                : 'text-teal-200 hover:text-white'
-            }`}
-          >
-            All Tasks ({tasks.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterStatus('pending')}
-            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'pending'
-                ? 'bg-teal-500 text-teal-950'
-                : 'text-teal-200 hover:text-white'
-            }`}
-          >
-            Pending ({stats.dueTodayOrOverdueCount + stats.upcomingCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterStatus('due')}
-            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'due'
-                ? 'bg-red-500 text-white'
-                : 'text-red-300 hover:text-red-200'
-            }`}
-          >
-            Due Today ({stats.dueTodayOrOverdueCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterStatus('upcoming')}
-            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'upcoming'
-                ? 'bg-teal-500 text-teal-950'
-                : 'text-teal-200 hover:text-white'
-            }`}
-          >
-            Upcoming ({stats.upcomingCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterStatus('completed')}
-            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === 'completed'
-                ? 'bg-teal-500 text-teal-950'
-                : 'text-teal-200 hover:text-white'
-            }`}
-          >
-            Paid ({stats.completedCount})
-          </button>
+      {/* Search & Category Filter Row */}
+      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 flex items-center justify-between gap-2 shadow-xs">
+        {/* Search Box */}
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search task..."
+            className="w-full pl-8 pr-3 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 focus:outline-none placeholder:text-slate-400 font-medium"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Search & Category Filter */}
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1 sm:w-40">
-            <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="w-full pl-7 pr-2 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 focus:outline-none placeholder:text-slate-400 font-medium"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          <select
-            value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-            className="px-2 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 font-medium focus:outline-none"
-          >
-            <option value="all">All Category</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-
+        {/* Category Select */}
+        <select
+          value={selectedCategory}
+          onChange={e => setSelectedCategory(e.target.value)}
+          className="px-2.5 py-1 text-xs bg-white text-slate-900 rounded-lg border border-teal-700/60 font-medium focus:outline-none shrink-0"
+        >
+          <option value="all">All Category</option>
+          {categories.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
       </div>
 
       {/* ULTRA-COMPACT TASK LIST VIEW */}
