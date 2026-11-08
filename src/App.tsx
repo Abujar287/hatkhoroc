@@ -498,39 +498,7 @@ export default function App() {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    // Initial sample tasks
-    return [
-      {
-        id: 'task_sample_1',
-        title: 'বিদ্যুৎ বিল (Electricity Bill)',
-        dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-        dueTime: '10:00',
-        amount: 1450,
-        category: 'Bills',
-        priority: 'high',
-        notes: 'Pay via Bkash / Nagad',
-        status: 'pending',
-        reminderDaysBefore: 1,
-        autoNotify: true,
-        createdBy: currentTab,
-        createdAt: formatTaskCreatedAt(new Date().toISOString())
-      },
-      {
-        id: 'task_sample_2',
-        title: 'বাসা ভাড়া (House Rent)',
-        dueDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
-        dueTime: '09:00',
-        amount: 15000,
-        category: 'House',
-        priority: 'high',
-        notes: 'Monthly house rent to landlord',
-        status: 'pending',
-        reminderDaysBefore: 2,
-        autoNotify: true,
-        createdBy: currentTab,
-        createdAt: formatTaskCreatedAt(new Date().toISOString())
-      }
-    ];
+    return [];
   });
 
   const [activeRingingTask, setActiveRingingTask] = useState<CostTask | null>(null);
@@ -1716,20 +1684,20 @@ export default function App() {
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
           {/* Active Ringing Alarm Banner */}
           {activeRingingTask && (
-            <div className="mb-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-3.5 rounded-2xl border-2 border-amber-300 shadow-2xl text-white animate-bounce flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="mb-3 bg-red-600 p-3.5 rounded-xl border-2 border-amber-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
-                  <BellRing className="w-6 h-6 text-amber-200 animate-spin" />
+                <div className="w-10 h-10 rounded-xl bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
+                  <BellRing className="w-6 h-6 text-amber-200 animate-bounce" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-amber-400 text-amber-950 font-black text-[10px] uppercase tracking-wider">
-                      {t('Alarm Ringing Now!', 'অ্যালার্ম বাজছে!')}
+                    <span className="px-2 py-0.5 rounded bg-amber-300 text-amber-950 font-black text-[9px] uppercase tracking-wider shadow-sm">
+                      Alarm Ringing
                     </span>
                     <span className="text-xs text-white/90">{activeRingingTask.dueDate} ({formatTime12h(activeRingingTask.dueTime)})</span>
                   </div>
                   <h3 className="text-sm font-bold text-white mt-0.5">
-                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()}
+                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()} ৳
                   </h3>
                 </div>
               </div>
@@ -1738,10 +1706,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleStopRingingAlarm}
-                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1 cursor-pointer border border-slate-700"
                 >
-                  <VolumeX className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{t('Stop Alarm', 'অ্যালার্ম থামান')}</span>
+                  <VolumeX className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Stop</span>
                 </button>
                 <button
                   type="button"
@@ -1749,10 +1717,10 @@ export default function App() {
                     handleStopRingingAlarm();
                     handleConvertTaskToExpense(activeRingingTask);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-amber-300 text-amber-950 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-md"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
+                  <span>Pay Now</span>
                 </button>
               </div>
             </div>
@@ -1760,22 +1728,22 @@ export default function App() {
 
           {/* Today's Due Task Banner (Visible on entry if tasks are due today) */}
           {!activeRingingTask && dueTodayTasks.length > 0 && (
-            <div className="mb-3 bg-red-600 p-3.5 rounded-2xl border-2 border-red-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="mb-3 bg-[#0B3C39] p-3 rounded-xl border border-teal-700/80 shadow-md text-[#F0FDFA] flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+                <div className="w-9 h-9 rounded-xl bg-teal-950 text-amber-300 border border-teal-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-white text-red-700 font-black text-[10px] uppercase tracking-wider">
-                      {t('Due Today', 'আজকের দিন বকেয়া')}
+                    <span className="px-2 py-0.5 rounded bg-teal-800 text-teal-200 font-bold text-[9px] uppercase tracking-wider">
+                      Due Today
                     </span>
-                    <span className="text-xs font-bold text-white">
-                      {dueTodayTasks.length} {t('Task(s) Due', 'টি বিল পরিশোধ করতে হবে')}
+                    <span className="text-xs font-semibold text-teal-200">
+                      {dueTodayTasks.length} task(s) require payment
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-white mt-0.5">
-                    {dueTodayTasks.map(t => `${t.title} (${t.amount.toLocaleString()})`).join(' · ')}
+                    {dueTodayTasks[0].title} — {dueTodayTasks[0].amount.toLocaleString()} ৳
                   </h3>
                 </div>
               </div>
@@ -1785,18 +1753,18 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('task')}
-                    className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/40 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-200 border border-teal-700 font-semibold text-xs cursor-pointer"
                   >
-                    {t('View Tasks', 'টাস্ক দেখুন')}
+                    View Tasks
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => handleConvertTaskToExpense(dueTodayTasks[0])}
-                  className="px-3 py-1.5 rounded-xl bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-md"
+                  className="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-sm"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
+                  <span>Pay Now</span>
                 </button>
               </div>
             </div>
