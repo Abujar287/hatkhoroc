@@ -40,13 +40,13 @@ export function initAudioUnlock() {
   window.addEventListener('keydown', unlock, { once: true, passive: true });
 }
 
-// Play alarm tune on mobile and desktop
+// Play alarm tune on mobile and desktop (exactly once)
 export function playTaskAlarmSound(): () => void {
   try {
     // 1. Stop any currently running alarm
     stopTaskAlarmSound();
 
-    // 2. Play via HTML5 Audio element (/alarm.wav) - play twice
+    // 2. Play via HTML5 Audio element (/alarm.wav) - play once
     try {
       if (!activeAudioElement) {
         activeAudioElement = new Audio('/alarm.wav');
@@ -55,17 +55,9 @@ export function playTaskAlarmSound(): () => void {
       activeAudioElement.volume = 1.0;
       activeAudioElement.loop = false;
       activeAudioElement.play().catch(() => {});
-
-      // Play second time after 1.5s
-      setTimeout(() => {
-        if (activeAudioElement) {
-          activeAudioElement.currentTime = 0;
-          activeAudioElement.play().catch(() => {});
-        }
-      }, 1500);
     } catch {}
 
-    // 3. Play via Web Audio synthesizer exactly 2 times
+    // 3. Play via Web Audio synthesizer exactly once
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (AudioCtx) {
       if (!activeAudioContext) {
@@ -102,19 +94,8 @@ export function playTaskAlarmSound(): () => void {
         } catch {}
       };
 
-      // Play 1st time immediately
+      // Play 1 time immediately
       playChimePattern();
-
-      // Play 2nd time after 1.2s, then stop
-      let count = 1;
-      activeAlarmInterval = window.setInterval(() => {
-        count++;
-        if (count <= 2) {
-          playChimePattern();
-        } else {
-          stopTaskAlarmSound();
-        }
-      }, 1200);
     }
 
     return stopTaskAlarmSound;
