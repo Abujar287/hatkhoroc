@@ -642,22 +642,19 @@ export default function App() {
           const triggerKey = `${task.id}_${todayStr}`;
           if (!hasTaskBeenNotified(task.id, triggerKey)) {
             markTaskAsNotified(task.id, triggerKey);
-            playTaskAlarmSound();
-            vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
+            // Send system notification quietly without repeatedly looping alarm audio in app
             sendSystemNotification(`🚨 ${t('Due Task Reminder', 'আজকের বকেয়া বিল/টাস্ক')}: ${task.title}`, {
               body: `${t('Amount', 'পরিমাণ')}: ${task.amount.toLocaleString()} | ${t('Due', 'তারিখ')}: ${task.dueDate} ${task.dueTime ? formatTime12h(task.dueTime) : ''}`,
               tag: `task-alarm-${task.id}`,
               requireInteraction: true,
               renotify: true
             });
-            setActiveRingingTask(task);
           }
         }
       });
     };
 
-    checkTaskAlarms();
-    const timer = setInterval(checkTaskAlarms, 15000);
+    const timer = setInterval(checkTaskAlarms, 30000);
     return () => clearInterval(timer);
   }, [tasks, t]);
 
