@@ -46,22 +46,26 @@ export function playTaskAlarmSound(): () => void {
     // 1. Stop any currently running alarm
     stopTaskAlarmSound();
 
-    // 2. Play via HTML5 Audio element (/alarm.wav) - essential for phone speaker
+    // 2. Play via HTML5 Audio element (/alarm.wav) - play twice
     try {
       if (!activeAudioElement) {
         activeAudioElement = new Audio('/alarm.wav');
       }
       activeAudioElement.currentTime = 0;
       activeAudioElement.volume = 1.0;
-      activeAudioElement.loop = true;
-      activeAudioElement.play().catch((err) => {
-        console.warn('Audio element play restricted until touch:', err);
-      });
-    } catch (audioErr) {
-      console.warn('Audio tag play error:', audioErr);
-    }
+      activeAudioElement.loop = false;
+      activeAudioElement.play().catch(() => {});
 
-    // 3. Also play via Web Audio synthesizer as layered loud bell
+      // Play second time after 1.5s
+      setTimeout(() => {
+        if (activeAudioElement) {
+          activeAudioElement.currentTime = 0;
+          activeAudioElement.play().catch(() => {});
+        }
+      }, 1500);
+    } catch {}
+
+    // 3. Play via Web Audio synthesizer exactly 2 times
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (AudioCtx) {
       if (!activeAudioContext) {
@@ -98,8 +102,19 @@ export function playTaskAlarmSound(): () => void {
         } catch {}
       };
 
+      // Play 1st time immediately
       playChimePattern();
-      activeAlarmInterval = window.setInterval(playChimePattern, 1200);
+
+      // Play 2nd time after 1.2s, then stop
+      let count = 1;
+      activeAlarmInterval = window.setInterval(() => {
+        count++;
+        if (count <= 2) {
+          playChimePattern();
+        } else {
+          stopTaskAlarmSound();
+        }
+      }, 1200);
     }
 
     return stopTaskAlarmSound;

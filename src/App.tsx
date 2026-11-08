@@ -1223,17 +1223,11 @@ export default function App() {
             };
           }).filter((t: CostTask) => Boolean(t.title));
 
-          if (cloudTasks.length > 0) {
-            setTasks(prevTasks => {
-              const taskMap = new Map<string, CostTask>();
-              prevTasks.forEach(t => taskMap.set(t.id, t));
-              cloudTasks.forEach(t => taskMap.set(t.id, t));
-              const merged = Array.from(taskMap.values());
-              try {
-                localStorage.setItem(`app_tasks_${tabToSync}`, JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
+          if (Array.isArray(data.tasks)) {
+            setTasks(cloudTasks);
+            try {
+              localStorage.setItem(`app_tasks_${tabToSync}`, JSON.stringify(cloudTasks));
+            } catch {}
           }
         }
         
