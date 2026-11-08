@@ -10,7 +10,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CalendarDays,
-  SlidersHorizontal,
   Filter,
   RotateCcw,
   BarChart2,
@@ -64,7 +63,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 }) => {
   const [showCalendarGrid, setShowCalendarGrid] = useState<boolean>(true);
   const [dayFilterMode, setDayFilterMode] = useState<'active' | 'all'>('active');
-  const [daySortOrder, setDaySortOrder] = useState<'asc' | 'desc'>('desc');
   const [chartType, setChartType] = useState<'Expense' | 'Income'>('Expense');
   const [chartMode, setChartMode] = useState<'top5' | 'all'>('top5');
   const [categoryBreakdownType, setCategoryBreakdownType] = useState<'Expense' | 'Income'>('Expense');
@@ -319,9 +317,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       if (dayFilterMode === 'active') return item.hasActivity;
       return true;
     }).sort((a, b) => {
-      return daySortOrder === 'desc' ? b.dateStr.localeCompare(a.dateStr) : a.dateStr.localeCompare(b.dateStr);
+      return b.dateStr.localeCompare(a.dateStr);
     });
-  }, [transactions, dateRange, dayFilterMode, daySortOrder, lang]);
+  }, [transactions, dateRange, dayFilterMode, lang]);
 
   // 7-day Sun-Sat week aligned calendar grid
   const calendarGrid = useMemo(() => {
@@ -1174,13 +1172,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               {t('Day-Wise Breakdown', 'দিনভিত্তিক হিসাব')}
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={() => setDaySortOrder(daySortOrder === 'asc' ? 'desc' : 'asc')}
-            className="p-1 rounded bg-[#062423] text-teal-200 hover:bg-teal-900/80 border border-teal-700/70"
-          >
-            <SlidersHorizontal className="w-3 h-3" />
-          </button>
         </div>
 
         <div className="space-y-1">

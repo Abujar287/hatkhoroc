@@ -6,7 +6,6 @@ import {
   Edit3,
   Trash2,
   RotateCcw,
-  SlidersHorizontal,
   ArrowUpRight,
   ArrowDownLeft,
   Archive
@@ -39,7 +38,6 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<'All' | 'Expense' | 'Income'>('All');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // Extract unique categories across transactions based on selected type filter
   const uniqueCategories = useMemo(() => {
@@ -113,7 +111,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
     });
 
     const sortedDates = Object.keys(map).sort((a, b) => {
-      return sortOrder === 'desc' ? b.localeCompare(a) : a.localeCompare(b);
+      return b.localeCompare(a);
     });
 
     return sortedDates.map(dateStr => {
@@ -140,7 +138,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
         totalExpense
       };
     });
-  }, [filteredTransactions, sortOrder, lang]);
+  }, [filteredTransactions, lang]);
 
 
 
@@ -193,16 +191,11 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
           </div>
         </div>
 
-        {/* Global Summary & Actions Row */}
+        {/* Global Summary Row */}
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2 text-[9px] text-teal-200 font-bold uppercase tracking-tight">
             <span>{t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
             <span>{t('Exp:', 'ব্যয়:')} <span className="text-rose-400 font-bold">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="p-1.5 rounded-lg bg-teal-900/80 border border-teal-700 text-teal-200 hover:text-white transition-colors shadow-sm cursor-pointer" title={t('Sort Order', 'সাজানোর ক্রম')}>
-              <SlidersHorizontal className="w-3 h-3" />
-            </button>
           </div>
         </div>
       </div>

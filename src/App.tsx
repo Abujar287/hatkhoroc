@@ -61,7 +61,6 @@ import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { TaskTab } from './components/TaskTab';
-import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
   DayDetailsModal,
@@ -285,6 +284,50 @@ export default function App() {
       window.history.back();
     } catch {}
   };
+
+  // Enable mouse wheel scrolling across all tabs, headers, and window margins
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      const mainEl = document.getElementById('main-scroll-container');
+      if (!mainEl) return;
+
+      const target = e.target as HTMLElement | null;
+
+      // 1. If inside an active modal with its own scrollable element, let modal scroll
+      const modalScroll = target?.closest(
+        '.modal-scroll-container, [data-modal-scroll="true"], form.max-h-\\[80vh\\], div.max-h-\\[85vh\\], div.max-h-\\[88vh\\], div.max-h-\\[90vh\\], div.max-h-\\[92vh\\]'
+      ) as HTMLElement | null;
+      if (modalScroll && modalScroll.scrollHeight > modalScroll.clientHeight) {
+        return;
+      }
+
+      // 2. If inside an inner horizontal scroller and user scrolls horizontally
+      const innerScrollX = target?.closest('.overflow-x-auto, [data-inner-scroll="true"]');
+      if (innerScrollX && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        return;
+      }
+
+      // 3. If inside a small nested vertical scroller that can still scroll in this direction
+      const innerScrollY = target?.closest('.overflow-y-auto') as HTMLElement | null;
+      if (innerScrollY && innerScrollY !== mainEl && innerScrollY.scrollHeight > innerScrollY.clientHeight) {
+        const canScrollUp = e.deltaY < 0 && innerScrollY.scrollTop > 0;
+        const canScrollDown = e.deltaY > 0 && innerScrollY.scrollTop + innerScrollY.clientHeight < innerScrollY.scrollHeight;
+        if (canScrollUp || canScrollDown) {
+          return;
+        }
+      }
+
+      // 4. If cursor is outside mainEl (e.g. over header, bottom nav, or desktop sides),
+      // forward scroll to mainEl so mouse wheel works anywhere on the screen!
+      const isInsideMain = target && mainEl.contains(target);
+      if (!isInsideMain) {
+        mainEl.scrollBy({ top: e.deltaY, behavior: 'auto' });
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, []);
 
   // ----------------------------------------------------
   // 3. USER MANAGEMENT & AUTHENTICATION STATE
@@ -1678,7 +1721,7 @@ export default function App() {
           taskDueCount={taskDueCount}
         />
 
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
+        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 bg-[#042F2E] scroll-smooth">
           {/* Active Ringing Alarm Banner */}
           {activeRingingTask && (
             <div className="mb-3 bg-red-600 p-3.5 rounded-xl border-2 border-amber-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
