@@ -372,15 +372,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const difference = totalMatricsAmount - activeMonthlyBalance;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 pb-14 animate-fadeIn">
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16 animate-fadeIn px-1 sm:px-3">
       {/* 0. MATRICS AMOUNT (CLEAN & SIMPLE REPORTING FORMAT) */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden animate-fadeIn">
         {/* Header - Minimal & Clean */}
-        <div className="px-4 py-3 border-b border-teal-800/80 flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-[#F0FDFA] flex items-center gap-2">
+        <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-teal-800/80 flex items-center justify-between">
+          <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA] flex items-center gap-2">
             <span>Matrics Amount</span>
             {selectedMonth && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
+              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
                 {selectedMonth}
               </span>
             )}
@@ -399,125 +399,124 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           )}
         </div>
 
-        {/* Rows for City Bank, Bkash, Nagad, Cash, Money Bag */}
-        <div className="divide-y divide-teal-800/60">
-          {/* City Bank */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
-            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-              City Bank
-            </span>
-            <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={metrics.cityBank}
-                onChange={e => updateMetric('cityBank', e.target.value)}
-                placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
-              />
+        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-teal-800/60">
+          {/* Rows for City Bank, Bkash, Nagad, Cash, Money Bag */}
+          <div className="lg:col-span-7 divide-y divide-teal-800/60">
+            {/* City Bank */}
+            <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+              <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
+                City Bank
+              </span>
+              <div className="w-36 sm:w-48">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  value={metrics.cityBank}
+                  onChange={e => updateMetric('cityBank', e.target.value)}
+                  placeholder="0"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Bkash */}
+            <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+              <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
+                Bkash
+              </span>
+              <div className="w-36 sm:w-48">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  value={metrics.bkash}
+                  onChange={e => updateMetric('bkash', e.target.value)}
+                  placeholder="0"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Nagad */}
+            <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+              <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
+                Nagad
+              </span>
+              <div className="w-36 sm:w-48">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  value={metrics.nagad}
+                  onChange={e => updateMetric('nagad', e.target.value)}
+                  placeholder="0"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Cash */}
+            <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+              <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
+                Cash
+              </span>
+              <div className="w-36 sm:w-48">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  value={metrics.cash}
+                  onChange={e => updateMetric('cash', e.target.value)}
+                  placeholder="0"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Money Bag */}
+            <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
+              <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
+                Money Bag
+              </span>
+              <div className="w-36 sm:w-48">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  value={metrics.moneyBag}
+                  onChange={e => updateMetric('moneyBag', e.target.value)}
+                  placeholder="0"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Bkash */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
-            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-              Bkash
-            </span>
-            <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={metrics.bkash}
-                onChange={e => updateMetric('bkash', e.target.value)}
-                placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
-              />
+          {/* Right Column / Bottom on Mobile: Summary Cards */}
+          <div className="lg:col-span-5 bg-teal-950/40 p-4 sm:p-5 flex flex-col justify-center gap-3">
+            <div className="bg-[#062423] border border-teal-800/80 rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-teal-300/80">Total in Accounts</span>
+              <span className="text-base sm:text-lg font-extrabold font-mono text-[#F0FDFA]">
+                {formatNumberLocale(totalMatricsAmount, lang)}
+              </span>
             </div>
-          </div>
 
-          {/* Nagad */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
-            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-              Nagad
-            </span>
-            <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={metrics.nagad}
-                onChange={e => updateMetric('nagad', e.target.value)}
-                placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
-              />
+            <div className="bg-[#062423] border border-teal-800/80 rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-teal-300/80">Monthly Balance</span>
+              <span className="text-base sm:text-lg font-extrabold font-mono text-[#F0FDFA]">
+                {formatNumberLocale(activeMonthlyBalance, lang)}
+              </span>
             </div>
-          </div>
 
-          {/* Cash */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
-            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-              Cash
-            </span>
-            <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={metrics.cash}
-                onChange={e => updateMetric('cash', e.target.value)}
-                placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
-              />
+            <div className="bg-[#062423] border border-teal-800/80 rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-teal-300/80">Difference</span>
+              <span className={`text-base sm:text-lg font-extrabold font-mono ${
+                difference < 0 ? 'text-rose-400' : 'text-emerald-400'
+              }`}>
+                {difference >= 0 ? '+' : ''}{formatNumberLocale(difference, lang)}
+              </span>
             </div>
-          </div>
-
-          {/* Money Bag */}
-          <div className="px-4 py-2 flex items-center justify-between gap-3 hover:bg-teal-900/30">
-            <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-              Money Bag
-            </span>
-            <div className="relative w-36 sm:w-44">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-400">৳</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={metrics.moneyBag}
-                onChange={e => updateMetric('moneyBag', e.target.value)}
-                placeholder="0"
-                className="w-full text-right font-mono font-bold pl-7 pr-3 py-1 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 1 Single Row for Total, Monthly Balance, Difference */}
-        <div className="border-t border-teal-800/80 bg-teal-950/50 grid grid-cols-3 divide-x divide-teal-800/80 text-center py-2.5 px-1">
-          <div className="px-1">
-            <span className="text-[11px] font-semibold text-teal-300/80 block">Total</span>
-            <span className="text-sm sm:text-base font-extrabold font-mono text-[#F0FDFA]">
-              ৳{formatNumberLocale(totalMatricsAmount, lang)}
-            </span>
-          </div>
-          <div className="px-1">
-            <span className="text-[11px] font-semibold text-teal-300/80 block">Monthly Balance</span>
-            <span className="text-sm sm:text-base font-extrabold font-mono text-[#F0FDFA]">
-              ৳{formatNumberLocale(activeMonthlyBalance, lang)}
-            </span>
-          </div>
-          <div className="px-1">
-            <span className="text-[11px] font-semibold text-teal-300/80 block">Difference</span>
-            <span className={`text-sm sm:text-base font-extrabold font-mono ${
-              difference < 0 ? 'text-rose-400' : 'text-emerald-400'
-            }`}>
-              {difference >= 0 ? '+' : ''}৳{formatNumberLocale(difference, lang)}
-            </span>
           </div>
         </div>
       </div>
@@ -660,7 +659,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">{t('Budget (৳)', 'বাজেট (৳)')}</label>
+                    <label className="text-[10px] font-bold text-teal-300/80 uppercase block mb-1">{t('Budget', 'বাজেট')}</label>
                     <input
                       type="number"
                       value={newMappingBudget}
@@ -719,8 +718,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                             </span>
                           )}
                           {m.budget !== undefined && Number(m.budget) > 0 && (
-                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
-                              ৳ {formatNumberLocale(Number(m.budget), lang)}
+                            <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-mono">
+                              {formatNumberLocale(Number(m.budget), lang)}
                             </span>
                           )}
                         </div>
@@ -766,20 +765,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* 2. ACTIONS & TOOLS (EXPORT ZIP, INSTALL APP, SCRIPT IN 1 LINE) */}
-      <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-2.5">
+      <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-0">
         <div className="grid grid-cols-3 gap-2">
           {/* 1. Export ZIP */}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
             disabled={isExportingZip}
-            className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all shadow-xs"
+            className="py-3 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-60 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-emerald-950/40"
             title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
           >
             {isExportingZip ? (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
             ) : (
-              <Archive className="w-3.5 h-3.5 shrink-0" />
+              <Archive className="w-4 h-4 shrink-0" />
             )}
             <span className="truncate">{t('Export ZIP', 'Export ZIP')}</span>
           </button>
@@ -788,10 +787,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={onOpenInstallModal}
-            className="py-2.5 px-2 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all shadow-xs"
+            className="py-3 px-2 bg-gradient-to-r from-teal-800 to-teal-900 hover:from-teal-700 hover:to-teal-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-teal-950/40"
             title={t('Install App / Add to Home Screen', 'অ্যাপ ইনস্টল করুন')}
           >
-            <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="truncate">{t('Install App', 'Install App')}</span>
           </button>
 
@@ -799,51 +798,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={() => setShowAppsScriptModal(true)}
-            className="py-2.5 px-2 bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/60 flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all shadow-xs"
+            className="py-3 px-2 bg-gradient-to-r from-teal-900 to-slate-900 hover:from-teal-800 hover:to-slate-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-slate-950/40"
             title={t('Apps Script Code', 'গুগল স্ক্রিপ্ট কোড')}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+            <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
             <span className="truncate">{t('Script', 'Script')}</span>
           </button>
         </div>
-
-        {/* Compact Secondary Data Backup / Restore */}
-        <div className="flex items-center justify-end gap-3 pt-1 border-t border-teal-800/60 text-[11px]">
-          <span className="text-teal-300/70 font-semibold">{t('Backup & Restore:', 'ব্যাকআপ:')}</span>
-          <button
-            type="button"
-            onClick={handleExportJson}
-            className="text-teal-200 hover:text-white font-bold flex items-center gap-1 cursor-pointer transition-colors"
-          >
-            <Download className="w-3 h-3 text-sky-400" />
-            <span>{t('Export JSON', 'Export JSON')}</span>
-          </button>
-          <span className="text-teal-700">|</span>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-teal-200 hover:text-white font-bold flex items-center gap-1 cursor-pointer transition-colors"
-          >
-            <Upload className="w-3 h-3 text-emerald-400" />
-            <span>{t('Import JSON', 'Import JSON')}</span>
-          </button>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          onChange={handleFileImport}
-          className="hidden"
-        />
       </div>
 
       {/* 3. USER DETAILS (CONSOLIDATED IN ONE PLACE) */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden">
-        {/* Active Profile Info Header */}
+        {/* Active Profile Info Header (No edit profile button, clean & simple) */}
         <div className="p-4 sm:p-5 flex items-center justify-between gap-3 flex-wrap border-b border-teal-800/60">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-600 border border-emerald-500 text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/60 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
               {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
             </div>
             <div>
@@ -868,22 +837,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenEditProfile}
-              className="px-3 py-1.5 rounded-xl bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] text-xs font-bold border border-teal-700/60 cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{t('Edit Profile', 'প্রোফাইল এডিট')}</span>
-            </button>
             {onLogout && (
               <button
                 type="button"
                 onClick={onLogout}
-                className="p-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all"
+                className="px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all text-xs font-bold flex items-center gap-1.5 shadow-xs"
                 title={t('Log Out', 'লগআউট')}
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{t('Log Out', 'লগআউট')}</span>
               </button>
             )}
           </div>
@@ -912,7 +874,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
 
             {/* User Cards */}
-            <div className="divide-y divide-teal-800/60 bg-[#062423] rounded-xl border border-teal-700/70 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {users.map(u => {
                 const isCurrent = currentUser?.username === u.username;
                 const isMainAdmin = u.username === 'abujar287';
@@ -920,8 +882,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 return (
                   <div
                     key={u.username}
-                    className={`p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isCurrent ? 'bg-teal-900/30' : ''
+                    className={`p-3 sm:p-3.5 rounded-xl border border-teal-700/70 bg-[#062423] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                      isCurrent ? 'bg-teal-900/30 border-teal-600' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">

@@ -538,25 +538,25 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
   const allSelected = validExpenseCategories.length > 0 && selectedCategoryNames.length === validExpenseCategories.length;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 animate-fadeIn pb-16">
+    <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-5 animate-fadeIn pb-16 px-1 sm:px-3">
       {/* MONTH SELECTOR BAR */}
-      <div className="bg-[#0B3C39] rounded-2xl p-3.5 border border-teal-800/80 shadow-sm flex items-center justify-between gap-3">
+      <div className="bg-[#0B3C39] rounded-2xl p-3.5 sm:p-4 border border-teal-800/80 shadow-sm flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => handleShiftMonth(-1)}
-          className="p-2 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
+          className="p-2 sm:p-2.5 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
           title={t('Previous Month', 'পূর্ববর্তী মাস')}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         <div className="flex-1 flex flex-col items-center justify-center min-w-0">
           <div className="flex items-center gap-2 max-w-full">
-            <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
             <select
               value={selectedMonth}
               onChange={e => setSelectedMonth(e.target.value)}
-              className="bg-transparent border-none text-[13px] font-bold text-[#F0FDFA] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
+              className="bg-transparent border-none text-[13px] sm:text-sm md:text-base font-bold text-[#F0FDFA] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
             >
               {monthOptions.map(m => (
                 <option key={m.val} value={m.val} className="bg-[#042F2E] text-[#F0FDFA] normal-case">
@@ -566,7 +566,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             </select>
           </div>
           {currentMapping && (
-            <span className="text-[10px] text-teal-300/80 font-mono truncate">
+            <span className="text-[10px] sm:text-xs text-teal-300/80 font-mono truncate mt-0.5">
               {currentMapping.startDate} ~ {currentMapping.endDate}
             </span>
           )}
@@ -575,38 +575,38 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
         <button
           type="button"
           onClick={() => handleShiftMonth(1)}
-          className="p-2 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
+          className="p-2 sm:p-2.5 rounded-xl bg-teal-900/70 hover:bg-teal-800 text-teal-200 cursor-pointer active:scale-95 transition-all border border-teal-700/60 shrink-0"
           title={t('Next Month', 'পরবর্তী মাস')}
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 
       {/* BUDGET OVERVIEW CARDS */}
-      <div className="grid grid-cols-3 gap-2.5">
-        <div className="bg-[#0B3C39] rounded-2xl p-3 border border-teal-800/80 shadow-sm">
-          <span className="text-[10px] text-teal-300/80 font-semibold block mb-1">
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm">
+          <span className="text-[10px] sm:text-xs text-teal-300/80 font-semibold block mb-1">
             {t('Total Budget', 'মোট বাজেট')}
           </span>
-          <span className="text-sm sm:text-base font-extrabold text-[#F0FDFA] tabular-nums">
+          <span className="text-sm sm:text-base md:text-xl font-extrabold text-[#F0FDFA] tabular-nums">
             {formatNumberLocale(totalBudget, lang)}
           </span>
         </div>
 
-        <div className="bg-rose-950/50 rounded-2xl p-3 border border-rose-800/60 shadow-sm">
-          <span className="text-[10px] text-rose-200 font-semibold block mb-1">
+        <div className="bg-rose-950/50 rounded-2xl p-3 sm:p-4 border border-rose-800/60 shadow-sm">
+          <span className="text-[10px] sm:text-xs text-rose-200 font-semibold block mb-1">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base font-extrabold text-[#FF5252] tabular-nums">
+          <span className="text-sm sm:text-base md:text-xl font-extrabold text-[#FF5252] tabular-nums">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
 
-        <div className="bg-emerald-950/50 rounded-2xl p-3 border border-emerald-800/60 shadow-sm">
-          <span className="text-[10px] text-emerald-200 font-semibold block mb-1">
+        <div className="bg-emerald-950/50 rounded-2xl p-3 sm:p-4 border border-emerald-800/60 shadow-sm">
+          <span className="text-[10px] sm:text-xs text-emerald-200 font-semibold block mb-1">
             {t('Remaining', 'অবশিষ্ট')}
           </span>
-          <span className={`text-sm sm:text-base font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'}`}>
+          <span className={`text-sm sm:text-base md:text-xl font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'}`}>
             {remainingBudget >= 0 ? '+' : ''}{formatNumberLocale(remainingBudget, lang)}
           </span>
         </div>
@@ -671,7 +671,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             </button>
           </div>
         ) : (
-          <div className="space-y-2 pt-0.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pt-0.5">
             {sortedSelectedCategories.map(catClean => {
               const budgetVal = getBudgetVal(catClean);
               const spentVal = getSpendVal(catClean);

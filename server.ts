@@ -297,7 +297,7 @@ async function startServer() {
             const timeFormatted = task.dueTime ? formatTime12hServer(task.dueTime) : '';
             const pushPayload = JSON.stringify({
               title: `🚨 বকেয়া বিল/টাস্ক: ${task.title}`,
-              body: `পরিমাণ: ${task.amount.toLocaleString()} ৳ | তারিখ: ${task.dueDate} ${timeFormatted ? '(' + timeFormatted + ')' : ''}`,
+              body: `পরিমাণ: ${task.amount.toLocaleString()} | তারিখ: ${task.dueDate} ${timeFormatted ? '(' + timeFormatted + ')' : ''}`,
               tag: `task-alarm-${task.id}`,
               taskId: task.id,
               url: `/?tab=task&ringTask=${task.id}`

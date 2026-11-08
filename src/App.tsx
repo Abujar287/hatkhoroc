@@ -133,8 +133,16 @@ export default function App() {
   const t = useCallback((en: string, _bn?: string) => en, []);
   
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>(() => {
-    return window.innerWidth < 768 ? 'mobile' : 'desktop';
+    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop';
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewMode(window.innerWidth < 768 ? 'mobile' : 'desktop');
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' }>({
     show: false,
@@ -1487,7 +1495,7 @@ export default function App() {
       });
     } catch {}
 
-    showToast(t(`৳${task.amount} paid & removed from tasks!`, `৳${task.amount} খরচে যোগ করা হয়েছে এবং টাস্ক লিস্ট থেকে সরানো হয়েছে!`), 'success');
+    showToast(t(`${task.amount.toLocaleString()} paid & removed from tasks!`, `${task.amount.toLocaleString()} খরচে যোগ করা হয়েছে এবং টাস্ক লিস্ট থেকে সরানো হয়েছে!`), 'success');
   };
 
   const handleUpdateTransaction = async (updatedTx: Transaction) => {
@@ -1698,7 +1706,7 @@ export default function App() {
   // ----------------------------------------------------
   return (
     <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
-      <div className={`w-full flex flex-col h-full bg-[#042F2E] relative overflow-hidden ${viewMode === 'mobile' ? 'max-w-[430px] shadow-2xl' : 'max-w-6xl'}`}>
+      <div className="w-full flex flex-col h-full bg-[#042F2E] relative overflow-hidden">
         
         {toast.show && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#0B3C39] rounded-2xl shadow-xl border border-teal-700 animate-fadeIn text-xs font-bold text-[#F0FDFA]">
@@ -1721,8 +1729,9 @@ export default function App() {
           taskDueCount={taskDueCount}
         />
 
-        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 bg-[#042F2E] scroll-smooth">
-          {/* Active Ringing Alarm Banner */}
+        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] scroll-smooth w-full">
+          <div className="w-full max-w-7xl mx-auto space-y-4">
+            {/* Active Ringing Alarm Banner */}
           {activeRingingTask && (
             <div className="mb-3 bg-red-600 p-3.5 rounded-xl border-2 border-amber-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
               <div className="flex items-center gap-3">
@@ -1737,7 +1746,7 @@ export default function App() {
                     <span className="text-xs text-white/90">{activeRingingTask.dueDate} ({formatTime12h(activeRingingTask.dueTime)})</span>
                   </div>
                   <h3 className="text-sm font-bold text-white mt-0.5">
-                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()} ৳
+                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -1783,7 +1792,7 @@ export default function App() {
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-white mt-0.5">
-                    {dueTodayTasks[0].title} — {dueTodayTasks[0].amount.toLocaleString()} ৳
+                    {dueTodayTasks[0].title} — {dueTodayTasks[0].amount.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -1898,45 +1907,48 @@ export default function App() {
               onToggleActiveUser={handleToggleActiveUser}
             />
           )}
+          </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 py-2 pb-safe flex justify-around items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] gap-1 sm:gap-2">
-          {[
-            { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
-            { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
-            { id: 'details' as const, label: 'Details', icon: ListOrdered },
-            { id: 'budget' as const, label: 'Budget', icon: Sliders },
-            { id: 'task' as const, label: 'Task', icon: CalendarClock },
-            { id: 'settings' as const, label: 'Settings', icon: Settings }
-          ].filter(x => allowedTabs.includes(x.id)).map(item => {
-            const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer relative`}
-              >
-                {isActive ? (
-                  <div className="animated-nav-inner">
-                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-[#F0FDFA] drop-shadow-xs" />
-                    <span className="text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none text-[#F0FDFA] truncate max-w-full">
-                      {item.label}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center w-full py-1 relative">
-                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-teal-300/70 group-hover:text-[#14B8A6] transition-colors" />
-                    <span className="text-[9.5px] sm:text-[10.5px] font-semibold mt-1 tracking-tight leading-none text-teal-200/80 truncate max-w-full">
-                      {item.label}
-                    </span>
-                    {item.id === 'task' && taskDueCount > 0 && (
-                      <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 sm:px-4 py-2 pb-safe flex justify-center items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] border-t border-teal-800/60">
+          <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2">
+            {[
+              { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
+              { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
+              { id: 'details' as const, label: 'Details', icon: ListOrdered },
+              { id: 'budget' as const, label: 'Budget', icon: Sliders },
+              { id: 'task' as const, label: 'Task', icon: CalendarClock },
+              { id: 'settings' as const, label: 'Settings', icon: Settings }
+            ].filter(x => allowedTabs.includes(x.id)).map(item => {
+              const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer relative`}
+                >
+                  {isActive ? (
+                    <div className="animated-nav-inner">
+                      <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-[#F0FDFA] drop-shadow-xs" />
+                      <span className="text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none text-[#F0FDFA] truncate max-w-full">
+                        {item.label}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center w-full py-1 relative">
+                      <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-teal-300/70 group-hover:text-[#14B8A6] transition-colors" />
+                      <span className="text-[9.5px] sm:text-[10.5px] font-semibold mt-1 tracking-tight leading-none text-teal-200/80 truncate max-w-full">
+                        {item.label}
+                      </span>
+                      {item.id === 'task' && taskDueCount > 0 && (
+                        <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
 

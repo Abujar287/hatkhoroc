@@ -241,9 +241,9 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-4 pb-12 select-none pt-1">
+    <div className="w-full max-w-5xl mx-auto space-y-5 pb-16 select-none pt-1 px-1 sm:px-3 animate-fadeIn">
       {/* 1. Sleek Animated Type Selector Tabs: Expense | Income */}
-      <div className="bg-[#0B3C39] border border-teal-800/80 p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 shadow-sm relative overflow-hidden">
+      <div className="w-full max-w-md mx-auto bg-[#0B3C39] border border-teal-800/80 p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 shadow-sm relative overflow-hidden">
         <button
           type="button"
           onClick={() => {
@@ -286,70 +286,72 @@ export const EntryTab: React.FC<EntryTabProps> = ({
       </div>
 
       {/* 2. Selected Category Card OR Minimal Prompt */}
-      <AnimatePresence mode="wait">
-        {entryCategory ? (
-          <motion.div
-            key="selected-card"
-            initial={{ opacity: 0, scale: 0.95, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -6 }}
-            onClick={() => setIsCalculatorOpen(true)}
-            className="bg-[#0B3C39] border border-teal-800/80 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-teal-900/80 transition-all active:scale-98"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
-                entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
-              }`}>
-                <CategoryIcon category={entryCategory} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9.5px] font-bold text-teal-300/80 uppercase tracking-wider block">
-                  {t('Selected Category', 'নির্বাচিত ক্যাটাগরি')}
-                </span>
-                <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block leading-tight">
-                  {cleanCategoryName(entryCategory, lang)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex flex-col items-end">
-                <span className="text-[9.5px] font-bold text-teal-300/80 uppercase">
-                  {t('Amount', 'পরিমাণ')}
-                </span>
-                <span className={`text-lg sm:text-xl font-black tabular-nums ${
-                  entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+      <div className="w-full max-w-xl mx-auto">
+        <AnimatePresence mode="wait">
+          {entryCategory ? (
+            <motion.div
+              key="selected-card"
+              initial={{ opacity: 0, scale: 0.95, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -6 }}
+              onClick={() => setIsCalculatorOpen(true)}
+              className="bg-[#0B3C39] border border-teal-800/80 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-teal-900/80 transition-all active:scale-98"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
+                  entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
                 }`}>
-                  {calcDisplay}
-                </span>
+                  <CategoryIcon category={entryCategory} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[9.5px] font-bold text-teal-300/80 uppercase tracking-wider block">
+                    {t('Selected Category', 'নির্বাচিত ক্যাটাগরি')}
+                  </span>
+                  <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block leading-tight">
+                    {cleanCategoryName(entryCategory, lang)}
+                  </span>
+                </div>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-teal-900/80 border border-teal-700/60 flex items-center justify-center text-teal-200 hover:bg-teal-800">
-                <Plus className="w-4 h-4" />
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="empty-prompt"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-center py-2"
-          >
-            <p className="text-xs font-bold text-[#F0FDFA] opacity-90 tracking-wide">
-              {t('Select a category to enter amount', 'টাকার পরিমাণ যোগ করতে একটি ক্যাটাগরি ছুনুন')}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* 3. Circular 4-Column Category Grid with Stagger & Spring Animations */}
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-col items-end">
+                  <span className="text-[9.5px] font-bold text-teal-300/80 uppercase">
+                    {t('Amount', 'পরিমাণ')}
+                  </span>
+                  <span className={`text-lg sm:text-xl font-black tabular-nums ${
+                    entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                  }`}>
+                    {calcDisplay}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-teal-900/80 border border-teal-700/60 flex items-center justify-center text-teal-200 hover:bg-teal-800">
+                  <Plus className="w-4 h-4" />
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="empty-prompt"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center py-2"
+            >
+              <p className="text-xs font-bold text-[#F0FDFA] opacity-90 tracking-wide">
+                {t('Select a category to enter amount', 'টাকার পরিমাণ যোগ করতে একটি ক্যাটাগরি ছুনুন')}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 3. Circular Responsive Category Grid with Stagger & Spring Animations */}
       <motion.div
         key={entryType}
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1"
+        className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-y-5 sm:gap-y-6 gap-x-2 sm:gap-x-4 pt-2"
       >
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
@@ -365,7 +367,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
             >
               {/* Circular Icon Container */}
               <div
-                className={`w-13 h-13 sm:w-15 sm:h-15 rounded-full flex items-center justify-center transition-all shadow-md ${
+                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all shadow-md ${
                   isSelected
                     ? 'bg-emerald-500 text-white ring-2 ring-emerald-300 ring-offset-2 ring-offset-[#042F2E] scale-105'
                     : 'bg-[#0B3C39] border border-teal-700/70 text-teal-100 group-hover:border-emerald-400/80 group-hover:bg-teal-800/80'
@@ -375,7 +377,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
               </div>
 
               {/* Category Name Underneath */}
-              <span className="text-[10.5px] sm:text-[11px] font-bold text-[#F0FDFA] group-hover:text-teal-200 text-center leading-tight max-w-[78px] truncate mt-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-[#F0FDFA] group-hover:text-teal-200 text-center leading-tight max-w-[85px] sm:max-w-[100px] truncate mt-1.5">
                 {cleanCategoryName(cat, lang)}
               </span>
             </motion.button>
@@ -391,10 +393,10 @@ export const EntryTab: React.FC<EntryTabProps> = ({
           onClick={onOpenCategoryManager}
           className="flex flex-col items-center group cursor-pointer transition-transform"
         >
-          <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-full bg-teal-900/50 border-2 border-dashed border-teal-500/80 flex items-center justify-center text-teal-200 group-hover:text-white group-hover:border-teal-300 transition-all shadow-md">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-teal-900/50 border-2 border-dashed border-teal-500/80 flex items-center justify-center text-teal-200 group-hover:text-white group-hover:border-teal-300 transition-all shadow-md">
             <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <span className="text-[10.5px] sm:text-[11px] font-bold text-teal-200 group-hover:text-white text-center leading-tight mt-1.5">
+          <span className="text-[11px] sm:text-xs font-bold text-teal-200 group-hover:text-white text-center leading-tight mt-1.5">
             {t('Add Category', 'ক্যাটাগরি')}
           </span>
         </motion.button>
@@ -409,7 +411,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
             onClick={() => setIsCalculatorOpen(false)}
           >
             <div
-              className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain"
+              className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md md:max-w-lg rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain"
               onClick={e => e.stopPropagation()}
             >
               {/* Header: Category + Date + Close */}

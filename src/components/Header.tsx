@@ -89,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="shrink-0 z-40 bg-[#042F2E] text-[#F0FDFA] w-full shadow-md pt-safe">
-      <div className="w-full px-3 py-2 flex items-center justify-between">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
         {/* Brand & Identity */}
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="হাত খরচ Logo" className="w-10 h-10 object-contain rounded-xl shadow-md shrink-0" />
