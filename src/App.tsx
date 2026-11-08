@@ -20,7 +20,8 @@ import {
   CalendarClock,
   BellRing,
   VolumeX,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 import {
   playTaskAlarmSound,
@@ -29,7 +30,8 @@ import {
   sendSystemNotification,
   hasTaskBeenNotified,
   markTaskAsNotified,
-  initAudioUnlock
+  initAudioUnlock,
+  ensureNotificationPermission
 } from './utils/taskAlarmManager';
 import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask } from './types';
 import {
@@ -69,7 +71,8 @@ import {
   CategoryManagerModal,
   MobileInstallModal,
   EditProfileModal,
-  ExitConfirmModal
+  ExitConfirmModal,
+  ModalPortal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
@@ -545,6 +548,14 @@ export default function App() {
   });
 
   const [activeRingingTask, setActiveRingingTask] = useState<CostTask | null>(null);
+  const [showDueEntryModal, setShowDueEntryModal] = useState<boolean>(true);
+  const [hasNotifiedOnEntry, setHasNotifiedOnEntry] = useState<boolean>(false);
+
+  // Compute tasks due today or overdue
+  const dueTodayTasks = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => (t.status === 'pending' || !t.status) && t.dueDate <= todayStr);
+  }, [tasks]);
 
   const handleStopRingingAlarm = useCallback(() => {
     stopTaskAlarmSound();
@@ -554,6 +565,26 @@ export default function App() {
   useEffect(() => {
     initAudioUnlock();
   }, []);
+
+  // When entering the app: auto-trigger sound, vibration, notification, and highlight for tasks due today
+  useEffect(() => {
+    if (dueTodayTasks.length > 0 && !hasNotifiedOnEntry) {
+      setHasNotifiedOnEntry(true);
+      ensureNotificationPermission();
+      playTaskAlarmSound();
+      vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
+      setActiveRingingTask(dueTodayTasks[0]);
+
+      dueTodayTasks.forEach(task => {
+        sendSystemNotification(`🚨 ${t('Due Today', 'আজকের দিন পরিশোধ')}: ${task.title}`, {
+          body: `${t('Amount', 'পরিমাণ')}: ${task.amount.toLocaleString()} | ${t('Due Date', 'তারিখ')}: ${task.dueDate} ${task.dueTime ? formatTime12h(task.dueTime) : ''}`,
+          tag: `due-today-${task.id}`,
+          requireInteraction: true,
+          renotify: true
+        });
+      });
+    }
+  }, [dueTodayTasks, hasNotifiedOnEntry, t]);
 
   // Background Task Alarm Engine
   useEffect(() => {
@@ -569,32 +600,33 @@ export default function App() {
       tasks.forEach(task => {
         if (task.status !== 'pending' || task.autoNotify === false) return;
 
+        const isDueTodayOrOverdue = task.dueDate <= todayStr;
         const remDays = task.reminderDaysBefore ?? 1;
         const targetDate = new Date(task.dueDate);
         targetDate.setDate(targetDate.getDate() - remDays);
         const targetDateStr = targetDate.toISOString().split('T')[0];
-
         const targetTime = task.dueTime || '09:00';
 
-        if (todayStr >= targetDateStr) {
-          if (todayStr > targetDateStr || currentTimeStr >= targetTime) {
-            const triggerKey = `${task.id}_${todayStr}_${targetTime}`;
-            if (!hasTaskBeenNotified(task.id, triggerKey)) {
-              markTaskAsNotified(task.id, triggerKey);
-              playTaskAlarmSound();
-              vibrateDevice([300, 150, 300, 150, 400]);
-              sendSystemNotification(`⏰ ${t('Task Reminder', 'টাস্ক রিমাইন্ডার')}: ${task.title}`, {
-                body: `৳${task.amount.toLocaleString()} | ${t('Due', 'তারিখ')}: ${task.dueDate} ${task.dueTime || ''}`
-              });
-              setActiveRingingTask(task);
-            }
+        if (isDueTodayOrOverdue || (todayStr >= targetDateStr && currentTimeStr >= targetTime)) {
+          const triggerKey = `${task.id}_${todayStr}`;
+          if (!hasTaskBeenNotified(task.id, triggerKey)) {
+            markTaskAsNotified(task.id, triggerKey);
+            playTaskAlarmSound();
+            vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
+            sendSystemNotification(`🚨 ${t('Due Task Reminder', 'আজকের বকেয়া বিল/টাস্ক')}: ${task.title}`, {
+              body: `${t('Amount', 'পরিমাণ')}: ${task.amount.toLocaleString()} | ${t('Due', 'তারিখ')}: ${task.dueDate} ${task.dueTime ? formatTime12h(task.dueTime) : ''}`,
+              tag: `task-alarm-${task.id}`,
+              requireInteraction: true,
+              renotify: true
+            });
+            setActiveRingingTask(task);
           }
         }
       });
     };
 
     checkTaskAlarms();
-    const timer = setInterval(checkTaskAlarms, 20000);
+    const timer = setInterval(checkTaskAlarms, 15000);
     return () => clearInterval(timer);
   }, [tasks, t]);
 
@@ -1642,7 +1674,8 @@ export default function App() {
         />
 
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-[#042F2E]">
-          {activeRingingTask && activeTab !== 'task' && (
+          {/* Active Ringing Alarm Banner */}
+          {activeRingingTask && (
             <div className="mb-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-3.5 rounded-2xl border-2 border-amber-300 shadow-2xl text-white animate-bounce flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
@@ -1677,6 +1710,50 @@ export default function App() {
                     handleConvertTaskToExpense(activeRingingTask);
                   }}
                   className="px-3 py-1.5 rounded-xl bg-amber-300 text-amber-950 font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Today's Due Task Banner (Visible on entry if tasks are due today) */}
+          {!activeRingingTask && dueTodayTasks.length > 0 && (
+            <div className="mb-3 bg-red-600 p-3.5 rounded-2xl border-2 border-red-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-white text-red-700 font-black text-[10px] uppercase tracking-wider">
+                      {t('Due Today', 'আজকের দিন বকেয়া')}
+                    </span>
+                    <span className="text-xs font-bold text-white">
+                      {dueTodayTasks.length} {t('Task(s) Due', 'টি বিল পরিশোধ করতে হবে')}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white mt-0.5">
+                    {dueTodayTasks.map(t => `${t.title} (${t.amount.toLocaleString()})`).join(' · ')}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {activeTab !== 'task' && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('task')}
+                    className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/40 cursor-pointer"
+                  >
+                    {t('View Tasks', 'টাস্ক দেখুন')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleConvertTaskToExpense(dueTodayTasks[0])}
+                  className="px-3 py-1.5 rounded-xl bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-md"
                 >
                   <Zap className="w-3.5 h-3.5" />
                   <span>{t('Pay Now', 'পরিশোধ করুন')}</span>
@@ -1826,6 +1903,103 @@ export default function App() {
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
+
+      {/* Entrance Due Task Alert Modal (shows automatically when entering app if tasks due today) */}
+      {showDueEntryModal && dueTodayTasks.length > 0 && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+            onClick={() => setShowDueEntryModal(false)}
+          >
+            <div
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border-2 border-red-500 animate-modalSpring space-y-0 my-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Red Header */}
+              <div className="bg-red-600 px-5 py-4 text-white flex items-center justify-between border-b border-red-500">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-6 h-6 text-white animate-bounce shrink-0" />
+                  <div>
+                    <h2 className="text-base font-black">
+                      {t("Today's Due Task Notice!", 'আজকের বকেয়া বিলের নোটিশ!')}
+                    </h2>
+                    <p className="text-xs text-white/90 font-medium">
+                      {dueTodayTasks.length} {t('task(s) due today or overdue', 'টি বিল আজকের দিনে পরিশোধ করতে হবে')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDueEntryModal(false)}
+                  className="p-1 rounded-lg bg-red-700 hover:bg-red-800 text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Task Items List */}
+              <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2.5 divide-y divide-teal-800/40">
+                {dueTodayTasks.map(task => (
+                  <div key={task.id} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-500/20 text-red-300 border border-red-500/40">
+                          {task.category}
+                        </span>
+                        <h4 className="text-sm font-bold text-white truncate">{task.title}</h4>
+                      </div>
+                      <p className="text-xs text-teal-200 mt-0.5 flex items-center gap-1">
+                        <span>{task.dueDate}</span>
+                        {task.dueTime && <span className="text-amber-300">({formatTime12h(task.dueTime)})</span>}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="text-base font-black text-amber-300">
+                        {task.amount.toLocaleString()}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDueEntryModal(false);
+                          handleConvertTaskToExpense(task);
+                        }}
+                        className="mt-1 px-2.5 py-1 rounded-lg bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs cursor-pointer flex items-center gap-1 shadow-sm"
+                      >
+                        <Zap className="w-3 h-3" />
+                        <span>{t('Pay Now', 'পরিশোধ')}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-3 bg-teal-950/80 border-t border-teal-800 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDueEntryModal(false)}
+                  className="px-3.5 py-1.5 rounded-xl bg-teal-900 text-teal-200 text-xs font-bold border border-teal-700 cursor-pointer"
+                >
+                  {t('Dismiss', 'পরে দেখব')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDueEntryModal(false);
+                    setActiveTab('task');
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs cursor-pointer shadow-md"
+                >
+                  {t('View in Task Tab', 'টাস্ক লিস্টে যান')}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       {isAppExited && (
         <div className="fixed inset-0 z-[9999999] bg-[#042F2E] flex flex-col items-center justify-center p-6 text-center animate-fadeIn text-[#F0FDFA]">

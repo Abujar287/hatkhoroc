@@ -1,0 +1,63 @@
+// Service Worker for হাত খরচ (Task Reminders & Notifications)
+const CACHE_NAME = 'hat-khoroch-v2';
+
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((keys) =>
+        Promise.all(
+          keys.map((k) => {
+            if (k !== CACHE_NAME) return caches.delete(k);
+          })
+        )
+      )
+    ])
+  );
+});
+
+// Handle incoming messages from page to trigger notification even in background
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  if (event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    const notificationOptions = {
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
+      vibrate: [500, 200, 500, 200, 500, 200, 800],
+      requireInteraction: true,
+      renotify: true,
+      tag: options?.tag || 'task-alarm',
+      data: { url: '/?tab=task', ...options?.data },
+      ...options
+    };
+    self.registration.showNotification(title, notificationOptions);
+  }
+});
+
+// Handle clicking on notification in phone notification bar
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          if ('navigate' in client && client.url.indexOf(targetUrl) === -1) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

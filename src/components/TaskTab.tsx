@@ -461,19 +461,18 @@ export const TaskTab: React.FC<TaskTabProps> = ({
             const isDone = task.status === 'completed' || task.status === 'paid';
             const isOverdue = !isDone && task.dueDate < todayStr;
             const isToday = !isDone && task.dueDate === todayStr;
+            const isDueNow = (isToday || isOverdue) && !isDone;
             const daysText = getDaysDifferenceText(task.dueDate);
 
             return (
               <div
                 key={task.id}
-                className={`p-3 transition-all hover:bg-teal-900/40 shadow-xs ${
+                className={`p-3 transition-all shadow-xs ${
                   isDone
-                    ? 'bg-[#062423]/60 border-l-4 border-l-slate-600 opacity-85'
-                    : isOverdue
-                    ? 'bg-red-950/30 border-l-4 border-l-red-500'
-                    : isToday
-                    ? 'bg-amber-950/30 border-l-4 border-l-amber-400'
-                    : 'bg-[#0B3C39] border-l-4 border-l-teal-500'
+                    ? 'bg-[#062423]/60 border-l-4 border-l-slate-600 opacity-85 hover:bg-teal-900/30'
+                    : isDueNow
+                    ? 'bg-red-600 border-2 border-red-300 text-white shadow-xl ring-2 ring-red-400/50'
+                    : 'bg-[#0B3C39] border-l-4 border-l-teal-500 hover:bg-teal-900/40'
                 }`}
               >
                 {/* DESKTOP ROW (md:grid) */}
@@ -482,7 +481,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                   <div className="col-span-3 min-w-0 flex items-center gap-2">
                     <div className="flex items-center gap-1 shrink-0">
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                        task.priority === 'high'
+                        isDueNow
+                          ? 'bg-white/20 text-white border border-white/40'
+                          : task.priority === 'high'
                           ? 'bg-rose-950 text-rose-300 border border-rose-800'
                           : task.priority === 'medium'
                           ? 'bg-amber-950 text-amber-300 border border-amber-800'
@@ -490,23 +491,35 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                       }`}>
                         {task.priority ? task.priority.substring(0, 3).toUpperCase() : 'MED'}
                       </span>
-                      <span className="text-[10px] text-teal-200 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-800 truncate">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${
+                        isDueNow
+                          ? 'text-white bg-white/20 border-white/40 font-bold'
+                          : 'text-teal-200 bg-teal-950/80 border-teal-800'
+                      }`}>
                         {task.category}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className={`text-sm font-bold truncate block ${isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'}`}>
+                      <span className={`text-sm font-bold truncate block ${
+                        isDone
+                          ? 'line-through text-slate-400'
+                          : isDueNow
+                          ? 'text-white font-extrabold drop-shadow-xs'
+                          : 'text-[#F0FDFA]'
+                      }`}>
                         {task.title}
                       </span>
                     </div>
                   </div>
 
                   {/* 2. Date & Time */}
-                  <div className="col-span-3 text-xs text-teal-200 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <div className={`col-span-3 text-xs flex items-center gap-1 ${isDueNow ? 'text-white font-bold' : 'text-teal-200'}`}>
+                    <Calendar className={`w-3.5 h-3.5 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
                     <span className="font-semibold">{task.dueDate}</span>
                     {task.dueTime && (
-                      <span className="text-[11px] text-amber-300 font-medium">({formatTime12h(task.dueTime)})</span>
+                      <span className={`text-[11px] font-medium ${isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}`}>
+                        ({formatTime12h(task.dueTime)})
+                      </span>
                     )}
                   </div>
 
@@ -516,13 +529,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700">
                         <Check className="w-3 h-3 stroke-[3]" /> Paid
                       </span>
-                    ) : isOverdue ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
-                        <AlertTriangle className="w-3 h-3" /> {daysText}
-                      </span>
-                    ) : isToday ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-full">
-                        <Clock className="w-3 h-3 stroke-[2.5]" /> Due Today
+                    ) : isDueNow ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-700 bg-white px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-red-600" /> {isToday ? 'Due Today' : daysText}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800">
@@ -533,7 +542,13 @@ export const TaskTab: React.FC<TaskTabProps> = ({
 
                   {/* 4. Amount */}
                   <div className="col-span-2 text-left">
-                    <span className={`text-base font-extrabold ${isDone ? 'text-slate-400' : 'text-amber-300'}`}>
+                    <span className={`text-base font-extrabold ${
+                      isDone
+                        ? 'text-slate-400'
+                        : isDueNow
+                        ? 'text-white font-black drop-shadow-sm'
+                        : 'text-amber-300'
+                    }`}>
                       {task.amount.toLocaleString()}
                     </span>
                   </div>
@@ -544,7 +559,11 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                       <button
                         type="button"
                         onClick={() => onConvertTaskToExpense(task)}
-                        className="px-2.5 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-extrabold shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+                          isDueNow
+                            ? 'bg-amber-300 hover:bg-amber-200 text-amber-950 shadow-md ring-1 ring-amber-400'
+                            : 'bg-teal-500 hover:bg-teal-400 text-teal-950'
+                        }`}
                       >
                         <Zap className="w-3 h-3" />
                         <span>Pay Now</span>
@@ -563,7 +582,11 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                     <button
                       type="button"
                       onClick={() => openFormModal(task)}
-                      className="p-1.5 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-200 border border-teal-800 transition-all cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer border ${
+                        isDueNow
+                          ? 'bg-red-800 hover:bg-red-900 text-white border-red-400'
+                          : 'bg-teal-950 hover:bg-teal-900 text-teal-200 border-teal-800'
+                      }`}
                       title="Edit Task"
                     >
                       <Edit3 className="w-3 h-3" />
@@ -572,7 +595,11 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                     <button
                       type="button"
                       onClick={() => setTaskToDelete(task)}
-                      className="p-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800/80 transition-all cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer border ${
+                        isDueNow
+                          ? 'bg-red-950 hover:bg-black text-white border-red-400'
+                          : 'bg-red-950/80 hover:bg-red-900 text-red-300 border-red-800/80'
+                      }`}
                       title="Delete Task"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -586,7 +613,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0 flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
-                        task.priority === 'high'
+                        isDueNow
+                          ? 'bg-white/20 text-white border border-white/40'
+                          : task.priority === 'high'
                           ? 'bg-rose-950 text-rose-300 border border-rose-800'
                           : task.priority === 'medium'
                           ? 'bg-amber-950 text-amber-300 border border-amber-800'
@@ -594,7 +623,13 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                       }`}>
                         {task.priority ? task.priority.substring(0, 3).toUpperCase() : 'MED'}
                       </span>
-                      <h3 className={`text-sm font-bold truncate ${isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'}`}>
+                      <h3 className={`text-sm font-bold truncate ${
+                        isDone
+                          ? 'line-through text-slate-400'
+                          : isDueNow
+                          ? 'text-white font-black'
+                          : 'text-[#F0FDFA]'
+                      }`}>
                         {task.title}
                       </h3>
                     </div>
@@ -604,13 +639,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700">
                           <Check className="w-3 h-3 stroke-[3]" /> Paid
                         </span>
-                      ) : isOverdue ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
-                          <AlertTriangle className="w-3 h-3" /> {daysText}
-                        </span>
-                      ) : isToday ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-full">
-                          <Clock className="w-3 h-3 stroke-[2.5]" /> Due Today
+                      ) : isDueNow ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-700 bg-white px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                          <AlertTriangle className="w-3 h-3 text-red-600" /> {isToday ? 'Due Today' : daysText}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800">
@@ -621,34 +652,52 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                   </div>
 
                   {/* Mobile Middle Row: Category + Date & Time + Amount */}
-                  <div className="flex items-center justify-between gap-2 text-xs text-teal-200/90 pt-1 border-t border-teal-800/40">
+                  <div className={`flex items-center justify-between gap-2 text-xs pt-1 border-t ${
+                    isDueNow ? 'border-red-400/40 text-white' : 'border-teal-800/40 text-teal-200/90'
+                  }`}>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] text-teal-300 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-800">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                        isDueNow ? 'text-white bg-white/20 border-white/40 font-bold' : 'text-teal-300 bg-teal-950/80 border-teal-800'
+                      }`}>
                         {task.category}
                       </span>
                       <div className="flex items-center gap-1 text-[11px] font-medium">
-                        <Calendar className="w-3 h-3 text-teal-400 shrink-0" />
-                        <span>{task.dueDate}</span>
+                        <Calendar className={`w-3 h-3 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
+                        <span className="font-semibold">{task.dueDate}</span>
                         {task.dueTime && (
-                          <span className="text-amber-300">({formatTime12h(task.dueTime)})</span>
+                          <span className={isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}>
+                            ({formatTime12h(task.dueTime)})
+                          </span>
                         )}
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className={`text-base font-extrabold ${isDone ? 'text-slate-400' : 'text-amber-300'}`}>
+                      <span className={`text-base font-extrabold ${
+                        isDone
+                          ? 'text-slate-400'
+                          : isDueNow
+                          ? 'text-white font-black'
+                          : 'text-amber-300'
+                      }`}>
                         {task.amount.toLocaleString()}
                       </span>
                     </div>
                   </div>
 
                   {/* Mobile Bottom Action Row */}
-                  <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-teal-800/40">
+                  <div className={`flex items-center justify-end gap-1.5 pt-1 border-t ${
+                    isDueNow ? 'border-red-400/40' : 'border-teal-800/40'
+                  }`}>
                     {!isDone ? (
                       <button
                         type="button"
                         onClick={() => onConvertTaskToExpense(task)}
-                        className="px-3 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 text-xs font-black shadow-xs cursor-pointer flex items-center gap-1"
+                        className={`px-3 py-1 rounded-lg text-xs font-black shadow-xs cursor-pointer flex items-center gap-1 ${
+                          isDueNow
+                            ? 'bg-amber-300 hover:bg-amber-200 text-amber-950 shadow-md ring-1 ring-amber-400'
+                            : 'bg-teal-500 hover:bg-teal-400 text-teal-950'
+                        }`}
                       >
                         <Zap className="w-3 h-3" />
                         <span>Pay Now</span>
@@ -667,7 +716,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                     <button
                       type="button"
                       onClick={() => openFormModal(task)}
-                      className="p-1.5 rounded-lg bg-teal-950 text-teal-200 border border-teal-800 cursor-pointer"
+                      className={`p-1.5 rounded-lg border cursor-pointer ${
+                        isDueNow ? 'bg-red-800 text-white border-red-400' : 'bg-teal-950 text-teal-200 border border-teal-800'
+                      }`}
                       title="Edit"
                     >
                       <Edit3 className="w-3 h-3" />
@@ -676,7 +727,9 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                     <button
                       type="button"
                       onClick={() => setTaskToDelete(task)}
-                      className="p-1.5 rounded-lg bg-red-950/80 text-red-300 border border-red-800 cursor-pointer"
+                      className={`p-1.5 rounded-lg border cursor-pointer ${
+                        isDueNow ? 'bg-red-950 text-white border-red-400' : 'bg-red-950/80 text-red-300 border border-red-800'
+                      }`}
                       title="Delete"
                     >
                       <Trash2 className="w-3 h-3" />

@@ -1,79 +1,106 @@
-// Task Alarm & Notification Manager
+// Task Alarm & Notification Manager with Service Worker & Audio Support
 let activeAudioContext: AudioContext | null = null;
 let activeAlarmInterval: number | null = null;
+let activeAudioElement: HTMLAudioElement | null = null;
 
-// Unlock AudioContext on first user interaction
+// Unlock AudioContext & Audio element on user interactions
 export function initAudioUnlock() {
   if (typeof window === 'undefined') return;
 
   const unlock = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
+      if (AudioCtx) {
+        if (!activeAudioContext) {
+          activeAudioContext = new AudioCtx();
+        }
+        if (activeAudioContext.state === 'suspended') {
+          activeAudioContext.resume().catch(() => {});
+        }
+      }
+
+      // Pre-warm audio element for mobile browser playback permission
+      if (!activeAudioElement) {
+        const audio = new Audio('/alarm.wav');
+        audio.volume = 0.01;
+        audio.play().then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.volume = 1.0;
+        }).catch(() => {});
+        activeAudioElement = audio;
+      }
+    } catch (e) {
+      console.warn('Audio unlock warning:', e);
+    }
+  };
+
+  window.addEventListener('click', unlock, { once: true, passive: true });
+  window.addEventListener('touchstart', unlock, { once: true, passive: true });
+  window.addEventListener('keydown', unlock, { once: true, passive: true });
+}
+
+// Play alarm tune on mobile and desktop
+export function playTaskAlarmSound(): () => void {
+  try {
+    // 1. Stop any currently running alarm
+    stopTaskAlarmSound();
+
+    // 2. Play via HTML5 Audio element (/alarm.wav) - essential for phone speaker
+    try {
+      if (!activeAudioElement) {
+        activeAudioElement = new Audio('/alarm.wav');
+      }
+      activeAudioElement.currentTime = 0;
+      activeAudioElement.volume = 1.0;
+      activeAudioElement.loop = true;
+      activeAudioElement.play().catch((err) => {
+        console.warn('Audio element play restricted until touch:', err);
+      });
+    } catch (audioErr) {
+      console.warn('Audio tag play error:', audioErr);
+    }
+
+    // 3. Also play via Web Audio synthesizer as layered loud bell
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
       if (!activeAudioContext) {
         activeAudioContext = new AudioCtx();
       }
       if (activeAudioContext.state === 'suspended') {
-        activeAudioContext.resume();
+        activeAudioContext.resume().catch(() => {});
       }
-    } catch (e) {
-      console.warn('Audio unlock error:', e);
+
+      const ctx = activeAudioContext;
+      const playChimePattern = () => {
+        try {
+          if (!ctx || ctx.state !== 'running') return;
+          const now = ctx.currentTime;
+          // Dual musical frequencies
+          const freqs = [880, 1174, 1396, 1760];
+          freqs.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+
+            gain.gain.setValueAtTime(0, now + idx * 0.09);
+            gain.gain.linearRampToValueAtTime(0.4, now + idx * 0.09 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.22);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now + idx * 0.09);
+            osc.stop(now + idx * 0.09 + 0.25);
+          });
+        } catch {}
+      };
+
+      playChimePattern();
+      activeAlarmInterval = window.setInterval(playChimePattern, 1200);
     }
-  };
-
-  window.addEventListener('click', unlock, { once: true });
-  window.addEventListener('touchstart', unlock, { once: true });
-  window.addEventListener('keydown', unlock, { once: true });
-}
-
-// Play alarm tune (loud repeating chime/digital bell)
-export function playTaskAlarmSound(): () => void {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return () => {};
-
-    if (!activeAudioContext) {
-      activeAudioContext = new AudioCtx();
-    }
-    if (activeAudioContext.state === 'suspended') {
-      activeAudioContext.resume().catch(() => {});
-    }
-
-    const ctx = activeAudioContext;
-
-    // Stop any previously playing alarm
-    stopTaskAlarmSound();
-
-    const playBeepPattern = () => {
-      try {
-        if (!ctx || ctx.state !== 'running') return;
-
-        const now = ctx.currentTime;
-        const frequencies = [880, 1046.5, 1318.5, 1760]; // Musical alarm tones (A5, C6, E6, A6)
-        
-        frequencies.forEach((freq, idx) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
-
-          gain.gain.setValueAtTime(0, now + idx * 0.08);
-          gain.gain.linearRampToValueAtTime(0.3, now + idx * 0.08 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.18);
-
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-
-          osc.start(now + idx * 0.08);
-          osc.stop(now + idx * 0.08 + 0.2);
-        });
-      } catch {}
-    };
-
-    // Play immediately and loop every 1.2 seconds
-    playBeepPattern();
-    activeAlarmInterval = window.setInterval(playBeepPattern, 1200);
 
     return stopTaskAlarmSound;
   } catch (err) {
@@ -84,14 +111,23 @@ export function playTaskAlarmSound(): () => void {
 
 // Stop the currently ringing alarm sound
 export function stopTaskAlarmSound() {
+  // Stop audio element
+  if (activeAudioElement) {
+    try {
+      activeAudioElement.pause();
+      activeAudioElement.currentTime = 0;
+    } catch {}
+  }
+
+  // Stop Web Audio synthesizer
   if (activeAlarmInterval !== null) {
     clearInterval(activeAlarmInterval);
     activeAlarmInterval = null;
   }
 }
 
-// Trigger Web Vibration API
-export function vibrateDevice(pattern: number[] = [300, 150, 300, 150, 500]) {
+// Trigger Web Vibration API (phone vibration)
+export function vibrateDevice(pattern: number[] = [500, 200, 500, 200, 500, 200, 800]) {
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     try {
       navigator.vibrate(pattern);
@@ -99,8 +135,27 @@ export function vibrateDevice(pattern: number[] = [300, 150, 300, 150, 500]) {
   }
 }
 
-// System Notification Trigger
-export async function sendSystemNotification(title: string, options?: NotificationOptions): Promise<boolean> {
+// Request or ensure notification permission
+export async function ensureNotificationPermission(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+  if (Notification.permission === 'granted') {
+    return true;
+  }
+  if (Notification.permission !== 'denied') {
+    try {
+      const res = await Notification.requestPermission();
+      return res === 'granted';
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+// System Notification Trigger for Phone Notification Bar
+export async function sendSystemNotification(title: string, options?: any): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
@@ -109,30 +164,55 @@ export async function sendSystemNotification(title: string, options?: Notificati
     return false;
   }
 
+  const notificationOptions: any = {
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    vibrate: [500, 200, 500, 200, 500, 200, 800],
+    requireInteraction: true,
+    renotify: true,
+    tag: options?.tag || `task-${Date.now()}`,
+    data: { url: '/?tab=task' },
+    ...options
+  };
+
   try {
-    // Try service worker notification first (better on mobile PWA)
+    // 1. Try Service Worker registration (Primary method for Android & mobile notification bar)
     if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration && registration.showNotification) {
-        await registration.showNotification(title, {
-          icon: '/logo.png',
-          badge: '/logo.png',
-          vibrate: [300, 150, 300],
-          ...options
-        } as any);
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.showNotification) {
+          await registration.showNotification(title, notificationOptions);
+          return true;
+        }
+      } catch (swReadyErr) {
+        // Fallback to getRegistration
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, notificationOptions);
+          return true;
+        }
+      }
+
+      // Also message the service worker directly
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title,
+          options: notificationOptions
+        });
         return true;
       }
     }
 
-    // Fallback to standard web notification
-    new Notification(title, {
-      icon: '/logo.png',
-      badge: '/logo.png',
-      ...options
-    });
-    return true;
+    // 2. Desktop fallback to standard Notification
+    try {
+      new Notification(title, notificationOptions);
+      return true;
+    } catch {
+      return false;
+    }
   } catch (err) {
-    console.warn('Notification error:', err);
+    console.warn('System Notification error:', err);
     return false;
   }
 }
