@@ -61,7 +61,8 @@ self.addEventListener('push', (event) => {
     body: data.body || 'আপনার আজকের বকেয়া বিল বা টাস্ক পরিশোধের নির্ধারিত সময় হয়েছে।',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    vibrate: [600, 250, 600, 250, 600, 250, 1000],
+    vibrate: [800, 300, 800, 300, 800, 300, 1200],
+    sound: '/alarm.wav',
     requireInteraction: true,
     renotify: true,
     tag: data.tag || `task-alarm-${Date.now()}`,
@@ -71,7 +72,7 @@ self.addEventListener('push', (event) => {
       ...data
     },
     actions: [
-      { action: 'open_task', title: 'Open Task' }
+      { action: 'open_task', title: 'Open & View Task' }
     ]
   };
 

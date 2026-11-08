@@ -26,7 +26,7 @@ import {
   initAudioUnlock,
   setupWebPushSubscription
 } from '../utils/taskAlarmManager';
-import { normalizeTime, formatTime12h } from '../utils/dateUtils';
+import { normalizeTime, formatTime12h, formatTaskCreatedAt } from '../utils/dateUtils';
 
 interface TaskTabProps {
   tasks: CostTask[];
@@ -515,12 +515,19 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                   </div>
 
                   {/* 2. Date & Time */}
-                  <div className={`col-span-3 text-xs flex items-center gap-1 ${isDueNow ? 'text-white font-bold' : 'text-teal-200'}`}>
-                    <Calendar className={`w-3.5 h-3.5 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
-                    <span className="font-semibold">{task.dueDate}</span>
-                    {task.dueTime && (
-                      <span className={`text-[11px] font-medium ${isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}`}>
-                        ({formatTime12h(task.dueTime)})
+                  <div className={`col-span-3 text-xs flex flex-col ${isDueNow ? 'text-white font-bold' : 'text-teal-200'}`}>
+                    <div className="flex items-center gap-1">
+                      <Calendar className={`w-3.5 h-3.5 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
+                      <span className="font-semibold">{task.dueDate}</span>
+                      {task.dueTime && (
+                        <span className={`text-[11px] font-medium ${isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}`}>
+                          ({formatTime12h(task.dueTime)})
+                        </span>
+                      )}
+                    </div>
+                    {task.createdAt && (
+                      <span className="text-[10px] text-teal-300/70 mt-0.5">
+                        Created At: {formatTaskCreatedAt(task.createdAt)}
                       </span>
                     )}
                   </div>
@@ -657,21 +664,28 @@ export const TaskTab: React.FC<TaskTabProps> = ({
                   <div className={`flex items-center justify-between gap-2 text-xs pt-1 border-t ${
                     isDueNow ? 'border-red-400/40 text-white' : 'border-teal-800/40 text-teal-200/90'
                   }`}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                        isDueNow ? 'text-white bg-white/20 border-white/40 font-bold' : 'text-teal-300 bg-teal-950/80 border-teal-800'
-                      }`}>
-                        {task.category}
-                      </span>
-                      <div className="flex items-center gap-1 text-[11px] font-medium">
-                        <Calendar className={`w-3 h-3 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
-                        <span className="font-semibold">{task.dueDate}</span>
-                        {task.dueTime && (
-                          <span className={isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}>
-                            ({formatTime12h(task.dueTime)})
-                          </span>
-                        )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                          isDueNow ? 'text-white bg-white/20 border-white/40 font-bold' : 'text-teal-300 bg-teal-950/80 border-teal-800'
+                        }`}>
+                          {task.category}
+                        </span>
+                        <div className="flex items-center gap-1 text-[11px] font-medium">
+                          <Calendar className={`w-3 h-3 shrink-0 ${isDueNow ? 'text-white' : 'text-teal-400'}`} />
+                          <span className="font-semibold">{task.dueDate}</span>
+                          {task.dueTime && (
+                            <span className={isDueNow ? 'text-amber-200 font-bold' : 'text-amber-300'}>
+                              ({formatTime12h(task.dueTime)})
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {task.createdAt && (
+                        <span className="text-[10px] text-teal-300/70">
+                          Created At: {formatTaskCreatedAt(task.createdAt)}
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-right">

@@ -10,7 +10,7 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['favicon.ico', 'icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'manifest.json', 'alarm.wav', 'sw.js'],
         manifest: {
           id: '/',
@@ -52,8 +52,7 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,wav}'],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],
@@ -66,6 +65,7 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: 3000,
       hmr: false,
+      ws: false as const,
       watch: null,
     },
   };

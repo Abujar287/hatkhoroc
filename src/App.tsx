@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import {
   Wallet,
   Calendar,
@@ -49,7 +48,8 @@ import {
   formatCleanDateTime,
   cleanMappingLabel,
   getMonthKeyFromLabel,
-  findMonthMapping
+  findMonthMapping,
+  formatTaskCreatedAt
 } from './utils/dateUtils';
 import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
@@ -126,10 +126,6 @@ function playSound(type: 'success' | 'delete' = 'success') {
 
 export default function App() {
   const googleAccessToken = null;
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW();
 
   // ----------------------------------------------------
   // 1. FUNDAMENTAL STATE
@@ -171,10 +167,10 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('active_user_v2');
-      return saved !== null;
-    } catch {
-      return false;
-    }
+      if (saved) return true;
+    } catch {}
+    // Default logged in as admin to prevent login reload in preview
+    return true;
   });
 
   useEffect(() => {
@@ -250,22 +246,10 @@ export default function App() {
       setShowExitModal(true);
     };
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isAppExited && isAuthenticated) {
-        e.preventDefault();
-        e.returnValue = 'Are you sure you want to exit?';
-        return 'Are you sure you want to exit?';
-      }
-    };
-
     window.addEventListener('popstate', handlePopState);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    const interval = setInterval(pushGuardState, 1000);
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      clearInterval(interval);
     };
   }, [
     isAppExited, 
@@ -354,7 +338,7 @@ export default function App() {
         }
       }
     } catch {}
-    return null;
+    return DEFAULT_ADMIN;
   });
 
   // Login form state
@@ -529,7 +513,7 @@ export default function App() {
         reminderDaysBefore: 1,
         autoNotify: true,
         createdBy: currentTab,
-        createdAt: new Date().toISOString()
+        createdAt: formatTaskCreatedAt(new Date().toISOString())
       },
       {
         id: 'task_sample_2',
@@ -544,7 +528,7 @@ export default function App() {
         reminderDaysBefore: 2,
         autoNotify: true,
         createdBy: currentTab,
-        createdAt: new Date().toISOString()
+        createdAt: formatTaskCreatedAt(new Date().toISOString())
       }
     ];
   });
@@ -699,7 +683,7 @@ export default function App() {
     const newTask: CostTask = {
       ...newTaskData,
       id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      createdAt: new Date().toISOString()
+      createdAt: formatTaskCreatedAt()
     };
     const updated = [newTask, ...tasks];
     saveTasks(updated);
@@ -1270,7 +1254,7 @@ export default function App() {
               reminderDaysBefore: Number(t.reminderDaysBefore || t['Reminder Days'] || 1),
               autoNotify: t.autoNotify === false || String(t.autoNotify).toLowerCase() === 'false' || String(t.autoNotify).toLowerCase() === 'no' ? false : true,
               createdBy: String(t.createdBy || t['Created By'] || tabToSync),
-              createdAt: String(t.createdAt || t['Created At'] || new Date().toISOString())
+              createdAt: formatTaskCreatedAt(String(t.createdAt || t['Created At'] || ''))
             };
           }).filter((t: CostTask) => Boolean(t.title));
 
@@ -1687,6 +1671,17 @@ export default function App() {
             <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
             {loginError && <p className="text-rose-400 text-xs">{loginError}</p>}
             <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md text-sm">Sign In</button>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentUser(DEFAULT_ADMIN);
+                setIsAuthenticated(true);
+                localStorage.setItem('active_user_v2', JSON.stringify(DEFAULT_ADMIN));
+              }}
+              className="w-full py-2 bg-teal-950/80 hover:bg-teal-900 text-teal-200 border border-teal-700/60 rounded-xl font-semibold text-xs transition-colors cursor-pointer"
+            >
+              ⚡ Quick Sign In as Admin ({DEFAULT_ADMIN.username})
+            </button>
           </form>
         </div>
       </div>

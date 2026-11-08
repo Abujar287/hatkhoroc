@@ -259,28 +259,35 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 // Register Web Push subscription with server so phone wakes up when app is closed
-export async function setupWebPushSubscription(): Promise<boolean> {
+export async function setupWebPushSubscription(forceRenew = false): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return false;
   }
 
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      return false;
+    let reg: ServiceWorkerRegistration | undefined;
+    try {
+      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+    } catch {
+      reg = await navigator.serviceWorker.ready;
     }
 
-    const reg = await navigator.serviceWorker.ready;
     if (!reg) return false;
 
-    // Check existing subscription
+    // Fetch server VAPID key
+    const res = await fetch('/api/push/vapid-key');
+    const data = await res.json();
+    if (!data.publicKey) return false;
+
     let subscription = await reg.pushManager.getSubscription();
 
-    if (!subscription) {
-      const res = await fetch('/api/push/vapid-key');
-      const data = await res.json();
-      if (!data.publicKey) return false;
+    if (subscription && forceRenew) {
+      await subscription.unsubscribe().catch(() => {});
+      subscription = null;
+    }
 
+    if (!subscription) {
       const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
       subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -324,6 +331,17 @@ export async function syncTasksToPushServer(tasks: any[]): Promise<boolean> {
   } catch (err) {
     console.warn('Failed to sync tasks to push server:', err);
     return false;
+  }
+}
+
+// Trigger an instant push test from server to test notification while app is closed
+export async function triggerTestServerAlarm(): Promise<{ success: boolean; sent?: number; error?: string }> {
+  try {
+    const res = await fetch('/api/push/test', { method: 'POST' });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 

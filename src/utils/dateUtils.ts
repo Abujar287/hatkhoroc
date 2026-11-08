@@ -476,4 +476,66 @@ export function findMonthMapping<T extends { label: string; startDate: string; e
   });
 }
 
+/**
+ * Formats a task creation date strictly to "YYYY-MM-DD HH:mm" (e.g. "2026-11-07 15:38")
+ * Strips seconds, milliseconds, and ISO 'T'/'Z' formatting.
+ */
+export function formatTaskCreatedAt(raw?: string | null): string {
+  if (!raw) {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${day} ${h}:${min}`;
+  }
+
+  const s = String(raw).trim();
+  if (!s) return '';
+
+  // Match existing "YYYY-MM-DD HH:mm"
+  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/.test(s)) {
+    return s;
+  }
+
+  // Handle ISO string like "2026-11-07T15:38:47.094Z"
+  if (s.includes('T')) {
+    try {
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        const h = String(parsed.getHours()).padStart(2, '0');
+        const min = String(parsed.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${day} ${h}:${min}`;
+      }
+    } catch {}
+
+    const [datePart, timePart] = s.split('T');
+    const timeClean = (timePart || '').split('.')[0];
+    const timeMatch = timeClean.match(/^(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const h = String(timeMatch[1]).padStart(2, '0');
+      const min = String(timeMatch[2]).padStart(2, '0');
+      return `${datePart} ${h}:${min}`;
+    }
+    return datePart;
+  }
+
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const h = String(parsed.getHours()).padStart(2, '0');
+    const min = String(parsed.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${day} ${h}:${min}`;
+  }
+
+  return s.replace('T', ' ').substring(0, 16);
+}
+
+
 

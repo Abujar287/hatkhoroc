@@ -14,7 +14,14 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
-const port = 3000;
+let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const portArgIndex = process.argv.indexOf('--port');
+if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+  const parsedPort = parseInt(process.argv[portArgIndex + 1], 10);
+  if (!isNaN(parsedPort)) {
+    port = parsedPort;
+  }
+}
 
 async function startServer() {
   console.log('Starting server...');
@@ -87,11 +94,15 @@ async function startServer() {
     await fs.writeFile(VAPID_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8').catch(() => {});
   }
 
-  webpush.setVapidDetails(
-    'mailto:support@hisabkitab.app',
-    vapidKeys.publicKey,
-    vapidKeys.privateKey
-  );
+  try {
+    webpush.setVapidDetails(
+      'mailto:support@hisabkitab.app',
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+  } catch (err) {
+    console.warn('Failed to set VAPID details:', err);
+  }
 
   let pushSubscriptions: Array<{
     subscription: any;
@@ -247,87 +258,94 @@ async function startServer() {
 
   // Server-Side Alarm Checking Loop
   // Evaluates every 15 seconds if any scheduled task is due in user's timezone
-  setInterval(async () => {
-    if (pushSubscriptions.length === 0 || scheduledTasks.length === 0) return;
+  const alarmInterval = setInterval(async () => {
+    try {
+      if (pushSubscriptions.length === 0 || scheduledTasks.length === 0) return;
 
-    for (const task of scheduledTasks) {
-      if (task.status !== 'pending' || task.autoNotify === false) continue;
-      if (!task.dueDate) continue;
+      for (const task of scheduledTasks) {
+        if (task.status !== 'pending' || task.autoNotify === false) continue;
+        if (!task.dueDate) continue;
 
-      // Determine client local time
-      // getTimezoneOffset() is in minutes: local = UTC - offsetMinutes
-      const offsetMinutes = typeof task.clientTimezoneOffset === 'number' ? task.clientTimezoneOffset : -360;
-      const nowUtc = Date.now();
-      const clientTimeEpoch = nowUtc - (offsetMinutes * 60 * 1000);
-      const clientDate = new Date(clientTimeEpoch);
+        // Determine client local time
+        // getTimezoneOffset() is in minutes: local = UTC - offsetMinutes
+        const offsetMinutes = typeof task.clientTimezoneOffset === 'number' ? task.clientTimezoneOffset : -360;
+        const nowUtc = Date.now();
+        const clientTimeEpoch = nowUtc - (offsetMinutes * 60 * 1000);
+        const clientDate = new Date(clientTimeEpoch);
 
-      const y = clientDate.getUTCFullYear();
-      const m = String(clientDate.getUTCMonth() + 1).padStart(2, '0');
-      const d = String(clientDate.getUTCDate()).padStart(2, '0');
-      const clientDateStr = `${y}-${m}-${d}`;
+        const y = clientDate.getUTCFullYear();
+        const m = String(clientDate.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(clientDate.getUTCDate()).padStart(2, '0');
+        const clientDateStr = `${y}-${m}-${d}`;
 
-      const clientHours = String(clientDate.getUTCHours()).padStart(2, '0');
-      const clientMinutes = String(clientDate.getUTCMinutes()).padStart(2, '0');
-      const clientTimeStr = `${clientHours}:${clientMinutes}`;
+        const clientHours = String(clientDate.getUTCHours()).padStart(2, '0');
+        const clientMinutes = String(clientDate.getUTCMinutes()).padStart(2, '0');
+        const clientTimeStr = `${clientHours}:${clientMinutes}`;
 
-      const isDueToday = task.dueDate === clientDateStr;
-      const isOverdue = task.dueDate < clientDateStr;
-      const taskDueTime = task.dueTime || '09:00';
+        const isDueToday = task.dueDate === clientDateStr;
+        const isOverdue = task.dueDate < clientDateStr;
+        const taskDueTime = task.dueTime || '09:00';
 
-      const isTimeToRing = isOverdue || (isDueToday && clientTimeStr >= taskDueTime);
+        const isTimeToRing = isOverdue || (isDueToday && clientTimeStr >= taskDueTime);
 
-      if (isTimeToRing) {
-        const triggerKey = `${task.id}_${clientDateStr}`;
-        if (!notifiedKeysSet.has(triggerKey)) {
-          notifiedKeysSet.add(triggerKey);
-          console.log(`[ALARM SCHEDULER] Triggering scheduled alarm for task: "${task.title}" (Due: ${task.dueDate} ${task.dueTime})`);
+        if (isTimeToRing) {
+          const triggerKey = `${task.id}_${clientDateStr}`;
+          if (!notifiedKeysSet.has(triggerKey)) {
+            notifiedKeysSet.add(triggerKey);
+            console.log(`[ALARM SCHEDULER] Triggering scheduled alarm for task: "${task.title}" (Due: ${task.dueDate} ${task.dueTime})`);
 
-          const timeFormatted = task.dueTime ? formatTime12hServer(task.dueTime) : '';
-          const pushPayload = JSON.stringify({
-            title: `🚨 বকেয়া বিল/টাস্ক: ${task.title}`,
-            body: `পরিমাণ: ${task.amount.toLocaleString()} ৳ | তারিখ: ${task.dueDate} ${timeFormatted ? '(' + timeFormatted + ')' : ''}`,
-            tag: `task-alarm-${task.id}`,
-            taskId: task.id,
-            url: `/?tab=task&ringTask=${task.id}`
-          });
+            const timeFormatted = task.dueTime ? formatTime12hServer(task.dueTime) : '';
+            const pushPayload = JSON.stringify({
+              title: `🚨 বকেয়া বিল/টাস্ক: ${task.title}`,
+              body: `পরিমাণ: ${task.amount.toLocaleString()} ৳ | তারিখ: ${task.dueDate} ${timeFormatted ? '(' + timeFormatted + ')' : ''}`,
+              tag: `task-alarm-${task.id}`,
+              taskId: task.id,
+              url: `/?tab=task&ringTask=${task.id}`
+            });
 
-          const expiredEndpoints: string[] = [];
+            const expiredEndpoints: string[] = [];
 
-          for (const subItem of pushSubscriptions) {
-            try {
-              await webpush.sendNotification(subItem.subscription, pushPayload);
-            } catch (err: any) {
-              if (err.statusCode === 404 || err.statusCode === 410) {
-                // Subscription has expired or was unsubscribed
-                expiredEndpoints.push(subItem.subscription.endpoint);
-              } else {
-                console.warn('Error sending web push:', err.message);
+            for (const subItem of pushSubscriptions) {
+              try {
+                await webpush.sendNotification(subItem.subscription, pushPayload);
+              } catch (err: any) {
+                if (err.statusCode === 404 || err.statusCode === 410) {
+                  // Subscription has expired or was unsubscribed
+                  expiredEndpoints.push(subItem.subscription.endpoint);
+                } else {
+                  console.warn('Error sending web push:', err.message);
+                }
               }
             }
-          }
 
-          if (expiredEndpoints.length > 0) {
-            pushSubscriptions = pushSubscriptions.filter(
-              s => !expiredEndpoints.includes(s.subscription.endpoint)
-            );
-            await persistSubscriptions();
+            if (expiredEndpoints.length > 0) {
+              pushSubscriptions = pushSubscriptions.filter(
+                s => !expiredEndpoints.includes(s.subscription.endpoint)
+              );
+              await persistSubscriptions();
+            }
           }
         }
       }
+    } catch (err) {
+      console.warn('Alarm interval error:', err);
     }
   }, 15000);
 
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY || '',
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      }
-    }
-  });
-
   app.post('/api/gemini', async (req, res) => {
     try {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+      }
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({
         model: model || 'gemini-2.5-flash',
@@ -346,6 +364,7 @@ async function startServer() {
       server: { 
         middlewareMode: true,
         hmr: false,
+        ws: false,
         watch: null
       },
       appType: 'custom',
@@ -408,9 +427,19 @@ async function startServer() {
     });
   }
 
-  app.listen(port, '0.0.0.0', () => {
+  const server = app.listen(port, '0.0.0.0', () => {
     console.log(`Server started at http://0.0.0.0:${port}`);
   });
+
+  const shutdown = () => {
+    clearInterval(alarmInterval);
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 startServer().catch(console.error);
