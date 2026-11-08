@@ -40,69 +40,9 @@ export function initAudioUnlock() {
   window.addEventListener('keydown', unlock, { once: true, passive: true });
 }
 
-// Play alarm tune on mobile and desktop (exactly once)
+// Alarm sound disabled per user request — no sound plays, only notifications & popups
 export function playTaskAlarmSound(): () => void {
-  try {
-    // 1. Stop any currently running alarm
-    stopTaskAlarmSound();
-
-    // 2. Play via HTML5 Audio element (/alarm.wav) - play once
-    try {
-      if (!activeAudioElement) {
-        activeAudioElement = new Audio('/alarm.wav');
-      }
-      activeAudioElement.currentTime = 0;
-      activeAudioElement.volume = 1.0;
-      activeAudioElement.loop = false;
-      activeAudioElement.play().catch(() => {});
-    } catch {}
-
-    // 3. Play via Web Audio synthesizer exactly once
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioCtx) {
-      if (!activeAudioContext) {
-        activeAudioContext = new AudioCtx();
-      }
-      if (activeAudioContext.state === 'suspended') {
-        activeAudioContext.resume().catch(() => {});
-      }
-
-      const ctx = activeAudioContext;
-      const playChimePattern = () => {
-        try {
-          if (!ctx || ctx.state !== 'running') return;
-          const now = ctx.currentTime;
-          // Dual musical frequencies
-          const freqs = [880, 1174, 1396, 1760];
-          freqs.forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.09);
-
-            gain.gain.setValueAtTime(0, now + idx * 0.09);
-            gain.gain.linearRampToValueAtTime(0.4, now + idx * 0.09 + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.22);
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-
-            osc.start(now + idx * 0.09);
-            osc.stop(now + idx * 0.09 + 0.25);
-          });
-        } catch {}
-      };
-
-      // Play 1 time immediately
-      playChimePattern();
-    }
-
-    return stopTaskAlarmSound;
-  } catch (err) {
-    console.warn('Failed to play task alarm sound:', err);
-    return () => {};
-  }
+  return () => {};
 }
 
 // Stop the currently ringing alarm sound

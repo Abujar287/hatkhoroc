@@ -1429,7 +1429,10 @@ export default function App() {
 
     handleStopRingingAlarm();
     saveTransactionsLocally([newTx, ...transactions]);
-    handleUpdateTask({ ...task, status: 'completed' });
+    
+    // Automatically delete/remove task from task list upon payment
+    handleDeleteTask(task.id);
+    
     playSound('success');
 
     try {
@@ -1441,7 +1444,7 @@ export default function App() {
       });
     } catch {}
 
-    showToast(t(`৳${task.amount} paid & added to expenses!`, `৳${task.amount} খরচে যোগ করা হয়েছে!`), 'success');
+    showToast(t(`৳${task.amount} paid & removed from tasks!`, `৳${task.amount} খরচে যোগ করা হয়েছে এবং টাস্ক লিস্ট থেকে সরানো হয়েছে!`), 'success');
   };
 
   const handleUpdateTransaction = async (updatedTx: Transaction) => {
