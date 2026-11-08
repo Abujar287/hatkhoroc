@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@types/web-push": "^3.6.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^13.1.0",
@@ -22,6 +23,7 @@
     "motion": "^12.23.24",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "web-push": "^4.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

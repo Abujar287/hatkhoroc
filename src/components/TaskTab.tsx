@@ -23,7 +23,8 @@ import {
   stopTaskAlarmSound,
   sendSystemNotification,
   vibrateDevice,
-  initAudioUnlock
+  initAudioUnlock,
+  setupWebPushSubscription
 } from '../utils/taskAlarmManager';
 import { normalizeTime, formatTime12h } from '../utils/dateUtils';
 
@@ -95,6 +96,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
         const permission = await Notification.requestPermission();
         setNotificationPermission(permission);
         if (permission === 'granted') {
+          setupWebPushSubscription().catch(() => {});
           showToast(t('Notification & Alarm Sound Auto-Enabled!', 'নোটিফিকেশন ও অ্যালার্ম সাউন্ড অটো-সেট হয়েছে!'), 'success');
           
           tasks.forEach(taskObj => {
@@ -104,7 +106,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
           });
 
           sendSystemNotification('হাত খরচ Task Reminder', {
-            body: t('Notifications & sound alarms are active!', 'নোটিফিকেশন এবং সাউন্ড অ্যালার্ম সক্রিয় হয়েছে!')
+            body: t('Notifications & sound alarms are active even when app is closed!', 'নোটিফিকেশন এবং সাউন্ড অ্যালার্ম সক্রিয় হয়েছে (অ্যাপ বন্ধ থাকলেও বাজবে)!')
           });
         } else {
           showToast(t('Notification permission denied', 'নোটিফিকেশন অনুমতি পাওয়া যায়নি'), 'error');

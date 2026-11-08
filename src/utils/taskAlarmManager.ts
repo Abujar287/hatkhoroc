@@ -241,3 +241,89 @@ export function hasTaskBeenNotified(taskId: string, triggerKey: string): boolean
   const current = getNotifiedTaskMap();
   return current[taskId] === triggerKey;
 }
+
+// Convert VAPID base64 string to Uint8Array for PushManager
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Register Web Push subscription with server so phone wakes up when app is closed
+export async function setupWebPushSubscription(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      return false;
+    }
+
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg) return false;
+
+    // Check existing subscription
+    let subscription = await reg.pushManager.getSubscription();
+
+    if (!subscription) {
+      const res = await fetch('/api/push/vapid-key');
+      const data = await res.json();
+      if (!data.publicKey) return false;
+
+      const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      });
+    }
+
+    if (subscription) {
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription,
+          clientTimezoneOffset: new Date().getTimezoneOffset(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
+      });
+      return true;
+    }
+  } catch (err) {
+    console.warn('Web push setup error:', err);
+  }
+  return false;
+}
+
+// Sync active tasks to server background scheduler so alarm fires at exact time (e.g. 11:30) even with app closed
+export async function syncTasksToPushServer(tasks: any[]): Promise<boolean> {
+  if (typeof window === 'undefined' || !tasks) return false;
+
+  try {
+    const res = await fetch('/api/push/sync-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tasks,
+        clientTimezoneOffset: new Date().getTimezoneOffset(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to sync tasks to push server:', err);
+    return false;
+  }
+}
+

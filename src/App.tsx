@@ -31,7 +31,9 @@ import {
   hasTaskBeenNotified,
   markTaskAsNotified,
   initAudioUnlock,
-  ensureNotificationPermission
+  ensureNotificationPermission,
+  setupWebPushSubscription,
+  syncTasksToPushServer
 } from './utils/taskAlarmManager';
 import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask } from './types';
 import {
@@ -564,13 +566,58 @@ export default function App() {
 
   useEffect(() => {
     initAudioUnlock();
-  }, []);
+    // Register Web Push notification subscription with browser and server
+    setupWebPushSubscription().catch(() => {});
+
+    // Listen for broadcast messages from Service Worker when a background Push arrives
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const handleSwMessage = (e: MessageEvent) => {
+        if (e.data?.type === 'TASK_ALARM_PUSH_RECEIVED' && e.data?.taskId) {
+          const target = tasks.find(t => t.id === e.data.taskId) || tasks[0];
+          if (target) {
+            setActiveRingingTask(target);
+            playTaskAlarmSound();
+            vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
+          }
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      };
+    }
+  }, [tasks]);
+
+  // Sync scheduled tasks to server push scheduler so phone wakes up even when app is closed
+  useEffect(() => {
+    if (tasks && tasks.length > 0) {
+      syncTasksToPushServer(tasks).catch(() => {});
+    }
+  }, [tasks]);
+
+  // Check if opened via notification click (?ringTask=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ringTaskId = urlParams.get('ringTask');
+      if (ringTaskId && tasks && tasks.length > 0) {
+        const found = tasks.find(t => t.id === ringTaskId);
+        if (found) {
+          setActiveRingingTask(found);
+          playTaskAlarmSound();
+          vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
+        }
+      }
+    } catch {}
+  }, [tasks]);
 
   // When entering the app: auto-trigger sound, vibration, notification, and highlight for tasks due today
   useEffect(() => {
     if (dueTodayTasks.length > 0 && !hasNotifiedOnEntry) {
       setHasNotifiedOnEntry(true);
       ensureNotificationPermission();
+      setupWebPushSubscription().catch(() => {});
       playTaskAlarmSound();
       vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
       setActiveRingingTask(dueTodayTasks[0]);
@@ -586,7 +633,7 @@ export default function App() {
     }
   }, [dueTodayTasks, hasNotifiedOnEntry, t]);
 
-  // Background Task Alarm Engine
+  // Background Task Alarm Engine (Active while app is running in foreground/background tab)
   useEffect(() => {
     const checkTaskAlarms = () => {
       if (!tasks || tasks.length === 0) return;
@@ -644,6 +691,7 @@ export default function App() {
     setTasks(updated);
     try {
       localStorage.setItem(`app_tasks_${currentTab}`, JSON.stringify(updated));
+      syncTasksToPushServer(updated).catch(() => {});
     } catch {}
   }, [currentTab]);
 

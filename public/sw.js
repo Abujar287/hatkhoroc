@@ -40,10 +40,61 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Handle incoming Web Push notifications (Wakes up mobile device even when app is closed)
+self.addEventListener('push', (event) => {
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch {
+      data = {
+        title: '🚨 বকেয়া বিল/টাস্ক অ্যালার্ম',
+        body: event.data.text()
+      };
+    }
+  }
+
+  const title = data.title || '🚨 বকেয়া বিল/টাস্ক অ্যালার্ম';
+  const targetUrl = data.url || '/?tab=task';
+
+  const notificationOptions = {
+    body: data.body || 'আপনার আজকের বকেয়া বিল বা টাস্ক পরিশোধের নির্ধারিত সময় হয়েছে।',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    vibrate: [600, 250, 600, 250, 600, 250, 1000],
+    requireInteraction: true,
+    renotify: true,
+    tag: data.tag || `task-alarm-${Date.now()}`,
+    data: {
+      url: targetUrl,
+      taskId: data.taskId,
+      ...data
+    },
+    actions: [
+      { action: 'open_task', title: 'Open Task' }
+    ]
+  };
+
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, notificationOptions),
+      // Broadcast to any active client tabs to start ringing immediately
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'TASK_ALARM_PUSH_RECEIVED',
+            taskId: data.taskId
+          });
+        });
+      })
+    ])
+  );
+});
+
 // Handle clicking on notification in phone notification bar
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const targetUrl = event.notification.data?.url || '/?tab=task';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
