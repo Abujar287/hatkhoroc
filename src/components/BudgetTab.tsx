@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   Calendar,
   ChevronLeft,
@@ -681,8 +682,9 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               const circleColor = getCategoryColor(catClean);
 
               return (
-                <div
+                <motion.div
                   key={catClean}
+                  whileHover={{ scale: 1.01, y: -1 }}
                   className="bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/90 rounded-2xl p-3 transition-all shadow-xs space-y-2.5 group"
                 >
                   {/* ROW 1: CATEGORY NAME & REMOVE BUTTON */}
@@ -699,7 +701,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRemoveCategory(catClean)}
-                      className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-[#FF5252] hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                      className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-[#FF7A59] hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors shrink-0"
                       title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
                     >
                       <X className="w-3.5 h-3.5" />
@@ -779,7 +781,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       </span>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>

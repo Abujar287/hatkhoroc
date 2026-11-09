@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet,
   Calendar,
@@ -1347,36 +1348,53 @@ export default function App() {
           });
         }
 
-        const knownIncomeWords = ['salary', 'arrear', 'borrowed money', 'borrowed', 'bonus', 'business', 'other income', 'others income', 'income', 'previous month arrears', 'বেতন', 'বকেয়া', 'ধার নেওয়া', 'ব্যবসা', 'বোনাস', 'আয়', 'আয়'];
-        const isIncomeCat = (catName: string) => {
-          const clean = cleanCategoryName(catName, 'en').toLowerCase().trim();
-          if (clean === 'loan repaid' || clean === 'others expense' || clean === "family's cost") return false;
-          return knownIncomeWords.some(w => clean === w);
-        };
-
-        // Load categories EXCLUSIVELY from Google Sheet's Category tab (data.categories)
+        // Load categories EXCLUSIVELY from Google Sheet (100% dynamic, zero hardcoding in codebase)
         const aggregatedExp: string[] = [];
         const aggregatedInc: string[] = [];
+
+        // Build dynamic category type map based on transactions present in sheet
+        const dynamicCatTypeFromTx = new Map<string, 'Income' | 'Expense'>();
+        if (Array.isArray(data.transactions)) {
+          data.transactions.forEach((tx: any) => {
+            const cat = String(tx.category || '').trim().toLowerCase();
+            const rawT = String(tx.type || '').toLowerCase();
+            if (cat && !dynamicCatTypeFromTx.has(cat)) {
+              if (rawT.includes('inc') || rawT.includes('আয়') || rawT === 'income') {
+                dynamicCatTypeFromTx.set(cat, 'Income');
+              } else if (rawT.includes('exp') || rawT.includes('খরচ') || rawT === 'expense') {
+                dynamicCatTypeFromTx.set(cat, 'Expense');
+              }
+            }
+          });
+        }
 
         if (Array.isArray(data.categories) && data.categories.length > 0) {
           data.categories.forEach((c: any) => {
             if (typeof c === 'string' && c.trim()) {
               const str = c.trim();
-              if (isIncomeCat(str)) aggregatedInc.push(str);
-              else aggregatedExp.push(str);
+              const lower = str.toLowerCase();
+              const txType = dynamicCatTypeFromTx.get(lower);
+              if (txType === 'Income' || lower.includes('income') || lower.includes('আয়')) {
+                aggregatedInc.push(str);
+              } else {
+                aggregatedExp.push(str);
+              }
             } else if (typeof c === 'object' && c !== null) {
               const catName = String(c.category || c.Category || c.name || c.Name || c.cName || '').trim();
               const rawType = String(c.type || c.Type || c.cType || '').toLowerCase().trim();
 
               if (catName) {
-                if (rawType.includes('exp') || rawType.includes('খরচ') || rawType === 'expense') {
+                if (rawType.includes('inc') || rawType.includes('আয়') || rawType === 'income') {
+                  aggregatedInc.push(catName);
+                } else if (rawType.includes('exp') || rawType.includes('খরচ') || rawType === 'expense') {
                   aggregatedExp.push(catName);
-                } else if (rawType.includes('inc') || rawType.includes('আয়') || rawType === 'income') {
-                  aggregatedInc.push(catName);
-                } else if (isIncomeCat(catName)) {
-                  aggregatedInc.push(catName);
                 } else {
-                  aggregatedExp.push(catName);
+                  const txType = dynamicCatTypeFromTx.get(catName.toLowerCase());
+                  if (txType === 'Income') {
+                    aggregatedInc.push(catName);
+                  } else {
+                    aggregatedExp.push(catName);
+                  }
                 }
               }
             }
@@ -1819,99 +1837,110 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'summary' && (
-            <SummaryTab
-              transactions={transactions}
-              filteredTransactions={filteredTransactions}
-              selectedMonth={selectedMonth}
-              setSelectedMonth={setSelectedMonth}
-              globalFilterMode={globalFilterMode}
-              setGlobalFilterMode={setGlobalFilterMode}
-              onSelectDate={setSelectedDateModal}
-              onEdit={setEditingTx}
-              onDelete={setDeletingTx}
-              isReadOnly={isReadOnly}
-              lang={lang}
-              t={t}
-              monthMappings={monthMappings}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full"
+            >
+              {activeTab === 'summary' && (
+                <SummaryTab
+                  transactions={transactions}
+                  filteredTransactions={filteredTransactions}
+                  selectedMonth={selectedMonth}
+                  setSelectedMonth={setSelectedMonth}
+                  globalFilterMode={globalFilterMode}
+                  setGlobalFilterMode={setGlobalFilterMode}
+                  onSelectDate={setSelectedDateModal}
+                  onEdit={setEditingTx}
+                  onDelete={setDeletingTx}
+                  isReadOnly={isReadOnly}
+                  lang={lang}
+                  t={t}
+                  monthMappings={monthMappings}
+                />
+              )}
 
-          {activeTab === 'entry' && !isReadOnly && (
-            <EntryTab
-              entryType={entryType} setEntryType={setEntryType}
-              entryCategory={entryCategory} setEntryCategory={setEntryCategory}
-              entryDate={entryDate} setEntryDate={setEntryDate}
-              entryNote={entryNote} setEntryNote={setEntryNote}
-              calcDisplay={calcDisplay} setCalcDisplay={setCalcDisplay}
-              expenseCategories={expenseCategories} incomeCategories={incomeCategories}
-              onOpenCategoryManager={() => setShowCategoryManager(true)}
-              onSubmit={handleSaveTransaction} isSubmitting={isSubmitting}
-              lang={lang} t={t}
-            />
-          )}
+              {activeTab === 'entry' && !isReadOnly && (
+                <EntryTab
+                  entryType={entryType} setEntryType={setEntryType}
+                  entryCategory={entryCategory} setEntryCategory={setEntryCategory}
+                  entryDate={entryDate} setEntryDate={setEntryDate}
+                  entryNote={entryNote} setEntryNote={setEntryNote}
+                  calcDisplay={calcDisplay} setCalcDisplay={setCalcDisplay}
+                  expenseCategories={expenseCategories} incomeCategories={incomeCategories}
+                  onOpenCategoryManager={() => setShowCategoryManager(true)}
+                  onSubmit={handleSaveTransaction} isSubmitting={isSubmitting}
+                  lang={lang} t={t}
+                />
+              )}
 
-          {activeTab === 'details' && (
-            <DetailsTab
-              transactions={filteredTransactions} currentUser={currentUser}
-              onEdit={setEditingTx} onDelete={setDeletingTx}
-              isReadOnly={isReadOnly} lang={lang} t={t}
-            />
-          )}
+              {activeTab === 'details' && (
+                <DetailsTab
+                  transactions={filteredTransactions} currentUser={currentUser}
+                  onEdit={setEditingTx} onDelete={setDeletingTx}
+                  isReadOnly={isReadOnly} lang={lang} t={t}
+                />
+              )}
 
-          {activeTab === 'budget' && (
-            <BudgetTab
-              expenseCategories={expenseCategories}
-              incomeCategories={incomeCategories}
-              transactions={transactions}
-              selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
-              lang={lang} t={t} currentTab={currentTab} monthMappings={monthMappings}
-              onSaveBudget={handleSaveBudget}
-            />
-          )}
+              {activeTab === 'budget' && (
+                <BudgetTab
+                  expenseCategories={expenseCategories}
+                  incomeCategories={incomeCategories}
+                  transactions={transactions}
+                  selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
+                  lang={lang} t={t} currentTab={currentTab} monthMappings={monthMappings}
+                  onSaveBudget={handleSaveBudget}
+                />
+              )}
 
-          {activeTab === 'task' && (
-            <TaskTab
-              tasks={tasks}
-              onAddTask={handleAddTask}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onConvertTaskToExpense={handleConvertTaskToExpense}
-              t={t}
-              showToast={showToast}
-              currentUser={currentUser}
-              categories={expenseCategories}
-              activeRingingTask={activeRingingTask}
-              onStopRingingAlarm={handleStopRingingAlarm}
-            />
-          )}
+              {activeTab === 'task' && (
+                <TaskTab
+                  tasks={tasks}
+                  onAddTask={handleAddTask}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={handleDeleteTask}
+                  onConvertTaskToExpense={handleConvertTaskToExpense}
+                  t={t}
+                  showToast={showToast}
+                  currentUser={currentUser}
+                  categories={expenseCategories}
+                  activeRingingTask={activeRingingTask}
+                  onStopRingingAlarm={handleStopRingingAlarm}
+                />
+              )}
 
-          {(activeTab === 'settings' || (activeTab as string) === 'users') && (
-            <SettingsTab
-              currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
-              onOpenAddCategoryModal={type => { setCatModalType(type); setShowAddCatModal(true); }}
-              onDeleteCategory={handleDeleteCategory} transactions={transactions}
-              lang={lang} onOpenEditProfile={() => setEditingUser(currentUser)}
-              viewMode={viewMode} onLogout={handleLogout} onImportJson={handleImportJson} t={t}
-              onUpdateSpreadsheetId={handleUpdateSpreadsheetId} onOpenInstallModal={() => setShowMobileModal(true)}
-              selectedMonth={selectedMonth} monthMappings={monthMappings}
-              onAddMonthMapping={m => saveMonthMappings([...monthMappings, m])}
-              onDeleteMonthMapping={id => saveMonthMappings(monthMappings.filter(x => x.id !== id))}
-              onSelectMonth={setSelectedMonth}
-              onSetDefaultMonth={handleSetDefaultMonth}
-              users={users}
-              onOpenCreateUserModal={() => setShowCreateUserModal(true)}
-              onOpenEditUserModal={setEditingUser}
-              onRequestDeleteUser={setUserToDelete}
-              onSwitchUser={handleSwitchUser}
-              onToggleActiveUser={handleToggleActiveUser}
-            />
-          )}
+              {(activeTab === 'settings' || (activeTab as string) === 'users') && (
+                <SettingsTab
+                  currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
+                  onOpenAddCategoryModal={type => { setCatModalType(type); setShowAddCatModal(true); }}
+                  onDeleteCategory={handleDeleteCategory} transactions={transactions}
+                  lang={lang} onOpenEditProfile={() => setEditingUser(currentUser)}
+                  viewMode={viewMode} onLogout={handleLogout} onImportJson={handleImportJson} t={t}
+                  onUpdateSpreadsheetId={handleUpdateSpreadsheetId} onOpenInstallModal={() => setShowMobileModal(true)}
+                  selectedMonth={selectedMonth} monthMappings={monthMappings}
+                  onAddMonthMapping={m => saveMonthMappings([...monthMappings, m])}
+                  onDeleteMonthMapping={id => saveMonthMappings(monthMappings.filter(x => x.id !== id))}
+                  onSelectMonth={setSelectedMonth}
+                  onSetDefaultMonth={handleSetDefaultMonth}
+                  users={users}
+                  onOpenCreateUserModal={() => setShowCreateUserModal(true)}
+                  onOpenEditUserModal={setEditingUser}
+                  onRequestDeleteUser={setUserToDelete}
+                  onSwitchUser={handleSwitchUser}
+                  onToggleActiveUser={handleToggleActiveUser}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
           </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 sm:px-4 py-2 pb-safe flex justify-center items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] border-t border-teal-800/60">
-          <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2">
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] border-t border-teal-800/60">
+          <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
               { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
               { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
@@ -1922,30 +1951,27 @@ export default function App() {
             ].filter(x => allowedTabs.includes(x.id)).map(item => {
               const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
               return (
-                <button
+                <motion.button
                   key={item.id}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex-1 animated-nav-btn ${isActive ? 'active' : 'inactive'} cursor-pointer relative`}
+                  className="flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-colors"
                 >
-                  {isActive ? (
-                    <div className="animated-nav-inner">
-                      <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-[#F0FDFA] drop-shadow-xs" />
-                      <span className="text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none text-[#F0FDFA] truncate max-w-full">
-                        {item.label}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center w-full py-1 relative">
-                      <item.icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-teal-300/70 group-hover:text-[#14B8A6] transition-colors" />
-                      <span className="text-[9.5px] sm:text-[10.5px] font-semibold mt-1 tracking-tight leading-none text-teal-200/80 truncate max-w-full">
-                        {item.label}
-                      </span>
-                      {item.id === 'task' && taskDueCount > 0 && (
-                        <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-[#FF7A59] animate-ping" />
-                      )}
-                    </div>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabPill"
+                      className="absolute inset-0 bg-gradient-to-b from-[#0D5F58] to-[#0A4B45] rounded-xl border border-teal-500/40 shadow-sm"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
                   )}
-                </button>
+                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 transition-transform duration-200 ${isActive ? 'text-[#F0FDFA] scale-110 drop-shadow-xs' : 'text-teal-300/70 hover:text-teal-200'}`} />
+                  <span className={`text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-[#F0FDFA]' : 'text-teal-300/70'}`}>
+                    {item.label}
+                  </span>
+                  {item.id === 'task' && taskDueCount > 0 && (
+                    <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E] animate-ping" />
+                  )}
+                </motion.button>
               );
             })}
           </div>

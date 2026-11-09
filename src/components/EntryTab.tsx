@@ -56,42 +56,10 @@ interface EntryTabProps {
   t: (en: string, bn: string) => string;
 }
 
-// Icon mapper matching the screenshot circular categories
+// Dynamic icon mapper sourced from sheet category or hash
 const CategoryIcon: React.FC<{ category: string }> = ({ category }) => {
-  const lower = category.toLowerCase();
-
-  if (lower.includes('saving') || lower.includes('সঞ্চয়')) return <PiggyBank className="w-5 h-5" />;
-  if (lower.includes('gas') || lower.includes('গ্যাস')) return <Flame className="w-5 h-5" />;
-  if (lower.includes('travel') || lower.includes('transport') || lower.includes('যাতায়াত') || lower.includes('ভ্রমণ')) return <Navigation className="w-5 h-5" />;
-  if (lower.includes('wifi') || lower.includes('ওয়াইফাই')) return <Wifi className="w-5 h-5" />;
-  if (lower.includes('electricity') || lower.includes('বিদ্যুৎ')) return <Zap className="w-5 h-5" />;
-  if (lower.includes('relative') || lower.includes('আত্মীয়')) return <Users className="w-5 h-5" />;
-  if (lower.includes('medicine') || lower.includes('ঔষধ')) return <Pill className="w-5 h-5" />;
-  if (lower.includes('room rent') || lower.includes('রুম ভাড়া')) return <Key className="w-5 h-5" />;
-  if (lower.includes('accessories') || lower.includes('সামগ্রী')) return <Armchair className="w-5 h-5" />;
-  if (lower.includes('bajar') || lower.includes('bazar') || lower.includes('বাজার')) return <ShoppingBag className="w-5 h-5" />;
-  if (lower.includes('family') || lower.includes('পারিবারিক')) return <Users className="w-5 h-5" />;
-  if (lower.includes('mr & mrs') || lower.includes('দাম্পত্য')) return <Heart className="w-5 h-5" />;
-  if (lower.includes('eid') || lower.includes('ঈদ')) return <Moon className="w-5 h-5" />;
-  if (lower.includes('official') || lower.includes('অফিস')) return <Monitor className="w-5 h-5" />;
-  if (lower.includes('fruit') || lower.includes('ফল')) return <Apple className="w-5 h-5" />;
-  if (lower.includes('hangout') || lower.includes('আড্ডা')) return <Coffee className="w-5 h-5" />;
-  if (lower.includes('ধার দিয়েছি') || lower.includes('lent')) return <Handshake className="w-5 h-5" />;
-  if (lower.includes('ধার শোধ') || lower.includes('repaid')) return <CheckCircle2 className="w-5 h-5" />;
-  if (lower.includes('personal') || lower.includes('পার্সোনাল')) return <User className="w-5 h-5" />;
-  if (lower.includes('shopping') || lower.includes('শপিং') || lower.includes('কেনাকাটা')) return <ShoppingCart className="w-5 h-5" />;
-  if (lower.includes('food') || lower.includes('খাবার')) return <Utensils className="w-5 h-5" />;
-  if (lower.includes('home') || lower.includes('বাসা') || lower.includes('house')) return <Home className="w-5 h-5" />;
-  if (lower.includes('salary') || lower.includes('বেতন')) return <Wallet className="w-5 h-5" />;
-  if (lower.includes('loan') || lower.includes('ধার')) return <Handshake className="w-5 h-5" />;
-
-  // Emoji or fallback icon
   const emoji = getCategoryEmoji(category);
-  if (emoji && emoji !== '🏷️') {
-    return <span className="text-xl leading-none">{emoji}</span>;
-  }
-
-  return <Tag className="w-5 h-5" />;
+  return <span className="text-xl leading-none select-none">{emoji}</span>;
 };
 
 export const EntryTab: React.FC<EntryTabProps> = ({

@@ -600,7 +600,12 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       <div className="print:hidden space-y-3 sm:space-y-4">
 
       {/* 2. HERO FINANCIAL DASHBOARD CARDS */}
-      <div className="rounded-2xl bg-[#0B3C39] text-[#F0FDFA] p-3 sm:p-5 shadow-sm border border-teal-800/80 relative overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+        className="rounded-2xl bg-[#0B3C39] text-[#F0FDFA] p-3 sm:p-5 shadow-sm border border-teal-800/80 relative overflow-hidden"
+      >
         {/* Top Header of Hero Card: Month Filter and Custom Filter directly inline on single row */}
         <div className="flex items-center justify-between border-b border-teal-800/60 pb-2 mb-3 gap-2 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
@@ -789,9 +794,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
         </div>
 
-        {/* 2-Column KPI Cards (Income vs Expense) with interactive spring hover */}
+        {/* 2-Column KPI Cards (Income vs Expense) with interactive spring motion */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <div className="bg-gradient-to-br from-emerald-500/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-emerald-500/40 flex items-center gap-2.5 shadow-sm hover:border-emerald-400/70 hover:shadow-[0_4px_16px_rgba(52,211,153,0.2)] hover:-translate-y-0.5 transition-all duration-200">
+          <motion.div
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-gradient-to-br from-emerald-500/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-emerald-500/40 flex items-center gap-2.5 shadow-sm hover:border-emerald-400/70 hover:shadow-[0_4px_16px_rgba(52,211,153,0.2)] transition-all duration-200 cursor-default"
+          >
             <div className="w-8 h-8 rounded-xl bg-emerald-900/70 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/40 shadow-xs">
               <ArrowUpRight className="w-4 h-4" />
             </div>
@@ -803,9 +812,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 +{formatNumberLocale(activeTotals.inc, lang)}
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-[#FF7A59]/40 flex items-center gap-2.5 shadow-sm hover:border-[#FF7A59]/70 hover:shadow-[0_4px_16px_rgba(255,122,89,0.25)] hover:-translate-y-0.5 transition-all duration-200">
+          <motion.div
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-[#FF7A59]/40 flex items-center gap-2.5 shadow-sm hover:border-[#FF7A59]/70 hover:shadow-[0_4px_16px_rgba(255,122,89,0.25)] transition-all duration-200 cursor-default"
+          >
             <div className="w-8 h-8 rounded-xl bg-[#FF7A59]/20 text-[#FF7A59] flex items-center justify-center shrink-0 border border-[#FF7A59]/40 shadow-xs">
               <ArrowDownLeft className="w-4 h-4" />
             </div>
@@ -817,9 +830,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 -{formatNumberLocale(activeTotals.exp, lang)}
               </span>
             </div>
-          </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 3. DYNAMIC CALENDAR / RANGE GRID */}
       {globalFilterMode === 'month' && (
@@ -888,24 +901,36 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
       {/* 5. SUMMARY CARDS */}
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all cursor-default"
+        >
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Inc', 'আয়')}</span>
           <span className="text-[12px] font-black text-emerald-400 block mt-0.5 tabular-nums">
             +{formatNumberLocale(filteredRangeStats.inc, lang)}
           </span>
-        </div>
-        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-[#FF7A59]/30 text-center shadow-sm text-[#F0FDFA] hover:border-[#FF7A59]/50 transition-all">
+        </motion.div>
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-[#0B3C39] rounded-xl p-2.5 border border-[#FF7A59]/30 text-center shadow-sm text-[#F0FDFA] hover:border-[#FF7A59]/60 transition-all cursor-default"
+        >
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Exp', 'ব্যয়')}</span>
           <span className="text-[12px] font-black text-[#FF7A59] block mt-0.5 tabular-nums drop-shadow-[0_1px_3px_rgba(255,122,89,0.25)]">
             -{formatNumberLocale(filteredRangeStats.exp, lang)}
           </span>
-        </div>
-        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all">
+        </motion.div>
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all cursor-default"
+        >
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Bal', 'ব্যালেন্স')}</span>
           <span className={`text-[12px] font-black block mt-0.5 tabular-nums ${filteredRangeStats.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'}`}>
             {formatNumberLocale(filteredRangeStats.net, lang)}
           </span>
-        </div>
+        </motion.div>
       </div>
 
       {/* ======================================================== */}
@@ -1110,7 +1135,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               onClick={() => setCategoryBreakdownType('Expense')}
               className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 categoryBreakdownType === 'Expense'
-                  ? 'bg-[#EF4444] text-white'
+                  ? 'bg-[#FF7A59] text-white shadow-sm shadow-[#FF7A59]/40'
                   : 'text-teal-300/80 hover:text-white'
               }`}
             >

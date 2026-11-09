@@ -230,15 +230,20 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
 
             {/* Transaction Rows */}
             <div className="space-y-1.5">
-              {group.transactions.map(tx => {
+              {group.transactions.map((tx, idx) => {
                 const isExpense = tx.type === 'Expense';
                 const emoji = getCategoryEmoji(tx.category);
                 const circleColor = getCategoryColor(tx.category);
                 return (
-                  <div
+                  <motion.div
                     key={tx.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.2) }}
+                    whileHover={{ scale: 1.01, y: -1 }}
+                    whileTap={{ scale: 0.99 }}
                     onClick={() => !isReadOnly && onEdit(tx)}
-                    className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-600/80 hover:bg-[#0E4945] hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20 rounded-xl transition-all duration-200 cursor-pointer group shadow-2xs active:scale-[0.99]"
+                    className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-600/80 hover:bg-[#0E4945] rounded-xl transition-colors duration-200 cursor-pointer group shadow-2xs"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Icon Circle */}
@@ -269,7 +274,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                         </button>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>

@@ -16,7 +16,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { CostTask } from '../types';
-import { DEFAULT_EXPENSE_CATEGORIES } from '../constants';
 import { ModalPortal } from './Modals';
 import {
   playTaskAlarmSound,
@@ -52,7 +51,7 @@ export const TaskTab: React.FC<TaskTabProps> = ({
   t,
   showToast,
   currentUser,
-  categories = DEFAULT_EXPENSE_CATEGORIES,
+  categories = [],
   activeRingingTask,
   onStopRingingAlarm
 }) => {
