@@ -194,8 +194,8 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
         {/* Global Summary Row */}
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2 text-[9px] text-teal-200 font-bold uppercase tracking-tight">
-            <span>{t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
-            <span>{t('Exp:', 'ব্যয়:')} <span className="text-rose-400 font-bold">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
+            <span>{t('Inc:', 'আয়:')} <span className="text-emerald-400 font-black">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
+            <span>{t('Exp:', 'ব্যয়:')} <span className="text-[#FF7A59] font-black">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
           </div>
         </div>
       </div>
@@ -203,7 +203,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
       {/* Main Ledger List */}
       <div className="space-y-4">
         {dateGroups.map(group => (
-          <div key={group.dateStr} className="space-y-1">
+          <div key={group.dateStr} className="space-y-1 animate-fadeIn">
             {/* Header: Date and Daily Summary */}
             <div className="flex items-center justify-between px-1 text-[11px] font-bold text-teal-200 tracking-tight border-b border-teal-800/60 pb-1.5 mb-1 mt-2 uppercase">
               <div className="flex items-center gap-1.5">
@@ -217,19 +217,19 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
               <div className="flex items-center gap-3 tabular-nums">
                 {group.totalExpense > 0 && (
                   <span className="text-teal-200">
-                    {t('Exp:', 'ব্যয়:')} <span className="text-rose-400 font-bold">{formatNumberLocale(group.totalExpense, lang)}</span>
+                    {t('Exp:', 'ব্যয়:')} <span className="text-[#FF7A59] font-black">-{formatNumberLocale(group.totalExpense, lang)}</span>
                   </span>
                 )}
                 {group.totalIncome > 0 && (
                   <span className="text-teal-200">
-                    {t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">{formatNumberLocale(group.totalIncome, lang)}</span>
+                    {t('Inc:', 'আয়:')} <span className="text-emerald-400 font-bold">+{formatNumberLocale(group.totalIncome, lang)}</span>
                   </span>
                 )}
               </div>
             </div>
 
             {/* Transaction Rows */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {group.transactions.map(tx => {
                 const isExpense = tx.type === 'Expense';
                 const emoji = getCategoryEmoji(tx.category);
@@ -238,11 +238,11 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                   <div
                     key={tx.id}
                     onClick={() => !isReadOnly && onEdit(tx)}
-                    className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/80 rounded-xl transition-all cursor-pointer group shadow-2xs"
+                    className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-600/80 hover:bg-[#0E4945] hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20 rounded-xl transition-all duration-200 cursor-pointer group shadow-2xs active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Icon Circle */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50 group-hover:scale-105 transition-transform`}>
                         {emoji}
                       </div>
                       <div className="min-w-0">
@@ -257,13 +257,13 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`font-bold text-xs sm:text-sm tracking-tight tabular-nums ${isExpense ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      <span className={`font-black text-xs sm:text-sm tracking-tight tabular-nums ${isExpense ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400 drop-shadow-[0_1px_3px_rgba(52,211,153,0.3)]'}`}>
                         {isExpense ? '-' : '+'}{formatNumberLocale(tx.value, lang)}
                       </span>
                       {!isReadOnly && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onDelete(tx); }}
-                          className="w-8 h-8 flex items-center justify-center text-teal-400/60 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="w-8 h-8 flex items-center justify-center text-teal-400/60 hover:text-[#FF7A59] opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

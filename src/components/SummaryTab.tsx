@@ -427,16 +427,16 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         key={dateStr}
         type="button"
         onClick={() => onSelectDate(dateStr)}
-        className={`relative min-h-[58px] sm:min-h-[64px] p-1 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-95 text-center ${
+        className={`relative min-h-[58px] sm:min-h-[64px] p-1 rounded-xl border transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-95 hover:scale-[1.03] text-center ${
           isToday
-            ? 'border-2 border-emerald-400 bg-[#062423] text-[#F0FDFA] shadow-sm'
+            ? 'border-2 border-emerald-400 bg-[#062423] text-[#F0FDFA] shadow-md shadow-emerald-950/40'
             : isWithinRange
-            ? 'border-teal-800/80 bg-[#062423]/90 hover:bg-teal-900/80 text-[#F0FDFA]'
+            ? 'border-teal-800/80 bg-[#062423]/90 hover:bg-teal-900/90 hover:border-teal-600 text-[#F0FDFA]'
             : 'border-teal-900/40 bg-[#042F2E]/40 text-teal-400/40'
         }`}
       >
         {isToday && (
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
         )}
 
         <span className={`text-[10px] sm:text-[11px] font-bold leading-none mb-1 shrink-0 ${
@@ -446,12 +446,12 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </span>
 
         {hasExp && (
-          <span className="text-[8px] sm:text-[9px] font-extrabold text-[#FF5252] tabular-nums leading-none">
+          <span className="text-[8.5px] sm:text-[9.5px] font-black text-[#FF7A59] tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
             -{formatNumberLocale(dayData!.exp, lang)}
           </span>
         )}
         {hasInc && (
-          <span className="text-[8px] sm:text-[9px] font-extrabold text-[#34D399] tabular-nums leading-none">
+          <span className="text-[8.5px] sm:text-[9.5px] font-black text-[#34D399] tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
             +{formatNumberLocale(dayData!.inc, lang)}
           </span>
         )}
@@ -769,16 +769,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </div>
 
         {/* Big Net Balance Display */}
-        <div className="mb-3">
-          <span className="text-[10px] font-medium text-teal-300/80 uppercase tracking-wider block">
+        <div className="mb-3 relative">
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider block">
             {globalFilterMode === 'all'
               ? t('All-Time Balance', 'সর্বমোট অবশিষ্ট ব্যালেন্স')
               : t('Monthly Balance', 'এই মাসের অবশিষ্ট')}
           </span>
-          <div className="flex items-baseline gap-1 mt-0.5">
+          <div className="flex items-baseline gap-1.5 mt-0.5">
             <span
-              className={`text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums ${
-                activeTotals.net >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums transition-colors duration-200 ${
+                activeTotals.net >= 0
+                  ? 'text-emerald-400 drop-shadow-[0_2px_8px_rgba(52,211,153,0.3)]'
+                  : 'text-[#FF7A59] drop-shadow-[0_2px_10px_rgba(255,122,89,0.35)]'
               }`}
             >
               {activeTotals.net >= 0 ? '+' : ''}
@@ -787,31 +789,31 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
         </div>
 
-        {/* 2-Column KPI Cards (Income vs Expense) */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-emerald-950/50 rounded-xl p-2 border border-emerald-800/60 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-emerald-900/60 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-700/60">
+        {/* 2-Column KPI Cards (Income vs Expense) with interactive spring hover */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="bg-gradient-to-br from-emerald-500/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-emerald-500/40 flex items-center gap-2.5 shadow-sm hover:border-emerald-400/70 hover:shadow-[0_4px_16px_rgba(52,211,153,0.2)] hover:-translate-y-0.5 transition-all duration-200">
+            <div className="w-8 h-8 rounded-xl bg-emerald-900/70 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/40 shadow-xs">
               <ArrowUpRight className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[9px] text-teal-300/80 font-semibold block truncate">
+              <span className="text-[9.5px] text-teal-200/90 font-bold block truncate">
                 {t('Income', 'আয়')}
               </span>
-              <span className="text-[11px] font-bold text-emerald-400 tabular-nums truncate block">
+              <span className="text-xs sm:text-sm font-black text-emerald-400 tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(52,211,153,0.3)]">
                 +{formatNumberLocale(activeTotals.inc, lang)}
               </span>
             </div>
           </div>
 
-          <div className="bg-rose-950/50 rounded-xl p-2 border border-rose-800/60 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-rose-900/60 text-rose-300 flex items-center justify-center shrink-0 border border-rose-700/60">
+          <div className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-[#FF7A59]/40 flex items-center gap-2.5 shadow-sm hover:border-[#FF7A59]/70 hover:shadow-[0_4px_16px_rgba(255,122,89,0.25)] hover:-translate-y-0.5 transition-all duration-200">
+            <div className="w-8 h-8 rounded-xl bg-[#FF7A59]/20 text-[#FF7A59] flex items-center justify-center shrink-0 border border-[#FF7A59]/40 shadow-xs">
               <ArrowDownLeft className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[9px] text-teal-300/80 font-semibold block truncate">
+              <span className="text-[9.5px] text-teal-200/90 font-bold block truncate">
                 {t('Expense', 'খরচ')}
               </span>
-              <span className="text-[11px] font-bold text-rose-400 tabular-nums truncate block">
+              <span className="text-xs sm:text-sm font-black text-[#FF7A59] tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]">
                 -{formatNumberLocale(activeTotals.exp, lang)}
               </span>
             </div>
@@ -821,12 +823,12 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
       {/* 3. DYNAMIC CALENDAR / RANGE GRID */}
       {globalFilterMode === 'month' && (
-        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5">
+        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5 hover:border-teal-700/80 transition-colors">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#062423] border border-teal-700/70 text-teal-200 flex items-center justify-center shrink-0 shadow-sm">
-                <CalendarDays className="w-5 h-5" />
+                <CalendarDays className="w-5 h-5 text-teal-300" />
               </div>
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-[#F0FDFA] tracking-tight">
@@ -867,15 +869,15 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               {/* Bottom Legend */}
               <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#EF4444] shrink-0" />
-                  <span>{t('Expense', 'খরচ')}</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shadow-[0_0_8px_rgba(255,122,89,0.5)] shrink-0" />
+                  <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#16A34A] shrink-0" />
-                  <span>{t('Income', 'আয়')}</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shadow-[0_0_8px_rgba(52,211,153,0.5)] shrink-0" />
+                  <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
                   <span>{t('Today', 'আজ')}</span>
                 </div>
               </div>
@@ -885,22 +887,22 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       )}
 
       {/* 5. SUMMARY CARDS */}
-      <div className="grid grid-cols-3 gap-1.5">
-        <div className="bg-[#0B3C39] rounded-xl p-2 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA]">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all">
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Inc', 'আয়')}</span>
-          <span className="text-[11px] font-bold text-emerald-400 block mt-0.5">
+          <span className="text-[12px] font-black text-emerald-400 block mt-0.5 tabular-nums">
             +{formatNumberLocale(filteredRangeStats.inc, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] rounded-xl p-2 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA]">
+        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-[#FF7A59]/30 text-center shadow-sm text-[#F0FDFA] hover:border-[#FF7A59]/50 transition-all">
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Exp', 'ব্যয়')}</span>
-          <span className="text-[11px] font-bold text-rose-400 block mt-0.5">
+          <span className="text-[12px] font-black text-[#FF7A59] block mt-0.5 tabular-nums drop-shadow-[0_1px_3px_rgba(255,122,89,0.25)]">
             -{formatNumberLocale(filteredRangeStats.exp, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] rounded-xl p-2 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA]">
+        <div className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all">
           <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Bal', 'ব্যালেন্স')}</span>
-          <span className={`text-[11px] font-bold block mt-0.5 ${filteredRangeStats.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <span className={`text-[12px] font-black block mt-0.5 tabular-nums ${filteredRangeStats.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'}`}>
             {formatNumberLocale(filteredRangeStats.net, lang)}
           </span>
         </div>
@@ -957,8 +959,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               <button
                 type="button"
                 onClick={() => setChartType('Expense')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                  chartType === 'Expense' ? 'bg-[#EF4444] text-white' : 'text-teal-300/80 hover:text-white'
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                  chartType === 'Expense' ? 'bg-[#FF7A59] text-white shadow-sm shadow-[#FF7A59]/40' : 'text-teal-300/80 hover:text-white'
                 }`}
               >
                 {t('Exp', 'খরচ')}
@@ -966,8 +968,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               <button
                 type="button"
                 onClick={() => setChartType('Income')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                  chartType === 'Income' ? 'bg-[#16A34A] text-white' : 'text-teal-300/80 hover:text-white'
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                  chartType === 'Income' ? 'bg-[#16A34A] text-white shadow-sm' : 'text-teal-300/80 hover:text-white'
                 }`}
               >
                 {t('Inc', 'আয়')}
@@ -998,7 +1000,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 />
                 {/* Segment Arcs */}
                 {(() => {
-                  const palette = ['#EF4444', '#f97316', '#eab308', '#16A34A', '#06b6d4', '#2DD4BF', '#a855f7', '#ec4899', '#14b8a6'];
+                  const palette = ['#FF7A59', '#f97316', '#eab308', '#16A34A', '#06b6d4', '#2DD4BF', '#a855f7', '#ec4899', '#14b8a6'];
                   const circumference = 326.72; // 2 * pi * 52
                   let offset = 0;
                   return filteredChartCategories.map((item, idx) => {
@@ -1028,8 +1030,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               </svg>
               {/* Center of Donut: Value and Ratio without label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                <span className={`text-xs sm:text-sm font-extrabold tabular-nums leading-tight ${
-                  chartType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                <span className={`text-xs sm:text-sm font-black tabular-nums leading-tight ${
+                  chartType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400'
                 }`}>
                   {formatNumberLocale(chartDisplayedTotal, lang)}
                 </span>
@@ -1152,7 +1154,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 </div>
                 <div
                   className={`font-bold text-[11px] tabular-nums shrink-0 ${
-                    categoryBreakdownType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                    categoryBreakdownType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
                   }`}
                 >
                   {categoryBreakdownType === 'Expense' ? '-' : '+'}{formatNumberLocale(item.total, lang)}
@@ -1201,10 +1203,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <div className={`text-right font-bold ${item.inc > 0 ? 'text-emerald-400' : 'text-teal-600'}`}>
                   {item.inc > 0 ? `+${formatNumberLocale(item.inc, lang)}` : '—'}
                 </div>
-                <div className={`text-right font-bold ${item.exp > 0 ? 'text-rose-400' : 'text-teal-600'}`}>
+                <div className={`text-right font-bold ${item.exp > 0 ? 'text-[#FF7A59]' : 'text-teal-600'}`}>
                   {item.exp > 0 ? `-${formatNumberLocale(item.exp, lang)}` : '—'}
                 </div>
-                <div className={`text-right font-bold ${item.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <div className={`text-right font-bold ${item.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'}`}>
                   {formatNumberLocale(item.net, lang)}
                 </div>
               </div>
@@ -1249,8 +1251,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                   >
                     <td className="py-1.5 px-1 font-bold text-[#F0FDFA]">{row.label}</td>
                     <td className="py-1.5 px-1 text-right text-emerald-400 font-medium">+{formatNumberLocale(row.inc, lang)}</td>
-                    <td className="py-1.5 px-1 text-right text-rose-400 font-medium">-{formatNumberLocale(row.exp, lang)}</td>
-                    <td className={`py-1.5 px-1 text-right font-bold ${row.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className="py-1.5 px-1 text-right text-[#FF7A59] font-medium">-{formatNumberLocale(row.exp, lang)}</td>
+                    <td className={`py-1.5 px-1 text-right font-bold ${row.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'}`}>
                       {formatNumberLocale(row.net, lang)}
                     </td>
                   </tr>

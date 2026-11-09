@@ -185,16 +185,124 @@
   }
 }
 
+/* Deep Attractive Micro-Animations */
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(255, 122, 89, 0.2), inset 0 0 8px rgba(255, 122, 89, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 122, 89, 0.45), inset 0 0 14px rgba(255, 122, 89, 0.16);
+  }
+}
+
+@keyframes glowPulseIncome {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.2), inset 0 0 8px rgba(52, 211, 153, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(52, 211, 153, 0.45), inset 0 0 14px rgba(52, 211, 153, 0.16);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes bellShake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10%, 30% {
+    transform: rotate(-14deg) scale(1.08);
+  }
+  20%, 40% {
+    transform: rotate(14deg) scale(1.08);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+  60% {
+    transform: rotate(8deg);
+  }
+  70% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes cardCascade {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .animate-modalSpring {
-  animation: modalSpring 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modalSpring 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scaleUp {
-  animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-cardCascade {
+  animation: cardCascade 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-bellShake {
+  display: inline-block;
+  animation: bellShake 1.6s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.animate-floatGentle {
+  animation: floatGentle 3s ease-in-out infinite;
+}
+
+.animate-glowPulse {
+  animation: glowPulse 2.4s ease-in-out infinite;
+}
+
+.animate-glowPulseIncome {
+  animation: glowPulseIncome 2.4s ease-in-out infinite;
+}
+
+/* Radiant Financial Contrast Helpers */
+.text-expense {
+  color: #FF7A59 !important;
+}
+
+.text-income {
+  color: #34D399 !important;
+}
+
+.bg-expense {
+  background-color: #FF7A59 !important;
+}
+
+.border-expense {
+  border-color: rgba(255, 122, 89, 0.4) !important;
 }
 
 /* Animated Glowing Border for Bottom Navigation Buttons */

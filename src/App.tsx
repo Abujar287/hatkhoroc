@@ -1941,7 +1941,7 @@ export default function App() {
                         {item.label}
                       </span>
                       {item.id === 'task' && taskDueCount > 0 && (
-                        <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                        <span className="absolute -top-1 right-2 w-2.5 h-2.5 rounded-full bg-[#FF7A59] animate-ping" />
                       )}
                     </div>
                   )}
@@ -1972,11 +1972,11 @@ export default function App() {
             onClick={() => setShowDueEntryModal(false)}
           >
             <div
-              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border-2 border-red-500 animate-modalSpring space-y-0 my-auto"
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border-2 border-[#FF7A59]/80 animate-modalSpring space-y-0 my-auto"
               onClick={e => e.stopPropagation()}
             >
-              {/* Red Header */}
-              <div className="bg-red-600 px-5 py-4 text-white flex items-center justify-between border-b border-red-500">
+              {/* Coral Gradient Header */}
+              <div className="bg-gradient-to-r from-[#FF7A59] to-[#E05338] px-5 py-4 text-white flex items-center justify-between border-b border-[#FF7A59]/40">
                 <div className="flex items-center gap-2.5">
                   <AlertTriangle className="w-6 h-6 text-white animate-bounce shrink-0" />
                   <div>
@@ -1991,7 +1991,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowDueEntryModal(false)}
-                  className="p-1 rounded-lg bg-red-700 hover:bg-red-800 text-white cursor-pointer"
+                  className="p-1.5 rounded-lg bg-black/20 hover:bg-black/30 text-white cursor-pointer transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2003,7 +2003,7 @@ export default function App() {
                   <div key={task.id} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-500/20 text-red-300 border border-red-500/40">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#FF7A59]/20 text-[#FF7A59] border border-[#FF7A59]/40">
                           {task.category}
                         </span>
                         <h4 className="text-sm font-bold text-white truncate">{task.title}</h4>

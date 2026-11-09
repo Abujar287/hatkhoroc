@@ -321,13 +321,13 @@ export const TaskTab: React.FC<TaskTabProps> = ({
         <button
           type="button"
           onClick={() => handleTestAlarmSound()}
-          className={`flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer whitespace-nowrap border ${
+          className={`flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer whitespace-nowrap border ${
             isTestingSound
-              ? 'bg-rose-500 text-white border-rose-400 animate-pulse'
+              ? 'bg-[#FF7A59] text-white border-[#FF7A59] shadow-lg shadow-[#FF7A59]/30'
               : 'bg-teal-950 hover:bg-teal-900 text-amber-300 border-teal-700/80'
           }`}
         >
-          {isTestingSound ? <VolumeX className="w-3.5 h-3.5 shrink-0" /> : <Volume2 className="w-3.5 h-3.5 shrink-0" />}
+          {isTestingSound ? <VolumeX className="w-3.5 h-3.5 shrink-0 animate-bellShake" /> : <Volume2 className="w-3.5 h-3.5 shrink-0" />}
           <span>{isTestingSound ? 'Stop Sound' : 'Task Sound'}</span>
         </button>
 
@@ -431,11 +431,11 @@ export const TaskTab: React.FC<TaskTabProps> = ({
             return (
               <div
                 key={task.id}
-                className={`p-3 transition-all shadow-xs ${
+                className={`p-3 transition-all duration-200 shadow-xs rounded-xl ${
                   isDone
                     ? 'bg-[#062423]/60 border-l-4 border-l-slate-600 opacity-85 hover:bg-teal-900/30'
                     : isDueNow
-                    ? 'bg-red-600 border-2 border-red-300 text-white shadow-xl ring-2 ring-red-400/50'
+                    ? 'bg-gradient-to-r from-[#FF7A59] to-[#E05338] border-2 border-white/60 text-white shadow-xl shadow-[#FF7A59]/30 ring-2 ring-[#FF7A59]/50 animate-glowPulse'
                     : 'bg-[#0B3C39] border-l-4 border-l-teal-500 hover:bg-teal-900/40'
                 }`}
               >

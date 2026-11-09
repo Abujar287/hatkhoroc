@@ -136,7 +136,7 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`font-bold text-[11px] tabular-nums ${isExpense ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    <span className={`font-black text-[11px] tabular-nums ${isExpense ? 'text-[#FF7A59]' : 'text-emerald-400'}`}>
                       {isExpense ? '-' : ''}{formatNumberLocale(tx.value, lang)}
                     </span>
                     {!isReadOnly && (
@@ -158,7 +158,7 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
                             onClose();
                             onDelete(tx);
                           }}
-                          className="text-teal-300/70 hover:text-rose-400 cursor-pointer active:scale-90"
+                          className="text-teal-300/70 hover:text-[#FF7A59] cursor-pointer active:scale-90"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -340,7 +340,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 }}
                 className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                   type === 'Expense'
-                    ? 'bg-[#EF4444] text-white shadow-sm'
+                    ? 'bg-[#FF7A59] text-white shadow-sm shadow-[#FF7A59]/40'
                     : 'text-teal-300/80 hover:text-white'
                 }`}
               >
@@ -459,7 +459,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                             isSave
                               ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
                               : k === 'C'
-                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                              ? 'bg-[#FF7A59]/20 text-[#FF7A59] border border-[#FF7A59]/40'
                               : k === 'DEL'
                               ? 'bg-amber-950 text-amber-300 border border-amber-800'
                               : isAction

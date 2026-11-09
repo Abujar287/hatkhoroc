@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {activeMonthLabel}
               </span>
               {taskDueCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-bold rounded-full animate-bounce">
+                <span className="px-1.5 py-0.5 bg-[#FF7A59] text-white text-[9px] font-black rounded-full shadow-sm shadow-[#FF7A59]/40 animate-pulse">
                   {taskDueCount} Due
                 </span>
               )}

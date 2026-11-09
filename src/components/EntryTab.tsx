@@ -257,7 +257,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
           {entryType === 'Expense' && (
             <motion.div
               layoutId="entryTypeBg"
-              className="absolute inset-0 bg-[#EF4444] rounded-xl shadow-md z-[-1]"
+              className="absolute inset-0 bg-gradient-to-r from-[#FF7A59] to-[#FF6B4A] rounded-xl shadow-[0_4px_16px_rgba(255,122,89,0.35)] z-[-1]"
               transition={{ type: 'spring' as const, stiffness: 450, damping: 32 }}
             />
           )}
@@ -299,7 +299,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
-                  entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
+                  entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
                 }`}>
                   <CategoryIcon category={entryCategory} />
                 </div>
@@ -319,7 +319,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                     {t('Amount', 'পরিমাণ')}
                   </span>
                   <span className={`text-lg sm:text-xl font-black tabular-nums ${
-                    entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                    entryType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400'
                   }`}>
                     {calcDisplay}
                   </span>
@@ -418,7 +418,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
               <div className="flex items-center justify-between gap-2 border-b border-teal-800/80 pb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
-                    entryType === 'Expense' ? 'bg-[#EF4444]' : 'bg-[#16A34A]'
+                    entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
                   }`}>
                     <CategoryIcon category={entryCategory} />
                   </div>
@@ -426,8 +426,8 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                     <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block max-w-[140px]">
                       {cleanCategoryName(entryCategory, lang)}
                     </span>
-                    <span className={`text-[9.5px] font-bold uppercase leading-none block ${
-                      entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                    <span className={`text-[9.5px] font-black uppercase leading-none block ${
+                      entryType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
                     }`}>
                       {entryType === 'Expense' ? t('Expense', 'খরচ') : t('Income', 'আয়')}
                     </span>
@@ -475,7 +475,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                       </span>
                     )}
                     <span className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
-                      entryType === 'Expense' ? 'text-rose-400' : 'text-emerald-400'
+                      entryType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_4px_rgba(255,122,89,0.35)]' : 'text-emerald-400'
                     }`}>
                       {calcDisplay}
                     </span>
@@ -498,10 +498,10 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                       className={`h-11 sm:h-12 rounded-xl text-base font-extrabold transition-all active:scale-95 flex items-center justify-center cursor-pointer select-none ${
                         isSave
                           ? entryType === 'Expense'
-                            ? 'bg-[#EF4444] hover:bg-red-600 active:bg-red-700 text-white shadow-md'
+                            ? 'bg-gradient-to-r from-[#FF7A59] to-[#FF6B4A] hover:brightness-110 active:brightness-95 text-white shadow-lg shadow-[#FF7A59]/30'
                             : 'bg-[#16A34A] hover:bg-green-700 active:bg-green-800 text-white shadow-md'
                           : key === 'C'
-                          ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60 hover:bg-rose-900/80'
+                          ? 'bg-[#FF7A59]/15 text-[#FF7A59] border border-[#FF7A59]/40 hover:bg-[#FF7A59]/25'
                           : key === 'DEL'
                           ? 'bg-amber-950/80 text-amber-300 border border-amber-800/60 hover:bg-amber-900/80'
                           : isAction

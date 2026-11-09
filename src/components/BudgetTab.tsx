@@ -584,7 +584,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* BUDGET OVERVIEW CARDS */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm">
+        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm hover:border-teal-700/80 transition-all">
           <span className="text-[10px] sm:text-xs text-teal-300/80 font-semibold block mb-1">
             {t('Total Budget', 'মোট বাজেট')}
           </span>
@@ -593,20 +593,20 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
           </span>
         </div>
 
-        <div className="bg-rose-950/50 rounded-2xl p-3 sm:p-4 border border-rose-800/60 shadow-sm">
-          <span className="text-[10px] sm:text-xs text-rose-200 font-semibold block mb-1">
+        <div className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-3 sm:p-4 border border-[#FF7A59]/40 shadow-sm hover:border-[#FF7A59]/60 hover:shadow-[0_4px_16px_rgba(255,122,89,0.2)] transition-all duration-200">
+          <span className="text-[10px] sm:text-xs text-teal-200 font-bold block mb-1">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base md:text-xl font-extrabold text-[#FF5252] tabular-nums">
+          <span className="text-sm sm:text-base md:text-xl font-black text-[#FF7A59] tabular-nums drop-shadow-[0_1px_3px_rgba(255,122,89,0.25)]">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
 
-        <div className="bg-emerald-950/50 rounded-2xl p-3 sm:p-4 border border-emerald-800/60 shadow-sm">
+        <div className="bg-emerald-950/50 rounded-2xl p-3 sm:p-4 border border-emerald-800/60 shadow-sm hover:border-emerald-700/80 transition-all">
           <span className="text-[10px] sm:text-xs text-emerald-200 font-semibold block mb-1">
             {t('Remaining', 'অবশিষ্ট')}
           </span>
-          <span className={`text-sm sm:text-base md:text-xl font-extrabold tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'}`}>
+          <span className={`text-sm sm:text-base md:text-xl font-black tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'}`}>
             {remainingBudget >= 0 ? '+' : ''}{formatNumberLocale(remainingBudget, lang)}
           </span>
         </div>
@@ -735,7 +735,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
                         {t('Spent', 'খরচ')}
                       </span>
-                      <span className="font-extrabold text-[#FF5252] text-xs tabular-nums truncate max-w-full">
+                      <span className="font-black text-[#FF7A59] text-xs tabular-nums truncate max-w-full drop-shadow-[0_1px_2px_rgba(255,122,89,0.2)]">
                         {formatNumberLocale(spentVal, lang)}
                       </span>
                     </div>
@@ -746,8 +746,8 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                         {t('Remain', 'অবশিষ্ট')}
                       </span>
                       <span
-                        className={`font-extrabold text-xs tabular-nums truncate max-w-full ${
-                          budgetVal - spentVal >= 0 ? 'text-[#34D399]' : 'text-[#FF5252]'
+                        className={`font-black text-xs tabular-nums truncate max-w-full ${
+                          budgetVal - spentVal >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'
                         }`}
                       >
                         {budgetVal > 0 ? (
@@ -769,7 +769,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       <span
                         className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 ${
                           isOver
-                            ? 'bg-rose-950/80 text-[#FF5252] border-rose-800/80'
+                            ? 'bg-[#FF7A59]/20 text-[#FF7A59] border-[#FF7A59]/40 font-black animate-glowPulse'
                             : budgetVal > 0
                             ? 'bg-teal-950/80 text-teal-200 border-teal-800/80'
                             : 'text-teal-400/50 bg-[#062423] border-teal-800/40'
