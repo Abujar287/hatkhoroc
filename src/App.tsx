@@ -346,17 +346,51 @@ export default function App() {
     return null;
   });
 
+  const mapUserFromSheet = (u: any): AppUser => {
+    let defaultTabs: AppTab[] = u.username === 'abujar287' || u.role === 'super_admin'
+      ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
+      : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
+    
+    let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
+    
+    if (u.username !== 'abujar287' && u.role !== 'super_admin') {
+      tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
+    }
+    if (!tabs.includes('budget') && u.role !== 'super_admin_2') {
+      tabs = [...tabs, 'budget'];
+    }
+    
+    return {
+      username: u.username,
+      password: u.password,
+      displayName: u.displayName,
+      sheetTab: u.sheetTab,
+      initialUsername: u.username,
+      createdAt: u.createdAt || '2026-10-01',
+      role: u.role || 'member',
+      isActive: u.isActive !== false,
+      allowedTabs: tabs,
+      isReadOnly: u.isReadOnly || false
+    };
+  };
+
   useEffect(() => {
     if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
-      fetch(`${GOOGLE_SCRIPT_URL}?action=getusers`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.users) {
-            setUsers(data.users);
-            localStorage.setItem('app_registered_users_v2', JSON.stringify(data.users));
-          }
-        })
-        .catch(err => console.error('Failed to sync users:', err));
+      const url = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
+      if (url) {
+        fetch(url)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.users) {
+              const mappedUsers = data.users.map(mapUserFromSheet);
+              setUsers(mappedUsers);
+              localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+            }
+          })
+          .catch(err => console.error('Failed to sync users:', err));
+      } else {
+        console.error('GOOGLE_SCRIPT_URL is not configured');
+      }
     }
   }, [currentUser]);
 

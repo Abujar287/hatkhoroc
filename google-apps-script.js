@@ -254,7 +254,7 @@ function doGet(e) {
                 password: vals[i][2],
                 sheetTab: vals[i][3],
                 role: vals[i][4],
-                allowedTabs: String(vals[i][5] || '').split(',').map(function(s){return s.trim();})
+                allowedTabs: String(vals[i][5] || '').split(',').filter(function(s){return s.trim() !== '';}).map(function(s){return s.trim();})
             });
         }
       }
