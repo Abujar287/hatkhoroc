@@ -320,7 +320,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         dayOfWeek,
         inc: d.inc,
         exp: d.exp,
-        net: runningBalance,
+        net: d.inc - d.exp, // Show Daily Net instead of running balance
         count: d.count,
         hasActivity: d.inc > 0 || d.exp > 0
       };
@@ -1183,11 +1183,11 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
         <div className="space-y-1">
           {/* Header Row: Date Balance Expense Balance */}
-          <div className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 px-1.5 py-1 text-[10px] font-extrabold text-teal-300/80 uppercase tracking-wider border-b border-teal-800/60">
+            <div className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-1 px-1.5 py-1 text-[10px] font-extrabold text-teal-300/80 uppercase tracking-wider border-b border-teal-800/60">
             <span>{t('Date', 'তারিখ')}</span>
             <span className="text-right">{t('Income', 'আয়')}</span>
             <span className="text-right">{t('Expense', 'ব্যয়')}</span>
-            <span className="text-right">{t('Balance', 'ব্যালেন্স')}</span>
+            <span className="text-right">{t('Net', 'নিট')}</span>
           </div>
 
           <div className="divide-y divide-teal-800/60">

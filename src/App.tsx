@@ -249,15 +249,23 @@ export default function App() {
   // Automatic GitHub update check on entry (for APK / Web / PWA)
   useEffect(() => {
     if (!isAuthenticated) return;
-    const timer = setTimeout(() => {
-      checkGitHubForUpdates().then(info => {
+    const checkUpdate = async () => {
+      try {
+        const info = await checkGitHubForUpdates();
         if (info && info.hasUpdate) {
           recordUpdateAcknowledged(info.latestSha);
-          window.location.reload();
+          // Force reload to bypass cache
+          window.location.href = window.location.origin + window.location.pathname + '?v=' + info.latestSha;
         }
-      }).catch(() => {});
-    }, 1800);
-    return () => clearTimeout(timer);
+      } catch (err) {
+        console.warn('Auto update check failed', err);
+      }
+    };
+
+    // Check immediately and then every 15 minutes
+    checkUpdate();
+    const interval = setInterval(checkUpdate, 900000); 
+    return () => clearInterval(interval);
   }, [isAuthenticated]);
 
   // Lightweight wheel scroll forwarding for margins without lag
@@ -2289,6 +2297,7 @@ export default function App() {
                   showToast={showToast}
                   currentUser={currentUser}
                   categories={expenseCategories}
+                  lang={lang}
                 />
               )}
 

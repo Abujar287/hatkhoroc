@@ -14,14 +14,8 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === 'production';
-let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-const portArgIndex = process.argv.indexOf('--port');
-if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
-  const parsedPort = parseInt(process.argv[portArgIndex + 1], 10);
-  if (!isNaN(parsedPort)) {
-    port = parsedPort;
-  }
-}
+const port = 3000;
+const host = '0.0.0.0';
 
 async function startServer() {
   console.log('Starting server...');
@@ -348,7 +342,7 @@ async function startServer() {
       });
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({
-        model: model || 'gemini-2.5-flash',
+        model: model || 'gemini-3.8-flash',
         contents,
         config
       });

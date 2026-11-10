@@ -814,51 +814,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* 3. USER DETAILS (CONSOLIDATED IN ONE PLACE) */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden">
-        {/* Active Profile Info Header (No edit profile button, clean & simple) */}
-        <div className="p-4 sm:p-5 flex items-center justify-between gap-3 flex-wrap border-b border-teal-800/60">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/60 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
-              {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA] leading-tight">
-                  {currentUser?.displayName || 'User'}
-                </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60 whitespace-nowrap">
-                  {getRoleLabel(currentUser?.role)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-teal-300/80 mt-0.5">
-                <span>@{currentUser?.username || 'user'}</span>
-                {currentUser?.sheetTab && (
-                  <>
-                    <span>·</span>
-                    <span className="text-teal-200 font-mono text-[11px]">Tab: {currentUser.sheetTab}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                title={t('Log Out', 'লগআউট')}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>{t('Log Out', 'লগআউট')}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Team Members List (If Admin, embedded cleanly in this single place) */}
         {isAdmin && users && users.length > 0 && (
-          <div className="p-4 sm:p-5 space-y-3">
+          <div className="p-4 sm:p-5 space-y-3 border-b border-teal-800/60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-400" />
@@ -970,6 +928,48 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
           </div>
         )}
+
+        {/* Active Profile Info Header (Moved below Team Members) */}
+        <div className="p-4 sm:p-5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/60 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+              {currentUser?.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA] leading-tight">
+                  {currentUser?.displayName || 'User'}
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60 whitespace-nowrap">
+                  {getRoleLabel(currentUser?.role)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-teal-300/80 mt-0.5">
+                <span>@{currentUser?.username || 'user'}</span>
+                {currentUser?.sheetTab && (
+                  <>
+                    <span>·</span>
+                    <span className="text-teal-200 font-mono text-[11px]">Tab: {currentUser.sheetTab}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                title={t('Log Out', 'লগআউট')}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{t('Log Out', 'লগআউট')}</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Small Clean Version Footer */}

@@ -25,7 +25,7 @@ import {
   initAudioUnlock,
   setupWebPushSubscription
 } from '../utils/taskAlarmManager';
-import { normalizeTime, formatTime12h, formatTaskCreatedAt } from '../utils/dateUtils';
+import { normalizeTime, formatTime12h, formatTaskCreatedAt, formatNumberLocale } from '../utils/dateUtils';
 
 interface TaskTabProps {
   tasks: CostTask[];
@@ -40,6 +40,7 @@ interface TaskTabProps {
   activeRingingTask?: CostTask | null;
   onStopRingingAlarm?: () => void;
   onTestTaskAlarm?: (task?: CostTask) => void;
+  lang: 'en' | 'bn';
 }
 
 export const UpcomingCostTab: React.FC<TaskTabProps> = ({
@@ -53,7 +54,8 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   currentUser,
   categories = [],
   activeRingingTask,
-  onStopRingingAlarm
+  onStopRingingAlarm,
+  lang
 }) => {
   const [filterStatus, setFilterStatus] = useState<'pending' | 'due' | 'upcoming' | 'completed' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -292,6 +294,34 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
   return (
     <div className="w-full flex flex-col space-y-3 pb-28 p-2 md:p-4">
+
+      {/* Summary Statistics Card */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
+        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Total Pending</span>
+          <span className="text-sm font-black text-amber-300 tabular-nums">
+            {formatNumberLocale(stats.totalPendingAmount, lang)}
+          </span>
+        </div>
+        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Due Today</span>
+          <span className="text-sm font-black text-[#FF7A59] tabular-nums">
+            {formatNumberLocale(stats.dueTodayOrOverdueAmount, lang)}
+          </span>
+        </div>
+        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Upcoming</span>
+          <span className="text-sm font-black text-teal-300 tabular-nums">
+            {formatNumberLocale(stats.upcomingAmount, lang)}
+          </span>
+        </div>
+        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Completed</span>
+          <span className="text-sm font-black text-emerald-400 tabular-nums">
+            {formatNumberLocale(stats.completedAmount, lang)}
+          </span>
+        </div>
+      </div>
 
       {/* Top Action Bar */}
       <div className="flex items-center justify-end mb-1">
