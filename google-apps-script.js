@@ -238,30 +238,9 @@ function doGet(e) {
 
   // ১.৫ ইউজার লিস্ট
   if (action === 'getusers') {
-    var mainSheet = ss.getSheetByName('abujar287');
-    if (!mainSheet) mainSheet = ss.getSheets()[0];
-    ensureUnifiedTemplateHeaders(mainSheet);
-    var lastRow = mainSheet.getLastRow();
-    var users = [];
-    if (lastRow >= 3) {
-      var vals = mainSheet.getRange(3, 39, lastRow - 2, 6).getValues();
-      for (var i = 0; i < vals.length; i++) {
-        var username = String(vals[i][1] || '').trim();
-        if (username) {
-            users.push({
-                displayName: vals[i][0],
-                username: username,
-                password: vals[i][2],
-                sheetTab: vals[i][3],
-                role: vals[i][4],
-                allowedTabs: String(vals[i][5] || '').split(',').filter(function(s){return s.trim() !== '';}).map(function(s){return s.trim();})
-            });
-        }
-      }
-    }
     return ContentService.createTextOutput(JSON.stringify({
       result: 'success',
-      users: users
+      users: readUsersFromRange(ss)
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -1127,6 +1106,32 @@ function saveUserToRange(ss, data) {
       mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
+}
+function readUsersFromRange(ss) {
+  var mainSheet = ss.getSheetByName('abujar287');
+  if (!mainSheet) mainSheet = ss.getSheets()[0];
+  if (!mainSheet) return [];
+  ensureUnifiedTemplateHeaders(mainSheet);
+  
+  var lastRow = mainSheet.getLastRow();
+  var users = [];
+  if (lastRow >= 3) {
+    var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var username = String(vals[i][1] || '').trim();
+      if (username) {
+        users.push({
+          displayName: vals[i][0],
+          username: username,
+          password: vals[i][2],
+          sheetTab: vals[i][3],
+          role: vals[i][4],
+          allowedTabs: String(vals[i][5] || '').split(',').filter(function(s){return s.trim() !== '';}).map(function(s){return s.trim();})
+        });
+      }
+    }
+  }
+  return users;
 }
 
 // ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)

@@ -972,6 +972,76 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
+      {/* 4. ACCOUNT DETAILS & SECURITY (DETAILED VIEW) */}
+      <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden p-4 sm:p-5 space-y-4 animate-fadeIn">
+        <div className="flex items-center gap-2 border-b border-teal-800/60 pb-2">
+          <Shield className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] uppercase tracking-tight">
+            Account Security & Access Details
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Full Name</span>
+            <div className="text-sm font-bold text-[#F0FDFA] bg-[#062423] p-2.5 rounded-lg border border-teal-700/50">
+              {currentUser?.displayName || '—'}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Username</span>
+            <div className="text-sm font-mono font-bold text-emerald-400 bg-[#062423] p-2.5 rounded-lg border border-teal-700/50">
+              @{currentUser?.username || '—'}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Password</span>
+            <div className="text-sm font-mono font-bold text-[#F0FDFA] bg-[#062423] p-2.5 rounded-lg border border-teal-700/50 flex items-center justify-between">
+              <span>{visiblePasswords['self'] ? currentUser?.password : '••••••••'}</span>
+              <button
+                type="button"
+                onClick={() => setVisiblePasswords(prev => ({ ...prev, self: !prev['self'] }))}
+                className="text-teal-400 hover:text-white p-0.5 cursor-pointer"
+              >
+                {visiblePasswords['self'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Sheet Tab Name</span>
+            <div className="text-sm font-mono font-bold text-amber-300 bg-[#062423] p-2.5 rounded-lg border border-teal-700/50">
+              {currentUser?.sheetTab || '—'}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Role</span>
+            <div className="text-sm font-bold text-[#F0FDFA] bg-[#062423] p-2.5 rounded-lg border border-teal-700/50">
+              <span className="px-2 py-0.5 rounded bg-teal-900/80 text-teal-200 border border-teal-700/60 text-[11px] font-black uppercase">
+                {getRoleLabel(currentUser?.role)}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-teal-300/80 uppercase">Access Tabs</span>
+            <div className="flex flex-wrap gap-1 bg-[#062423] p-2.5 rounded-lg border border-teal-700/50 min-h-[42px]">
+              {(currentUser?.allowedTabs || []).map(tab => (
+                <span key={tab} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 uppercase">
+                  {tab}
+                </span>
+              ))}
+              {(!currentUser?.allowedTabs || currentUser.allowedTabs.length === 0) && (
+                <span className="text-xs text-teal-500 font-medium italic">All Tabs</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Small Clean Version Footer */}
       <div className="pt-3 pb-6 text-center select-none space-y-0.5">
         <p className="text-xs font-bold text-teal-300/80 tracking-wide">

@@ -241,6 +241,14 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ১.৫ ইউজার লিস্ট
+  if (action === 'getusers') {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      users: readUsersFromRange(ss)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   // ২. ট্রানজ্যাকশন ডিলিট (GET সাপোর্ট - শুধুমাত্র A-G কলাম ডিলিট)
   if (action === 'delete') {
     return handleDeleteEntry(sheet, params, params);
@@ -302,7 +310,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 8. ক্যাটাগরি যোগ ও ডিলিট (GET সাপোর্ট)
+  // ৮. ক্যাটাগরি যোগ ও ডিলিট (GET সাপোর্ট)
   if (action === 'addcategory') {
     var cName = String(params.category || '').trim();
     var cType = String(params.type || 'Expense').trim();
@@ -321,16 +329,8 @@ function doGet(e) {
       message: 'ক্যাটাগরি ডিলিট হয়েছে'
     })).setMimeType(ContentService.MimeType.JSON);
   }
-  
-  // ৯. গেট ইউজারস
-  if (action === 'getusers') {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: 'success',
-      users: readUsersFromRange(ss)
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
 
-  // ১০. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks) পড়া
+  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks) পড়া
   ensureUnifiedTemplateHeaders(sheet);
   
   var txData = readEntriesFromRange(sheet);
@@ -1115,23 +1115,29 @@ function saveUserToRange(ss, data) {
 
 function readUsersFromRange(ss) {
   var mainSheet = ss.getSheetByName('abujar287');
+  if (!mainSheet) mainSheet = ss.getSheets()[0];
   if (!mainSheet) return [];
+  ensureUnifiedTemplateHeaders(mainSheet);
+  
   var lastRow = mainSheet.getLastRow();
-  if (lastRow < 3) return [];
-  var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
-  var list = [];
-  for (var i = 0; i < vals.length; i++) {
-    if (!vals[i][1]) continue;
-    list.push({
-      displayName: vals[i][0],
-      username: vals[i][1],
-      password: vals[i][2],
-      sheetTab: vals[i][3],
-      role: vals[i][4],
-      allowedTabs: String(vals[i][5] || '').split(', ')
-    });
+  var users = [];
+  if (lastRow >= 3) {
+    var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var username = String(vals[i][1] || '').trim();
+      if (username) {
+        users.push({
+          displayName: vals[i][0],
+          username: username,
+          password: vals[i][2],
+          sheetTab: vals[i][3],
+          role: vals[i][4],
+          allowedTabs: String(vals[i][5] || '').split(',').filter(function(s){return s.trim() !== '';}).map(function(s){return s.trim();})
+        });
+      }
+    }
   }
-  return list;
+  return users;
 }
 
 // ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)
@@ -1141,4 +1147,4 @@ function setupSheet() {
   ensureUnifiedTemplateHeaders(mainSheet);
   Logger.log('Sheet setup complete!');
 }
-`;
+`

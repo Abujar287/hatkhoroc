@@ -355,35 +355,40 @@ export default function App() {
   });
 
   const mapUserFromSheet = (u: any): AppUser => {
-    let defaultTabs: AppTab[] = u.username === 'abujar287' || u.role === 'super_admin'
+    const role = u.role || 'member';
+    let defaultTabs: AppTab[] = u.username === 'abujar287' || role === 'super_admin'
       ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
       : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
     
     let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
     
-    if (u.username !== 'abujar287' && u.role !== 'super_admin') {
+    // Ensure consistency
+    if (u.username !== 'abujar287' && role !== 'super_admin') {
       tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
     }
-    if (!tabs.includes('budget') && u.role !== 'super_admin_2') {
+    if (!tabs.includes('budget') && role !== 'super_admin_2') {
       tabs = [...tabs, 'budget'];
+    }
+    if (!tabs.includes('upcoming_cost') && role !== 'super_admin_2') {
+      tabs = [...tabs, 'upcoming_cost'];
     }
     
     return {
-      username: u.username,
-      password: u.password,
-      displayName: u.displayName,
-      sheetTab: u.sheetTab,
-      initialUsername: u.username,
+      username: String(u.username || '').trim(),
+      password: String(u.password || '').trim(),
+      displayName: String(u.displayName || u.username || 'User').trim(),
+      sheetTab: String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase(),
+      initialUsername: String(u.username || '').trim(),
       createdAt: u.createdAt || '2026-10-01',
-      role: u.role || 'member',
-      isActive: u.isActive !== false,
+      role: role as UserRole,
+      isActive: u.isActive !== false && String(u.isActive).toLowerCase() !== 'false',
       allowedTabs: tabs,
-      isReadOnly: u.isReadOnly || false
+      isReadOnly: u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true'
     };
   };
 
   useEffect(() => {
-    if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
+    if (isAuthenticated) {
       const syncUsers = () => {
         const url = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
         if (url) {
@@ -397,6 +402,18 @@ export default function App() {
                 const mappedUsers = data.users.map(mapUserFromSheet);
                 setUsers(mappedUsers);
                 localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+                
+                // Auto-update active user profile if found in synced list (Case-Insensitive)
+                if (currentUser && currentUser.username) {
+                  const myLower = currentUser.username.toLowerCase();
+                  const updatedMe = mappedUsers.find((u: AppUser) => 
+                    u.username && u.username.toLowerCase() === myLower
+                  );
+                  if (updatedMe) {
+                    setCurrentUser(updatedMe);
+                    localStorage.setItem('active_user_v2', JSON.stringify(updatedMe));
+                  }
+                }
               }
             })
             .catch(err => console.error('Failed to sync users:', err));
@@ -1666,22 +1683,32 @@ export default function App() {
         try {
           localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
         } catch {}
-        // Also sync users if current user is admin
-        if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
-          try {
-            const userUrl = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
-            if (userUrl) {
-              const uRes = await fetch(userUrl);
-              const uData = await uRes.json();
-              if (uData && uData.users) {
-                const mappedUsers = uData.users.map(mapUserFromSheet);
-                setUsers(mappedUsers);
-                localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+        // Also sync users list (Master list in abujar287 tab)
+        try {
+          const userUrl = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
+          if (userUrl) {
+            const uRes = await fetch(userUrl);
+            const uData = await uRes.json();
+            if (uData && uData.users) {
+              const mappedUsers = uData.users.map(mapUserFromSheet);
+              setUsers(mappedUsers);
+              localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+
+              // Auto-update current active user profile during manual sync (Case-Insensitive)
+              if (currentUser && currentUser.username) {
+                const myLower = currentUser.username.toLowerCase();
+                const updatedMe = mappedUsers.find((u: AppUser) => 
+                  u.username && u.username.toLowerCase() === myLower
+                );
+                if (updatedMe) {
+                  setCurrentUser(updatedMe);
+                  localStorage.setItem('active_user_v2', JSON.stringify(updatedMe));
+                }
               }
             }
-          } catch (uErr) {
-            console.error('Failed to sync users during manual sync:', uErr);
           }
+        } catch (uErr) {
+          console.error('Failed to sync users during manual sync:', uErr);
         }
 
         setLastSyncDate(new Date());

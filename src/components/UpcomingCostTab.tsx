@@ -298,7 +298,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
       {/* Summary Statistics Card */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
         <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Total Pending</span>
+          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Total Due</span>
           <span className="text-sm font-black text-amber-300 tabular-nums">
             {formatNumberLocale(stats.totalPendingAmount, lang)}
           </span>
