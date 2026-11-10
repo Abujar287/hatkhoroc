@@ -282,7 +282,13 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((u: AppUser) => {
-            let tabs = u.allowedTabs || ['summary', 'entry', 'details', 'budget', 'users', 'settings'];
+            let defaultTabs: AppTab[] = u.username === 'abujar287' || u.role === 'super_admin'
+              ? ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
+              : ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
+            let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
+            if (u.username !== 'abujar287' && u.role !== 'super_admin') {
+              tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
+            }
             if (!tabs.includes('budget') && u.role !== 'super_admin_2') {
               tabs = [...tabs, 'budget'];
             }
@@ -308,7 +314,13 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.username) {
-          let tabs = parsed.allowedTabs || ['summary', 'entry', 'details', 'budget', 'users', 'settings'];
+          let defaultTabs: AppTab[] = parsed.username === 'abujar287' || parsed.role === 'super_admin'
+            ? ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
+            : ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
+          let tabs: AppTab[] = (parsed.allowedTabs as AppTab[]) || defaultTabs;
+          if (parsed.username !== 'abujar287' && parsed.role !== 'super_admin') {
+            tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
+          }
           if (!tabs.includes('budget') && parsed.role !== 'super_admin_2') {
             tabs = [...tabs, 'budget'];
           }
@@ -353,10 +365,18 @@ export default function App() {
     if (!tabs || tabs.length === 0) {
       if (currentUser?.role === 'super_admin_2') {
         tabs = ['summary', 'details'];
-      } else {
+      } else if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
         tabs = ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings'];
+      } else {
+        tabs = ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
       }
     }
+
+    // Strictly ensure non-admin users never get access to the 'users' tab
+    if (currentUser?.username !== 'abujar287' && currentUser?.role !== 'super_admin') {
+      tabs = tabs.filter(t => t !== 'users');
+    }
+
     if (!tabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
       tabs = [...tabs, 'budget'];
     }
@@ -1323,7 +1343,8 @@ export default function App() {
 
   const currentMonthValue = useMemo(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[now.getMonth()]}-${now.getFullYear()}`;
   }, []);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -1331,24 +1352,9 @@ export default function App() {
       const savedMappings = localStorage.getItem(`app_month_mappings_${currentTab}`);
       if (savedMappings) {
         const parsed = JSON.parse(savedMappings);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           const defMap = parsed.find((m: any) => m.isDefault || String(m['default month'] || m.isDefault).toLowerCase() === 'default');
           if (defMap && defMap.label) return defMap.label;
-        }
-      }
-    } catch {}
-
-    try {
-      const savedDefault = localStorage.getItem(`app_default_selected_month_${currentTab}`);
-      if (savedDefault) return savedDefault;
-    } catch {}
-
-    try {
-      const savedMappings = localStorage.getItem(`app_month_mappings_${currentTab}`);
-      if (savedMappings) {
-        const parsed = JSON.parse(savedMappings);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].label) {
-          return parsed[0].label;
         }
       }
     } catch {}
@@ -1356,13 +1362,17 @@ export default function App() {
     return currentMonthValue;
   });
 
+  // Default to current month label if no month mapping exists for current user
   useEffect(() => {
-    try {
-      if (selectedMonth) {
-        localStorage.setItem(`app_default_selected_month_${currentTab}`, selectedMonth);
+    if (!monthMappings || monthMappings.length === 0) {
+      setSelectedMonth(currentMonthValue);
+    } else {
+      const def = monthMappings.find(m => m.isDefault);
+      if (def && def.label) {
+        setSelectedMonth(def.label);
       }
-    } catch {}
-  }, [selectedMonth, currentTab]);
+    }
+  }, [monthMappings, currentTab, currentMonthValue]);
 
   // ----------------------------------------------------
   // 8. CLOUD SYNC STATE

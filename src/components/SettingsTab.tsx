@@ -381,7 +381,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         {/* Header - Minimal & Clean */}
         <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-teal-800/80 flex items-center justify-between">
           <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA] flex items-center gap-2">
-            <span>Matrics Amount</span>
+            <span>Manual Pocket Balance Audit</span>
             {selectedMonth && (
               <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
                 {selectedMonth}
@@ -477,10 +477,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               </div>
             </div>
 
-            {/* Money Bag */}
+            {/* Wallet */}
             <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
               <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-                Money Bag
+                Wallet
               </span>
               <div className="w-36 sm:w-48">
                 <input

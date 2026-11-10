@@ -1,18 +1,7 @@
 import React from 'react';
-import {
-  Wallet,
-  RefreshCw,
-  PlusCircle,
-  BarChart3,
-  ListOrdered,
-  Users,
-  Settings,
-  Sliders,
-  Smartphone,
-  CalendarClock
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { AppUser, AppTab } from '../types';
-import { findMonthMapping, formatDateShortDemo, getMonthKeyFromLabel } from '../utils/dateUtils';
+import { findMonthMapping, getMonthKeyFromLabel } from '../utils/dateUtils';
 
 interface HeaderProps {
   currentUser: AppUser | null;
@@ -33,12 +22,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
-  activeTab,
-  setActiveTab,
-  lastSyncTime,
   isSyncing,
   onSync,
-  viewMode,
   t,
   lang = 'en',
   selectedMonth,
@@ -47,83 +32,81 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const activeMonthLabel = React.useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
-    if (mapping) {
+    if (mapping && mapping.label) {
       return mapping.label;
     }
 
     try {
       const monthKey = getMonthKeyFromLabel(selectedMonth) || selectedMonth;
-      const [y, m] = monthKey.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-        month: 'short',
-        year: 'numeric'
-      });
+      if (monthKey.includes('-')) {
+        const parts = monthKey.split('-');
+        if (parts.length === 2) {
+          const y = Number(parts[0]);
+          const m = Number(parts[1]);
+          if (!isNaN(y) && !isNaN(m)) {
+            const d = new Date(y, m - 1, 1);
+            return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
+              month: 'short',
+              year: 'numeric'
+            });
+          }
+        }
+      }
+      return selectedMonth;
     } catch {
       return selectedMonth;
     }
   }, [selectedMonth, lang, monthMappings]);
 
-  const allNavItems = [
-    { id: 'summary' as const, label: t('Summary', 'সারাংশ'), icon: BarChart3 },
-    { id: 'entry' as const, label: t('Add Entry', 'হিসাব যোগ'), icon: PlusCircle },
-    { id: 'details' as const, label: t('Details', 'বিস্তারিত'), icon: ListOrdered },
-    { id: 'budget' as const, label: t('Budget', 'বাজেট'), icon: Sliders },
-    { id: 'task' as const, label: t('Task', 'টাস্ক খরচ'), icon: CalendarClock },
-    { id: 'settings' as const, label: t('Settings', 'সেটিংস'), icon: Settings }
-  ];
-
-  let allowedTabs: AppTab[] = currentUser?.allowedTabs || (
-    currentUser?.role === 'super_admin_2'
-      ? ['summary', 'details']
-      : ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
-  );
-  if (!allowedTabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
-    allowedTabs = [...allowedTabs, 'budget'];
-  }
-  if (!allowedTabs.includes('task') && currentUser?.role !== 'super_admin_2') {
-    allowedTabs = [...allowedTabs, 'task'];
-  }
-
-  const navItems = allNavItems.filter(item => allowedTabs.includes(item.id));
+  const userDisplayName = currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari';
 
   return (
-    <header className="shrink-0 z-40 bg-[#042F2E] text-[#F0FDFA] w-full shadow-md pt-safe">
+    <header className="shrink-0 z-40 bg-[#042F2E] text-[#F0FDFA] w-full shadow-md pt-safe border-b border-teal-800/60">
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
-        {/* Brand & Identity */}
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="হাত খরচ Logo" className="w-10 h-10 object-contain rounded-xl shadow-md shrink-0" />
+        {/* Left: App Title & User Full Name */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/logo.png"
+            alt="হাত খরচ Logo"
+            className="w-9 h-9 sm:w-10 sm:h-10 object-contain rounded-xl shadow-md shrink-0 border border-teal-500/30 bg-[#062423] p-0.5"
+          />
           <div className="min-w-0">
-            <span className="text-base font-extrabold block truncate leading-tight text-[#F0FDFA]">
-              {t('হাত খরচ', 'হাত খরচ')}
-            </span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse shrink-0" />
-              <span className="text-[10px] font-bold text-teal-200 truncate">
-                {activeMonthLabel}
-              </span>
-              {taskDueCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-[#FF7A59] text-white text-[9px] font-black rounded-full shadow-sm shadow-[#FF7A59]/40 animate-pulse">
-                  {taskDueCount} Due
-                </span>
-              )}
-            </div>
+            <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight text-white truncate">
+              হাত খরচ
+            </h1>
+            <p className="text-[11px] sm:text-xs font-semibold text-teal-200/90 truncate leading-none mt-0.5">
+              {userDisplayName}
+            </p>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        {/* Right: Month Name Badge (Left of Sync) + Sync Button */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Month Name Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-[#062A28] border border-teal-700/60 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-extrabold text-emerald-300 tracking-wide">
+              {activeMonthLabel}
+            </span>
+            {taskDueCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-[#FF7A59] text-white text-[9px] font-black rounded-full shadow-xs animate-pulse ml-0.5">
+                {taskDueCount}
+              </span>
+            )}
+          </div>
+
+          {/* Sync Button */}
           <button
             type="button"
             onClick={onSync}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border shadow-2xs ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border shadow-xs ${
               isSyncing
                 ? 'bg-teal-900 text-teal-300 border-teal-800'
-                : 'bg-teal-900/60 hover:bg-teal-900 text-[#F0FDFA] border-teal-700/60 active:scale-95'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500/80 active:scale-95'
             }`}
           >
-            <RefreshCw className={`w-4 h-4 text-teal-300 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-white ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? '...' : t('Sync', 'সিঙ্ক')}</span>
           </button>
         </div>

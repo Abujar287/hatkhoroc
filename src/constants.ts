@@ -5,7 +5,6 @@ export const DEFAULT_EXPENSE_CATEGORIES: string[] = [
   'WiFi & Internet',
   'Others Expense',
   'Medicines',
-  'Loan Repaid',
   'Room Rent',
   "Family's Cost",
   'Official',
