@@ -427,13 +427,25 @@ export default function App() {
       const savedExp = localStorage.getItem(`app_expense_categories_${currentTab}`);
       if (savedExp !== null) {
         const parsed = JSON.parse(savedExp);
-        if (Array.isArray(parsed)) setExpenseCategories(deduplicateCategories(parsed));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setExpenseCategories(deduplicateCategories(parsed));
+        } else {
+          setExpenseCategories(deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
+        }
+      } else {
+        setExpenseCategories(deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]));
       }
 
       const savedInc = localStorage.getItem(`app_income_categories_${currentTab}`);
       if (savedInc !== null) {
         const parsed = JSON.parse(savedInc);
-        if (Array.isArray(parsed)) setIncomeCategories(deduplicateCategories(parsed));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setIncomeCategories(deduplicateCategories(parsed));
+        } else {
+          setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
+        }
+      } else {
+        setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
       }
 
       const savedBudget = localStorage.getItem(`app_monthly_budget_${currentTab}`);
@@ -615,9 +627,15 @@ export default function App() {
       const saved = localStorage.getItem(`app_tasks_${currentTab}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setTasks(parsed);
+        if (Array.isArray(parsed)) {
+          setTasks(parsed);
+          return;
+        }
       }
-    } catch {}
+      setTasks([]);
+    } catch {
+      setTasks([]);
+    }
   }, [currentTab]);
 
   const saveTasks = useCallback((updated: CostTask[]) => {
@@ -1446,6 +1464,11 @@ export default function App() {
               localStorage.setItem(`app_tasks_${tabToSync}`, JSON.stringify(cloudTasks));
             } catch {}
           }
+        } else {
+          setTasks([]);
+          try {
+            localStorage.setItem(`app_tasks_${tabToSync}`, JSON.stringify([]));
+          } catch {}
         }
         
         const rawMappings = data.monthMappings || data.mappings;
@@ -1499,6 +1522,11 @@ export default function App() {
               localStorage.setItem(`app_default_selected_month_${tabToSync}`, sheetDefMonth);
             }
           }
+        } else {
+          setMonthMappings([]);
+          try {
+            localStorage.setItem(`app_month_mappings_${tabToSync}`, JSON.stringify([]));
+          } catch {}
         }
 
         if (data.categoryBudgets && typeof data.categoryBudgets === 'object') {
@@ -1915,17 +1943,6 @@ export default function App() {
             <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
             {loginError && <p className="text-rose-400 text-xs">{loginError}</p>}
             <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md text-sm">Sign In</button>
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentUser(DEFAULT_ADMIN);
-                setIsAuthenticated(true);
-                localStorage.setItem('active_user_v2', JSON.stringify(DEFAULT_ADMIN));
-              }}
-              className="w-full py-2 bg-teal-950/80 hover:bg-teal-900 text-teal-200 border border-teal-700/60 rounded-xl font-semibold text-xs transition-colors cursor-pointer"
-            >
-              ⚡ Quick Sign In as Admin ({DEFAULT_ADMIN.username})
-            </button>
           </form>
         </div>
       </div>

@@ -769,7 +769,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* 2. ACTIONS & TOOLS (EXPORT ZIP, SCRIPT, UPDATE) */}
       <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-0">
-        <div className="grid grid-cols-3 gap-2">
+        <div className={`grid ${(currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
           {/* 1. Export ZIP */}
           <button
             type="button"
@@ -787,15 +787,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </button>
 
           {/* 2. Google Apps Script */}
-          <button
-            type="button"
-            onClick={() => setShowAppsScriptModal(true)}
-            className="py-3 px-2 bg-gradient-to-r from-teal-900 to-slate-900 hover:from-teal-800 hover:to-slate-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-slate-950/40"
-            title={t('Apps Script Code', 'গুগল স্ক্রিপ্ট কোড')}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
-            <span className="truncate">{t('Script', 'Script')}</span>
-          </button>
+          {(currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') && (
+            <button
+              type="button"
+              onClick={() => setShowAppsScriptModal(true)}
+              className="py-3 px-2 bg-gradient-to-r from-teal-900 to-slate-900 hover:from-teal-800 hover:to-slate-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-slate-950/40"
+              title={t('Apps Script Code', 'গুগল স্ক্রিপ্ট কোড')}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="truncate">{t('Script', 'Script')}</span>
+            </button>
+          )}
 
           {/* 3. Check for Updates */}
           <button

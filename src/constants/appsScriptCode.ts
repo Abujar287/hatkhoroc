@@ -12,15 +12,20 @@ export const GOOGLE_APPS_SCRIPT_CODE_V7 = `// ==================================
 // ====================================================================
 
 function doPost(e) {
+  e = e || {};
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
   
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = {};
-    try {
-      data = JSON.parse(e.postData.contents);
-    } catch (err) {
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (err) {
+        data = (e && e.parameter) ? e.parameter : {};
+      }
+    } else {
       data = (e && e.parameter) ? e.parameter : {};
     }
     
@@ -412,20 +417,20 @@ function createUnifiedTemplate(sheet) {
   } catch (e) {}
 
   var defaultCats = [
-    ['Expense', 'খাবার ও মুদি'],
-    ['Expense', 'যাতায়াত ও ভ্রমণ'],
-    ['Expense', 'বাসা ভাড়া'],
-    ['Expense', 'বিল ও ইউটিলিটি'],
-    ['Expense', 'চিকিৎসা ও ওষুধ'],
-    ['Expense', 'শপিং ও কেনাকাটা'],
-    ['Expense', 'বিনোদন'],
-    ['Expense', 'অন্যান্য'],
-    ['Income', 'বেতন'],
-    ['Income', 'ব্যবসা'],
-    ['Income', 'ফ্রিল্যান্সিং'],
-    ['Income', 'বিনিয়োগ ও মুনাফা'],
-    ['Income', 'উপহার'],
-    ['Income', 'অন্যান্য']
+    ['Expense', 'Personal'],
+    ['Expense', 'WiFi & Internet'],
+    ['Expense', 'Others Expense'],
+    ['Expense', 'Medicines'],
+    ['Income', 'Borrowed Money'],
+    ['Income', 'Others Income'],
+    ['Expense', 'Loan Repaid'],
+    ['Income', 'Salary'],
+    ['Expense', 'Room Rent'],
+    ['Expense', "Family's Cost"],
+    ['Expense', 'Official'],
+    ['Expense', 'Electricity'],
+    ['Income', 'Previous Month Arrears'],
+    ['Expense', 'Shopping']
   ];
   sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
 }
@@ -674,23 +679,6 @@ function readBudgetsFromRange(sheet, ss) {
       }
     }
   }
-  
-  if (Object.keys(budgets).length === 0 && ss) {
-    var legacyB = ss.getSheetByName('Budget');
-    if (legacyB && legacyB.getLastRow() >= 2) {
-      var bRows = legacyB.getDataRange().getValues();
-      for (var j = 1; j < bRows.length; j++) {
-        var lm = parseLabelString(bRows[j][0]);
-        var lcat = String(bRows[j][1] || '').trim();
-        var lval = Number(bRows[j][2]) || 0;
-        if (lm && lcat) {
-          if (!budgets[lm]) budgets[lm] = {};
-          budgets[lm][lcat] = lval;
-        }
-      }
-    }
-  }
-  
   return budgets;
 }
 
@@ -746,22 +734,6 @@ function readCategoriesFromRange(sheet, ss) {
       }
     }
   }
-  
-  if (cats.length === 0 && ss) {
-    var legacyC = ss.getSheetByName('Category');
-    if (legacyC && legacyC.getLastRow() >= 2) {
-      var rows = legacyC.getDataRange().getValues();
-      for (var j = 1; j < rows.length; j++) {
-        var t = String(rows[j][0] || 'Expense').trim();
-        var n = String(rows[j][1] || '').trim();
-        if (n && !seen[n.toLowerCase()]) {
-          seen[n.toLowerCase()] = true;
-          cats.push({ type: t, category: n });
-        }
-      }
-    }
-  }
-  
   return cats;
 }
 
@@ -866,30 +838,6 @@ function readMonthMappingsFromRange(sheet, ss) {
       }
     }
   }
-  
-  if (list.length === 0 && ss) {
-    var legacyM = ss.getSheetByName('month mapping');
-    if (legacyM && legacyM.getLastRow() >= 2) {
-      var rows = legacyM.getDataRange().getValues();
-      for (var j = 1; j < rows.length; j++) {
-        var s = formatDateVal(rows[j][0]);
-        var e = formatDateVal(rows[j][1]);
-        var lbl = parseLabelString(rows[j][2]);
-        var def = String(rows[j][3] || '').trim().toLowerCase();
-        var b = (rows[j][4] !== undefined && rows[j][4] !== '') ? (Number(rows[j][4]) || 0) : 0;
-        if (lbl && s && e) {
-          list.push({
-            startDate: s,
-            endDate: e,
-            label: lbl,
-            isDefault: def === 'true' || def === 'yes' || def === 'default',
-            budget: b
-          });
-        }
-      }
-    }
-  }
-  
   return list;
 }
 
@@ -1045,34 +993,6 @@ function readTasksFromRange(sheet, ss) {
       });
     }
   }
-  
-  if (list.length === 0 && ss) {
-    var legacyT = ss.getSheetByName('Tasks');
-    if (legacyT && legacyT.getLastRow() >= 2) {
-      var rows = legacyT.getDataRange().getValues();
-      for (var j = 1; j < rows.length; j++) {
-        var lTitle = String(rows[j][1] || '').trim();
-        if (lTitle) {
-          list.push({
-            id: String(rows[j][0] || ('task_legacy_' + j)),
-            title: lTitle,
-            dueDate: formatDateVal(rows[j][2]),
-            dueTime: String(rows[j][3] || '09:00').trim(),
-            amount: Number(rows[j][4]) || 0,
-            category: String(rows[j][5] || 'General'),
-            priority: String(rows[j][6] || 'medium').toLowerCase(),
-            notes: String(rows[j][7] || ''),
-            status: String(rows[j][8] || 'pending').toLowerCase().indexOf('complete') !== -1 ? 'completed' : 'pending',
-            reminderDaysBefore: Number(rows[j][9]) || 1,
-            autoNotify: String(rows[j][10] || '').toLowerCase() !== 'no',
-            createdBy: String(rows[j][11] || sheet.getName()),
-            createdAt: String(rows[j][12] || '')
-          });
-        }
-      }
-    }
-  }
-  
   return list;
 }
 
@@ -1162,5 +1082,13 @@ function saveUserToRange(ss, data) {
       mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
+}
+
+// ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)
+function setupSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var mainSheet = getTargetSheet(ss, 'abujar287');
+  ensureUnifiedTemplateHeaders(mainSheet);
+  Logger.log('Sheet setup complete!');
 }
 `;
