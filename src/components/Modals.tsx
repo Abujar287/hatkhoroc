@@ -20,7 +20,9 @@ import {
   DoorOpen,
   Calculator as CalculatorIcon,
   Delete,
-  Check
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -2045,3 +2047,144 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({
     </ModalPortal>
   );
 };
+
+// ========================================================
+// 12. SELF SIGNUP MODAL (LOGIN PAGE ACCOUNT CREATION)
+// ========================================================
+interface SelfSignupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSignup: (name: string, username: string, pass: string) => boolean | void;
+  lang: 'en' | 'bn';
+  t: (en: string, bn: string) => string;
+}
+
+export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
+  isOpen,
+  onClose,
+  onSignup,
+  lang,
+  t
+}) => {
+  if (!isOpen) return null;
+
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !username.trim() || !password.trim()) {
+      setError(t('Please fill out all 3 fields', 'সবকটি তথ্য (Full Name, Username, Password) সঠিকভাবে দিন'));
+      return;
+    }
+    const result = onSignup(fullName.trim(), username.trim(), password.trim());
+    if (result !== false) {
+      onClose();
+    }
+  };
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+        onClick={onClose}
+      >
+        <div
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[360px] rounded-2xl p-5 shadow-2xl relative border border-teal-700/80 animate-modalSpring space-y-4 my-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-teal-800/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-teal-400" />
+              <h3 className="text-sm font-bold text-[#F0FDFA]">
+                {t('Create Account', 'নতুন একাউন্ট তৈরি করুন')}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-6 h-6 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/80 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
+                {t('Full Name', 'আপনার পূর্ণ নাম')}
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder={t('Full Name (e.g. Abujar Gifari)', 'আপনার নাম (যেমন: আবুজার)')}
+                className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
+                {t('Username', 'ইউজারনেম (user_name)')}
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                placeholder={t('username (e.g. abujar287)', 'ইউজারনেম (যেমন: abujar287)')}
+                className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
+                {t('Password', 'পাসওয়ার্ড (password)')}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600 pr-9"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-teal-400 hover:text-white"
+                >
+                  {showPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {error && <p className="text-rose-400 text-xs font-semibold">{error}</p>}
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2 bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                {t('Cancel', 'বাতিল')}
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl font-bold text-xs cursor-pointer shadow-md"
+              >
+                {t('Create Account', 'একাউন্ট তৈরি করুন')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
+

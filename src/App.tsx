@@ -75,6 +75,7 @@ import {
   MobileInstallModal,
   EditProfileModal,
   ExitConfirmModal,
+  SelfSignupModal,
   ModalPortal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
@@ -167,6 +168,14 @@ export default function App() {
   const [showCategoryManager, setShowCategoryManager] = useState<boolean>(false);
   const [showMobileModal, setShowMobileModal] = useState<boolean>(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState<boolean>(false);
+  const [showSelfSignupModal, setShowSelfSignupModal] = useState<boolean>(false);
+  const [rememberLogin, setRememberLogin] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('app_remember_login') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -179,6 +188,8 @@ export default function App() {
   
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
+      const isRemembered = localStorage.getItem('app_remember_login') === 'true';
+      if (!isRemembered) return false;
       const saved = localStorage.getItem('active_user_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -305,6 +316,8 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
     try {
+      const isRemembered = localStorage.getItem('app_remember_login') === 'true';
+      if (!isRemembered) return null;
       const saved = localStorage.getItem('active_user_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -1875,7 +1888,13 @@ export default function App() {
     if (target && target.password === cleanP) {
       setCurrentUser(target);
       setIsAuthenticated(true);
-      localStorage.setItem('active_user_v2', JSON.stringify(target));
+      if (rememberLogin) {
+        localStorage.setItem('app_remember_login', 'true');
+        localStorage.setItem('active_user_v2', JSON.stringify(target));
+      } else {
+        localStorage.removeItem('app_remember_login');
+        localStorage.removeItem('active_user_v2');
+      }
       showToast(lang === 'en' ? `Welcome, ${target.displayName}!` : `স্বাগতম, ${target.displayName}!`, 'success');
       setLoginError('');
     } else {
@@ -1889,6 +1908,63 @@ export default function App() {
     setIsAuthenticated(false);
     setCurrentUser(null);
     localStorage.removeItem('active_user_v2');
+    localStorage.removeItem('app_remember_login');
+  };
+
+  const handleSelfSignupSubmit = (fullName: string, uname: string, pass: string) => {
+    const cleanUname = uname.trim().toLowerCase();
+    if (users.some(u => u.username.toLowerCase() === cleanUname)) {
+      showToast(lang === 'en' ? 'Username already exists!' : 'ইউজারনেমটি পূর্বে তৈরি করা হয়েছে!', 'error');
+      return false;
+    }
+
+    const newUser: AppUser = {
+      username: cleanUname,
+      password: pass,
+      displayName: fullName.trim(),
+      initialUsername: cleanUname,
+      role: 'member',
+      sheetTab: cleanUname,
+      isActive: true,
+      allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'settings'],
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+
+    // Purge any old local storage keys for this tab so it starts 100% clean
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.includes(`_${cleanUname}`)) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    try {
+      localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
+    } catch {}
+
+    // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
+    try {
+      syncUserToSheet(newUser);
+      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, { mode: 'no-cors' }).catch(() => {});
+      fetch('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
+      }).catch(() => {});
+    } catch {}
+
+    setLoginUsername(cleanUname);
+    setLoginPassword(pass);
+    showToast(
+      lang === 'en'
+        ? `Account @${cleanUname} created successfully! Please sign in.`
+        : `একাউন্ট @${cleanUname} তৈরি হয়েছে! এখন লগইন করুন।`,
+      'success'
+    );
+    return true;
   };
 
   const syncUserToSheet = (user: AppUser) => {
@@ -2014,12 +2090,74 @@ export default function App() {
             <p className="text-xs text-teal-300/80 mt-1">Smart Expense, Task Reminder & Budget Manager</p>
           </div>
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <input type="text" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} placeholder="Username" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium" required />
-            {loginError && <p className="text-rose-400 text-xs">{loginError}</p>}
-            <button type="submit" className="w-full py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md text-sm">Sign In</button>
+            <input
+              type="text"
+              value={loginUsername}
+              onChange={e => setLoginUsername(e.target.value)}
+              placeholder="Username"
+              className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium"
+              required
+            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 hover:text-white cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Remember Me / Save Login Info Checkbox */}
+            <div className="flex items-center justify-between text-xs px-1 text-teal-300">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberLogin}
+                  onChange={e => setRememberLogin(e.target.checked)}
+                  className="w-4 h-4 rounded border-teal-700 bg-[#062423] text-teal-500 focus:ring-teal-400 accent-teal-500 cursor-pointer"
+                />
+                <span>{lang === 'en' ? 'Save Login Info (Remember Me)' : 'লগইন সেভ রাখুন (Remember Me)'}</span>
+              </label>
+            </div>
+
+            {loginError && <p className="text-rose-400 text-xs font-semibold">{loginError}</p>}
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowSelfSignupModal(true)}
+                className="flex-1 py-3 bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 rounded-xl font-bold cursor-pointer transition-colors text-xs text-center"
+              >
+                {lang === 'en' ? 'Create Account' : 'একাউন্ট তৈরি করুন'}
+              </button>
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="flex-1 py-3 bg-[#0D9488] hover:bg-[#0F766E] text-[#F0FDFA] rounded-xl font-bold cursor-pointer transition-colors shadow-md text-sm text-center"
+              >
+                {isLoggingIn ? (lang === 'en' ? 'Logging in...' : 'লগইন হচ্ছে...') : (lang === 'en' ? 'Sign In' : 'লগইন')}
+              </button>
+            </div>
           </form>
         </div>
+
+        {/* Self Signup Modal */}
+        <SelfSignupModal
+          isOpen={showSelfSignupModal}
+          onClose={() => setShowSelfSignupModal(false)}
+          onSignup={handleSelfSignupSubmit}
+          lang={lang}
+          t={t}
+        />
       </div>
     );
   }
