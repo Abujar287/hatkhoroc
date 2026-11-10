@@ -27,7 +27,7 @@ jobs:
       - name: Install Dependencies & Capacitor Core
         run: |
           npm install
-          npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/assets --save
+          npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/assets @capacitor/app --save
 
       - name: Build Web App
         run: npm run build --if-present

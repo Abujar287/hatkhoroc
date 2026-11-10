@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
-    "start": "NODE_ENV=production tsx server.ts",
+    "start": "node server.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
     "@google/genai": "^2.4.0",
     "@types/web-push": "^3.6.4",
     "dotenv": "^17.2.3",

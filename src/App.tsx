@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { App as CapApp } from '@capacitor/app';
 import {
   Wallet,
   Calendar,
@@ -185,13 +186,6 @@ export default function App() {
     return true;
   });
 
-  useEffect(() => {
-    const handleResize = () => {
-      setViewMode(window.innerWidth < 768 ? 'mobile' : 'desktop');
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   useEffect(() => {
     if (isInstallable && !isInstalled && !hasPromptedInstall) {
@@ -247,132 +241,17 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Lightweight wheel scroll forwarding for margins without lag
   useEffect(() => {
-    const pushGuardState = () => {
-      if (window.history.state?.exitGuard !== true) {
-        window.history.pushState({ exitGuard: true }, '');
-      }
-    };
-
-    pushGuardState();
-
-    const handlePopState = (event: PopStateEvent) => {
-      pushGuardState();
-      
-      if (document.querySelector('[data-calc-modal="true"]')) {
-        window.dispatchEvent(new CustomEvent('close-calc-modal'));
-        return;
-      }
-      if (selectedDateModal) {
-        setSelectedDateModal(null);
-        return;
-      }
-      if (editingTx) {
-        setEditingTx(null);
-        return;
-      }
-      if (deletingTx) {
-        setDeletingTx(null);
-        return;
-      }
-      if (showAddCatModal) {
-        setShowAddCatModal(false);
-        return;
-      }
-      if (showCategoryManager) {
-        setShowCategoryManager(false);
-        return;
-      }
-      if (showCreateUserModal) {
-        setShowCreateUserModal(false);
-        return;
-      }
-      if (editingUser) {
-        setEditingUser(null);
-        return;
-      }
-
-      setShowExitModal(true);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [
-    isAppExited, 
-    isAuthenticated, 
-    selectedDateModal, 
-    editingTx, 
-    deletingTx, 
-    showAddCatModal, 
-    showCategoryManager,
-    showCreateUserModal,
-    editingUser
-  ]);
-
-  const handleCloseExitModal = () => {
-    setShowExitModal(false);
-    if (window.history.state?.exitGuard !== true) {
-      window.history.pushState({ exitGuard: true }, '');
-    }
-  };
-
-  const handleConfirmExit = () => {
-    setShowExitModal(false);
-    setIsAppExited(true);
-    try {
-      if ((window as any).navigator?.app?.exitApp) {
-        (window as any).navigator.app.exitApp();
-      }
-    } catch {}
-    try {
-      window.close();
-    } catch {}
-    try {
-      window.history.back();
-    } catch {}
-  };
-
-  // Enable mouse wheel scrolling across all tabs, headers, and window margins
-  useEffect(() => {
+    let mainEl: HTMLElement | null = null;
     const handleWheel = (e: WheelEvent) => {
-      const mainEl = document.getElementById('main-scroll-container');
+      if (!mainEl) {
+        mainEl = document.getElementById('main-scroll-container');
+      }
       if (!mainEl) return;
-
       const target = e.target as HTMLElement | null;
-
-      // 1. If inside an active modal with its own scrollable element, let modal scroll
-      const modalScroll = target?.closest(
-        '.modal-scroll-container, [data-modal-scroll="true"], form.max-h-\\[80vh\\], div.max-h-\\[85vh\\], div.max-h-\\[88vh\\], div.max-h-\\[90vh\\], div.max-h-\\[92vh\\]'
-      ) as HTMLElement | null;
-      if (modalScroll && modalScroll.scrollHeight > modalScroll.clientHeight) {
-        return;
-      }
-
-      // 2. If inside an inner horizontal scroller and user scrolls horizontally
-      const innerScrollX = target?.closest('.overflow-x-auto, [data-inner-scroll="true"]');
-      if (innerScrollX && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        return;
-      }
-
-      // 3. If inside a small nested vertical scroller that can still scroll in this direction
-      const innerScrollY = target?.closest('.overflow-y-auto') as HTMLElement | null;
-      if (innerScrollY && innerScrollY !== mainEl && innerScrollY.scrollHeight > innerScrollY.clientHeight) {
-        const canScrollUp = e.deltaY < 0 && innerScrollY.scrollTop > 0;
-        const canScrollDown = e.deltaY > 0 && innerScrollY.scrollTop + innerScrollY.clientHeight < innerScrollY.scrollHeight;
-        if (canScrollUp || canScrollDown) {
-          return;
-        }
-      }
-
-      // 4. If cursor is outside mainEl (e.g. over header, bottom nav, or desktop sides),
-      // forward scroll to mainEl so mouse wheel works anywhere on the screen!
-      const isInsideMain = target && mainEl.contains(target);
-      if (!isInsideMain) {
-        mainEl.scrollBy({ top: e.deltaY, behavior: 'auto' });
-      }
+      if (!target || mainEl.contains(target)) return;
+      mainEl.scrollBy({ top: e.deltaY, behavior: 'auto' });
     };
 
     window.addEventListener('wheel', handleWheel, { passive: true });
@@ -896,6 +775,239 @@ export default function App() {
   // ----------------------------------------------------
   const [activeTab, setActiveTab] = useState<AppTab>('summary');
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
+
+  // ----------------------------------------------------
+  // ROBUST BACK BUTTON & APP EXIT LOGIC (Android APK / Capacitor / PWA / Web)
+  // ----------------------------------------------------
+  const isAppExitingRef = React.useRef(false);
+
+  const modalStateRef = React.useRef({
+    showExitModal,
+    selectedDateModal,
+    editingTx,
+    deletingTx,
+    userToDelete,
+    editingUser,
+    showAddCatModal,
+    showCategoryManager,
+    showCreateUserModal,
+    showMobileModal,
+    showUpdateModal,
+    showDueEntryModal,
+    activeTab
+  });
+
+  useEffect(() => {
+    modalStateRef.current = {
+      showExitModal,
+      selectedDateModal,
+      editingTx,
+      deletingTx,
+      userToDelete,
+      editingUser,
+      showAddCatModal,
+      showCategoryManager,
+      showCreateUserModal,
+      showMobileModal,
+      showUpdateModal,
+      showDueEntryModal,
+      activeTab
+    };
+  }, [
+    showExitModal,
+    selectedDateModal,
+    editingTx,
+    deletingTx,
+    userToDelete,
+    editingUser,
+    showAddCatModal,
+    showCategoryManager,
+    showCreateUserModal,
+    showMobileModal,
+    showUpdateModal,
+    showDueEntryModal,
+    activeTab
+  ]);
+
+  const handleBackButtonAction = useCallback(() => {
+    if (isAppExitingRef.current) return;
+
+    // 1. Close Entry tab's calculator modal if open
+    if (document.querySelector('[data-calc-modal="true"]')) {
+      window.dispatchEvent(new CustomEvent('close-calc-modal'));
+      return;
+    }
+
+    // 2. If exit confirmation modal is already open, pressing back cancels it
+    if (modalStateRef.current.showExitModal) {
+      setShowExitModal(false);
+      return;
+    }
+
+    // 3. Close active top-level dialogs/modals
+    if (modalStateRef.current.selectedDateModal) {
+      setSelectedDateModal(null);
+      return;
+    }
+    if (modalStateRef.current.editingTx) {
+      setEditingTx(null);
+      return;
+    }
+    if (modalStateRef.current.deletingTx) {
+      setDeletingTx(null);
+      return;
+    }
+    if (modalStateRef.current.userToDelete) {
+      setUserToDelete(null);
+      return;
+    }
+    if (modalStateRef.current.editingUser) {
+      setEditingUser(null);
+      return;
+    }
+    if (modalStateRef.current.showAddCatModal) {
+      setShowAddCatModal(false);
+      return;
+    }
+    if (modalStateRef.current.showCategoryManager) {
+      setShowCategoryManager(false);
+      return;
+    }
+    if (modalStateRef.current.showCreateUserModal) {
+      setShowCreateUserModal(false);
+      return;
+    }
+    if (modalStateRef.current.showMobileModal) {
+      setShowMobileModal(false);
+      return;
+    }
+    if (modalStateRef.current.showUpdateModal) {
+      setShowUpdateModal(false);
+      return;
+    }
+    if (modalStateRef.current.showDueEntryModal) {
+      setShowDueEntryModal(false);
+      return;
+    }
+
+    // 4. If in another tab, return to summary tab first
+    if (modalStateRef.current.activeTab !== 'summary') {
+      setActiveTab('summary');
+      return;
+    }
+
+    // 5. If on summary tab and no modals are open, show exit confirmation modal
+    setShowExitModal(true);
+  }, []);
+
+  const handleCloseExitModal = useCallback(() => {
+    setShowExitModal(false);
+    if (window.history.state?.exitGuard !== true) {
+      window.history.pushState({ exitGuard: true }, '');
+    }
+  }, []);
+
+  const handleConfirmExit = useCallback(async () => {
+    setShowExitModal(false);
+    setIsAppExited(true);
+    isAppExitingRef.current = true;
+
+    // 1. Capacitor Native Android Exit (Immediately exits Android activity to phone home screen)
+    try {
+      await CapApp.exitApp();
+      return;
+    } catch {}
+
+    // 2. Global Capacitor bridge fallback
+    try {
+      if ((window as any).Capacitor?.Plugins?.App?.exitApp) {
+        await (window as any).Capacitor.Plugins.App.exitApp();
+        return;
+      }
+    } catch {}
+
+    // 3. Android WebView JavascriptInterface or Cordova fallback
+    try {
+      if ((navigator as any)?.app?.exitApp) {
+        (navigator as any).app.exitApp();
+        return;
+      }
+      if ((navigator as any)?.device?.exitApp) {
+        (navigator as any).device.exitApp();
+        return;
+      }
+      if ((window as any)?.Android?.exitApp) {
+        (window as any).Android.exitApp();
+        return;
+      }
+      if ((window as any)?.android?.exitApp) {
+        (window as any).android.exitApp();
+        return;
+      }
+    } catch {}
+
+    // 4. Try window.close() for PWA / popup
+    try {
+      window.close();
+    } catch {}
+
+    // 5. Browser history back fallback
+    try {
+      if (window.history.length > 1) {
+        window.history.back();
+      }
+    } catch {}
+  }, []);
+
+  // Register Capacitor Android hardware back button listener
+  useEffect(() => {
+    let removeListener: (() => void) | null = null;
+    try {
+      CapApp.addListener('backButton', () => {
+        handleBackButtonAction();
+      }).then(handle => {
+        removeListener = () => handle.remove();
+      }).catch(() => {});
+    } catch {}
+
+    return () => {
+      if (removeListener) removeListener();
+    };
+  }, [handleBackButtonAction]);
+
+  // Register Cordova / document backbutton listener
+  useEffect(() => {
+    const onDocumentBackButton = (e: Event) => {
+      e.preventDefault();
+      handleBackButtonAction();
+    };
+    document.addEventListener('backbutton', onDocumentBackButton);
+    return () => {
+      document.removeEventListener('backbutton', onDocumentBackButton);
+    };
+  }, [handleBackButtonAction]);
+
+  // Register browser popstate history guard listener (single registration, no history stack explosion)
+  useEffect(() => {
+    const pushGuardState = () => {
+      if (window.history.state?.exitGuard !== true) {
+        window.history.pushState({ exitGuard: true }, '');
+      }
+    };
+
+    pushGuardState();
+
+    const handlePopState = () => {
+      if (isAppExitingRef.current) return;
+      pushGuardState();
+      handleBackButtonAction();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [handleBackButtonAction]);
 
   const [monthMappings, setMonthMappings] = useState<MonthMapping[]>(() => {
     try {
@@ -1788,7 +1900,7 @@ export default function App() {
           taskDueCount={taskDueCount}
         />
 
-        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] scroll-smooth w-full">
+        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
           <div className="w-full max-w-7xl mx-auto space-y-4">
             {/* Active Ringing Alarm Banner */}
           {activeRingingTask && (
@@ -1878,13 +1990,13 @@ export default function App() {
             </div>
           )}
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 12, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.99 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.1 }}
               className="w-full"
             >
               {activeTab === 'summary' && (
