@@ -2115,13 +2115,13 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
-                {t('Full Name', 'আপনার পূর্ণ নাম')}
+                Full name
               </label>
               <input
                 type="text"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
-                placeholder={t('Full Name (e.g. Abujar Gifari)', 'আপনার নাম (যেমন: আবুজার)')}
+                placeholder="Enter Your Full Name"
                 className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
                 required
               />
@@ -2129,13 +2129,13 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
 
             <div>
               <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
-                {t('Username', 'ইউজারনেম (user_name)')}
+                username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                placeholder={t('username (e.g. abujar287)', 'ইউজারনেম (যেমন: abujar287)')}
+                placeholder="Enter Your Username"
                 className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
                 required
               />
@@ -2143,14 +2143,14 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
 
             <div>
               <label className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block mb-1">
-                {t('Password', 'পাসওয়ার্ড (password)')}
+                password
               </label>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Password"
+                  placeholder="Enter your Password"
                   className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600 pr-9"
                   required
                 />
