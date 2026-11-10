@@ -62,7 +62,7 @@ import { SummaryTab } from './components/SummaryTab';
 import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
-import { TaskTab } from './components/TaskTab';
+import { UpcomingCostTab } from './components/UpcomingCostTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
   DayDetailsModal,
@@ -95,7 +95,7 @@ const DEFAULT_ADMIN: AppUser = {
   createdAt: '2026-10-01',
   role: 'super_admin',
   isActive: true,
-  allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings'],
+  allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings'],
   isReadOnly: false
 };
 
@@ -288,8 +288,8 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((u: AppUser) => {
             let defaultTabs: AppTab[] = u.username === 'abujar287' || u.role === 'super_admin'
-              ? ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
-              : ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
+              ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
+              : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
             let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
             if (u.username !== 'abujar287' && u.role !== 'super_admin') {
               tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
@@ -322,8 +322,8 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.username) {
           let defaultTabs: AppTab[] = parsed.username === 'abujar287' || parsed.role === 'super_admin'
-            ? ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings']
-            : ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
+            ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
+            : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
           let tabs: AppTab[] = (parsed.allowedTabs as AppTab[]) || defaultTabs;
           if (parsed.username !== 'abujar287' && parsed.role !== 'super_admin') {
             tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
@@ -387,9 +387,9 @@ export default function App() {
       if (currentUser?.role === 'super_admin_2') {
         tabs = ['summary', 'details'];
       } else if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
-        tabs = ['summary', 'entry', 'details', 'budget', 'task', 'users', 'settings'];
+        tabs = ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings'];
       } else {
-        tabs = ['summary', 'entry', 'details', 'budget', 'task', 'settings'];
+        tabs = ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
       }
     }
 
@@ -401,8 +401,8 @@ export default function App() {
     if (!tabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
       tabs = [...tabs, 'budget'];
     }
-    if (!tabs.includes('task') && currentUser?.role !== 'super_admin_2') {
-      tabs = [...tabs, 'task'];
+    if (!tabs.includes('upcoming_cost') && currentUser?.role !== 'super_admin_2') {
+      tabs = [...tabs, 'upcoming_cost'];
     }
     return tabs;
   }, [currentUser]);
@@ -1933,7 +1933,7 @@ export default function App() {
       role: 'member',
       sheetTab: cleanUname,
       isActive: true,
-      allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'settings'],
+      allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'],
       createdAt: new Date().toISOString().split('T')[0]
     };
 
@@ -2024,7 +2024,7 @@ export default function App() {
       role, 
       sheetTab: cleanUname, 
       isActive: true, 
-      allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'settings'],
+      allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'],
       createdAt: new Date().toISOString().split('T')[0]
     };
 
@@ -2278,10 +2278,10 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {activeTab !== 'task' && (
+                {activeTab !== 'upcoming_cost' && (
                   <button
                     type="button"
-                    onClick={() => setActiveTab('task')}
+                    onClick={() => setActiveTab('upcoming_cost')}
                     className="px-3 py-1.5 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-200 border border-teal-700 font-semibold text-xs cursor-pointer"
                   >
                     View Tasks
@@ -2351,8 +2351,8 @@ export default function App() {
                 />
               )}
 
-              {activeTab === 'task' && (
-                <TaskTab
+              {activeTab === 'upcoming_cost' && (
+                <UpcomingCostTab
                   tasks={tasks}
                   onAddTask={handleAddTask}
                   onUpdateTask={handleUpdateTask}
@@ -2400,7 +2400,7 @@ export default function App() {
               { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
               { id: 'details' as const, label: 'Details', icon: ListOrdered },
               { id: 'budget' as const, label: 'Budget', icon: Sliders },
-              { id: 'task' as const, label: 'Task', icon: CalendarClock },
+              { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
               { id: 'settings' as const, label: 'Settings', icon: Settings }
             ].filter(x => allowedTabs.includes(x.id)).map(item => {
               const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
@@ -2422,7 +2422,7 @@ export default function App() {
                   <span className={`text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-[#F0FDFA]' : 'text-teal-300/70'}`}>
                     {item.label}
                   </span>
-                  {item.id === 'task' && taskDueCount > 0 && (
+                  {item.id === 'upcoming_cost' && taskDueCount > 0 && (
                     <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E] animate-ping" />
                   )}
                 </motion.button>
@@ -2529,7 +2529,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setShowDueEntryModal(false);
-                    setActiveTab('task');
+                    setActiveTab('upcoming_cost');
                   }}
                   className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs cursor-pointer shadow-md"
                 >

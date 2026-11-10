@@ -2,7 +2,7 @@ export type TransactionType = 'Expense' | 'Income';
 
 export type UserRole = 'super_admin' | 'super_admin_2' | 'senior_member' | 'member' | 'admin';
 
-export type AppTab = 'summary' | 'entry' | 'details' | 'budget' | 'task' | 'users' | 'settings';
+export type AppTab = 'summary' | 'entry' | 'details' | 'budget' | 'upcoming_cost' | 'users' | 'settings';
 
 export interface CostTask {
   id: string;

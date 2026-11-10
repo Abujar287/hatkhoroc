@@ -42,7 +42,7 @@ interface TaskTabProps {
   onTestTaskAlarm?: (task?: CostTask) => void;
 }
 
-export const TaskTab: React.FC<TaskTabProps> = ({
+export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   tasks,
   onAddTask,
   onUpdateTask,

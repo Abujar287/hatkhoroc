@@ -277,7 +277,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
   const filteredDayWiseList = useMemo(() => {
     const allDateMap: Record<string, { inc: number; exp: number; count: number }> = {};
-    transactions.forEach(tx => {
+    displayTransactions.forEach(tx => {
       const clean = normalizeDate(tx.date);
       if (!allDateMap[clean]) allDateMap[clean] = { inc: 0, exp: 0, count: 0 };
       const val = Number(tx.value) || 0;

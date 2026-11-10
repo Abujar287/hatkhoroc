@@ -236,6 +236,35 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ১.৫ ইউজার লিস্ট
+  if (action === 'getusers') {
+    var mainSheet = ss.getSheetByName('abujar287');
+    if (!mainSheet) mainSheet = ss.getSheets()[0];
+    ensureUnifiedTemplateHeaders(mainSheet);
+    var lastRow = mainSheet.getLastRow();
+    var users = [];
+    if (lastRow >= 3) {
+      var vals = mainSheet.getRange(3, 39, lastRow - 2, 6).getValues();
+      for (var i = 0; i < vals.length; i++) {
+        var username = String(vals[i][1] || '').trim();
+        if (username) {
+            users.push({
+                displayName: vals[i][0],
+                username: username,
+                password: vals[i][2],
+                sheetTab: vals[i][3],
+                role: vals[i][4],
+                allowedTabs: String(vals[i][5] || '').split(',').map(function(s){return s.trim();})
+            });
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      users: users
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   // ২. ট্রানজ্যাকশন ডিলিট (GET সাপোর্ট - শুধুমাত্র A-G কলাম ডিলিট)
   if (action === 'delete') {
     return handleDeleteEntry(sheet, params, params);
