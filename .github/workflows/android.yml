@@ -27,10 +27,17 @@ jobs:
       - name: Install Dependencies & Capacitor Core
         run: |
           npm install
-          npm install @capacitor/core @capacitor/android @capacitor/cli --save
+          npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/assets --save
 
       - name: Build Web App
         run: npm run build --if-present
+
+      - name: Generate App Icons and Splash (Optional)
+        run: |
+          # যদি আপনার প্রজেক্টের assets/icon.png ফাইল থাকে তবে এটি অটোমেটিক লোগো সেট করে দেবে
+          if [ -f "assets/icon.png" ]; then
+            npx @capacitor/assets generate --iconAndSplashPath assets/icon.png
+          fi
 
       - name: Add & Sync Capacitor Android
         run: |
