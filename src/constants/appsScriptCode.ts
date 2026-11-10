@@ -170,6 +170,16 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ৫.৭ ইউজার ডিটেইলস সংরক্ষণ (SAVE USER - AL:AQ কলামে)
+    if (action === 'saveuser') {
+      saveUserToRange(ss, data);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        message: 'ইউজার ডিটেইলস সফলভাবে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ৫.৭ টাস্ক আপডেট (UPDATE TASK - X-AJ কলামে আপডেট)
     if (action === 'updatetask') {
       return handleUpdateTaskRange(sheet, data);
@@ -360,8 +370,8 @@ function getTargetSheet(ss, tabName) {
 }
 
 function createUnifiedTemplate(sheet) {
-  if (sheet.getMaxColumns() < 38) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 38 - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < 43) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 43 - sheet.getMaxColumns());
   }
 
   // Row 1: Merged Section Headers
@@ -370,6 +380,7 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 15, 1, 2).merge().setValue('Category').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 18, 1, 5).merge().setValue('month mapping').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 24, 1, 13).merge().setValue('Tasks').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(1, 38, 1, 6).merge().setValue('User Details').setFontWeight('bold').setHorizontalAlignment('center');
 
   // Row 2: Column Names
   sheet.getRange(2, 1, 1, 7).setValues([['id', 'datetime', 'type', 'category', 'date', 'value', 'note']])
@@ -387,8 +398,11 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(2, 24, 1, 13).setValues([['ID', 'Title', 'Due Date', 'Due Time', 'Amount', 'Category', 'Priority', 'Notes', 'Status', 'Reminder Days', 'Auto Notify', 'Created By', 'Created At']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
+  sheet.getRange(2, 38, 1, 6).setValues([['Full Name', 'username', 'password', 'sheet tab name', 'role', 'access tab']])
+    .setFontWeight('bold').setHorizontalAlignment('center');
+
   sheet.setFrozenRows(2);
-  sheet.getRange(1, 1, 2, 36).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 1, 2, 43).setBorder(true, true, true, true, true, true);
   
   try {
     sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
@@ -1102,5 +1116,51 @@ function formatDateVal(val) {
     }
   }
   return str;
+}
+
+// ইউজার ডিটেইলস সংরক্ষণ বা আপডেট (AL:AQ কলাম রেঞ্জ)
+function saveUserToRange(ss, data) {
+  var mainSheet = ss.getSheetByName('abujar287');
+  if (!mainSheet) {
+    mainSheet = ss.getSheets()[0];
+    if (mainSheet) {
+      try { mainSheet.setName('abujar287'); } catch (err) {}
+    } else {
+      mainSheet = ss.insertSheet('abujar287');
+    }
+  }
+  ensureUnifiedTemplateHeaders(mainSheet);
+
+  var fullName = String(data.fullName || data.displayName || '').trim();
+  var username = String(data.username || '').trim().toLowerCase();
+  var password = String(data.password || '').trim();
+  var userSheetTab = String(data.userSheetTab || data.sheetTab || username).trim();
+  var role = String(data.role || 'user').trim();
+  var accessTab = String(data.accessTab || 'Summary, Details, Add Entry, Setting').trim();
+
+  if (!username) return;
+
+  var lastRow = mainSheet.getLastRow();
+  var foundRow = -1;
+
+  if (lastRow >= 3) {
+    var userVals = mainSheet.getRange(3, 39, lastRow - 2, 1).getValues(); // Column AM (39) is username
+    for (var i = 0; i < userVals.length; i++) {
+      if (String(userVals[i][0] || '').trim().toLowerCase() === username) {
+        foundRow = i + 3;
+        break;
+      }
+    }
+  }
+
+  if (foundRow > 0) {
+    mainSheet.getRange(foundRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+  } else {
+    var targetRow = getNextEmptyRowInRange(mainSheet, 38, 6);
+    mainSheet.getRange(targetRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+    try {
+      mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
 }
 `;

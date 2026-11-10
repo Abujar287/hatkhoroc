@@ -165,6 +165,16 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ৫.৭ ইউজার ডিটেইলস সংরক্ষণ (SAVE USER - AL:AQ কলামে)
+    if (action === 'saveuser') {
+      saveUserToRange(ss, data);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        message: 'ইউজার ডিটেইলস সফলভাবে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ৫.৭ টাস্ক আপডেট (UPDATE TASK - X-AJ কলামে আপডেট)
     if (action === 'updatetask') {
       return handleUpdateTaskRange(sheet, data);
@@ -327,7 +337,6 @@ function doGet(e) {
 // শিট ও টেমপ্লেট হেল্পার ফাংশন
 // ====================================================================
 
-// টার্গেট ইউজার শিট খোঁজা অথবা নতুন তৈরি করা (যেমন: abujar287, munni)
 function getTargetSheet(ss, tabName) {
   var name = tabName ? String(tabName).trim() : 'abujar287';
   if (!name) name = 'abujar287';
@@ -338,7 +347,6 @@ function getTargetSheet(ss, tabName) {
     return target;
   }
   
-  // Case-insensitive lookup
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].getName().trim().toLowerCase() === name.toLowerCase()) {
@@ -347,7 +355,6 @@ function getTargetSheet(ss, tabName) {
     }
   }
   
-  // Create new user sheet tab
   try {
     target = ss.insertSheet(name);
     createUnifiedTemplate(target);
@@ -357,11 +364,9 @@ function getTargetSheet(ss, tabName) {
   }
 }
 
-// নতুন ট্যাবে সম্পূর্ণ ৫-সেকশন টেমপ্লেট সেটআপ
 function createUnifiedTemplate(sheet) {
-  // Ensure enough columns (need at least 36 columns: A to AJ)
-  if (sheet.getMaxColumns() < 38) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 38 - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < 43) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 43 - sheet.getMaxColumns());
   }
 
   // Row 1: Merged Section Headers
@@ -370,41 +375,37 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 15, 1, 2).merge().setValue('Category').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 18, 1, 5).merge().setValue('month mapping').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 24, 1, 13).merge().setValue('Tasks').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(1, 38, 1, 6).merge().setValue('User Details').setFontWeight('bold').setHorizontalAlignment('center');
 
   // Row 2: Column Names
-  // A-G (1-7): Entry
   sheet.getRange(2, 1, 1, 7).setValues([['id', 'datetime', 'type', 'category', 'date', 'value', 'note']])
     .setFontWeight('bold').setHorizontalAlignment('center');
   
-  // I-M (9-13): Budget
   sheet.getRange(2, 9, 1, 5).setValues([['Mapping Month', 'Category', 'Budget', 'Spend', 'Remain']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
-  // O-P (15-16): Category
   sheet.getRange(2, 15, 1, 2).setValues([['type', 'category']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
-  // R-V (18-22): month mapping
   sheet.getRange(2, 18, 1, 5).setValues([['Start Date', 'End Date', 'Mapping Month', 'default month', 'Budget']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
-  // X-AJ (24-36): Tasks
   sheet.getRange(2, 24, 1, 13).setValues([['ID', 'Title', 'Due Date', 'Due Time', 'Amount', 'Category', 'Priority', 'Notes', 'Status', 'Reminder Days', 'Auto Notify', 'Created By', 'Created At']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
-  // Format headers
+  sheet.getRange(2, 38, 1, 6).setValues([['Full Name', 'username', 'password', 'sheet tab name', 'role', 'access tab']])
+    .setFontWeight('bold').setHorizontalAlignment('center');
+
   sheet.setFrozenRows(2);
-  sheet.getRange(1, 1, 2, 36).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 1, 2, 43).setBorder(true, true, true, true, true, true);
   
-  // Set Plain Text formatting for ID and Date columns so Google Sheets does not alter text
   try {
-    sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@'); // ID
-    sheet.getRange(1, 5, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@'); // Date
-    sheet.getRange(1, 24, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@'); // Task ID
-    sheet.getRange(1, 26, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@'); // Task Due Date
+    sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
+    sheet.getRange(1, 5, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
+    sheet.getRange(1, 24, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
+    sheet.getRange(1, 26, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
   } catch (e) {}
 
-  // Seed default categories in cols 15-16
   var defaultCats = [
     ['Expense', 'খাবার ও মুদি'],
     ['Expense', 'যাতায়াত ও ভ্রমণ'],
@@ -424,7 +425,6 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
 }
 
-// বিদ্যমান ট্যাবে হেডার নিশ্চিত করা
 function ensureUnifiedTemplateHeaders(sheet) {
   var row1Val = sheet.getRange(1, 1).getValue();
   var row2Val = sheet.getRange(2, 1).getValue();
@@ -434,7 +434,6 @@ function ensureUnifiedTemplateHeaders(sheet) {
   }
 }
 
-// নির্দিষ্ট কলাম রেঞ্জে পরবর্তী খালি রো খোঁজা
 function getNextEmptyRowInRange(sheet, startCol, numCols) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 3;
@@ -449,15 +448,15 @@ function getNextEmptyRowInRange(sheet, startCol, numCols) {
       }
     }
     if (isEmpty) {
-      return r + 3; // ۱-ভিত্তিক রো ইনডেক্স
+      return r + 3;
     }
   }
   return values.length + 3;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ১. ENTRY ফাংশনস (A-G কলাম, Cols 1-7)
-// ====================================================================
+// ----------------------------------------------------
 
 function insertEntryIfNotExists(sheet, id, datetime, type, category, date, value, note) {
   var lastRow = sheet.getLastRow();
@@ -465,7 +464,7 @@ function insertEntryIfNotExists(sheet, id, datetime, type, category, date, value
     var ids = sheet.getRange(3, 1, lastRow - 2, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]).trim() === String(id).trim()) {
-        return; // Already exists
+        return;
       }
     }
   }
@@ -515,7 +514,6 @@ function handleUpdateEntry(sheet, data) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-// এন্ট্রি ডিলিট: শুধুমাত্র A-G কলাম ডিলিট হবে, ডানের কলামের ডেটা অক্ষত থাকবে!
 function handleDeleteEntry(sheet, data, params) {
   var idToDelete = String(data.id || (params ? params.id : '') || '').trim();
   var lastRow = sheet.getLastRow();
@@ -536,8 +534,7 @@ function handleDeleteEntry(sheet, data, params) {
       
       if (isMatch) {
         var rowNumber = i + 3;
-        // গুরুত্বপূর্ণ: deleteRow() না করে deleteCells(ROWS) ব্যবহার করা হচ্ছে
-        // যাতে শুধুমাত্র কলাম A-G ডিলিট হয়ে উপরে উঠে, ডানের Budget/Category/Mapping/Tasks পুরোপুরি অক্ষত থাকে!
+        // শুধুমাত্র কলাম A-G ডিলিট ও শিফট আপ, ডানের সব কলাম সম্পূর্ণ অক্ষত!
         sheet.getRange(rowNumber, 1, 1, 7).deleteCells(SpreadsheetApp.Dimension.ROWS);
         
         return ContentService.createTextOutput(JSON.stringify({
@@ -583,28 +580,26 @@ function readEntriesFromRange(sheet) {
   return list;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ২. BUDGET ফাংশনস (I-M কলাম, Cols 9-13)
-// ====================================================================
+// ----------------------------------------------------
 
 function saveBudgetToRange(sheet, monthLabel, totalBudget, catRows, catBudgets) {
   var cleanMonth = parseLabelString(monthLabel);
   var cleanMonthKey = cleanMonth.toLowerCase().replace(/[^a-z0-9]/g, '');
   
-  // ১. R-V কলামের (month mapping) বাজেট আপডেট
   var lastRow = sheet.getLastRow();
   if (lastRow >= 3) {
     var mapVals = sheet.getRange(3, 18, lastRow - 2, 5).getValues();
     for (var m = 0; m < mapVals.length; m++) {
       var l = parseLabelString(mapVals[m][2]).toLowerCase().replace(/[^a-z0-9]/g, '');
       if (l && cleanMonthKey && (l === cleanMonthKey || l.indexOf(cleanMonthKey) !== -1 || cleanMonthKey.indexOf(l) !== -1)) {
-        sheet.getRange(m + 3, 22).setValue(totalBudget); // Col V
+        sheet.getRange(m + 3, 22).setValue(totalBudget);
         break;
       }
     }
   }
   
-  // ২. ক্যাটাগরি বাজেট ব্রেকডাউন I-M কলামে আপডেট বা অ্যাপেন্ড
   var rowsToProcess = [];
   if (Array.isArray(catRows) && catRows.length > 0) {
     for (var i = 0; i < catRows.length; i++) {
@@ -675,7 +670,6 @@ function readBudgetsFromRange(sheet, ss) {
     }
   }
   
-  // Fallback to legacy 'Budget' sheet if user tab budget is empty
   if (Object.keys(budgets).length === 0 && ss) {
     var legacyB = ss.getSheetByName('Budget');
     if (legacyB && legacyB.getLastRow() >= 2) {
@@ -695,9 +689,9 @@ function readBudgetsFromRange(sheet, ss) {
   return budgets;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ৩. CATEGORY ফাংশনস (O-P কলাম, Cols 15-16)
-// ====================================================================
+// ----------------------------------------------------
 
 function insertCategoryIfNotExists(sheet, type, category) {
   var clean = String(category || '').trim();
@@ -708,7 +702,7 @@ function insertCategoryIfNotExists(sheet, type, category) {
     var cVals = sheet.getRange(3, 15, lastRow - 2, 2).getValues();
     for (var i = 0; i < cVals.length; i++) {
       if (String(cVals[i][1] || '').trim().toLowerCase() === clean.toLowerCase()) {
-        return false; // Already exists
+        return false;
       }
     }
   }
@@ -725,9 +719,7 @@ function handleDeleteCategory(sheet, categoryName) {
     var cVals = sheet.getRange(3, 15, lastRow - 2, 2).getValues();
     for (var i = cVals.length - 1; i >= 0; i--) {
       if (String(cVals[i][1] || '').trim().toLowerCase() === clean) {
-        var rowNumber = i + 3;
-        // শুধুমাত্র কলাম O-P ডিলিট
-        sheet.getRange(rowNumber, 15, 1, 2).deleteCells(SpreadsheetApp.Dimension.ROWS);
+        sheet.getRange(i + 3, 15, 1, 2).deleteCells(SpreadsheetApp.Dimension.ROWS);
       }
     }
   }
@@ -750,7 +742,6 @@ function readCategoriesFromRange(sheet, ss) {
     }
   }
   
-  // Fallback to legacy 'Category' sheet if empty
   if (cats.length === 0 && ss) {
     var legacyC = ss.getSheetByName('Category');
     if (legacyC && legacyC.getLastRow() >= 2) {
@@ -769,9 +760,9 @@ function readCategoriesFromRange(sheet, ss) {
   return cats;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ৪. MONTH MAPPING ফাংশনস (R-V কলাম, Cols 18-22)
-// ====================================================================
+// ----------------------------------------------------
 
 function saveMonthMappingsToRange(sheet, maps, defaultLabel) {
   if (!Array.isArray(maps)) maps = [];
@@ -871,7 +862,6 @@ function readMonthMappingsFromRange(sheet, ss) {
     }
   }
   
-  // Fallback to legacy 'month mapping' sheet if empty
   if (list.length === 0 && ss) {
     var legacyM = ss.getSheetByName('month mapping');
     if (legacyM && legacyM.getLastRow() >= 2) {
@@ -898,9 +888,9 @@ function readMonthMappingsFromRange(sheet, ss) {
   return list;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ৫. TASKS ফাংশনস (X-AJ কলাম, Cols 24-36)
-// ====================================================================
+// ----------------------------------------------------
 
 function insertTaskToRange(sheet, id, title, dueDate, dueTime, amount, category, priority, notes, status, reminderDays, autoNotify, createdBy, createdAt) {
   var lastRow = sheet.getLastRow();
@@ -908,7 +898,7 @@ function insertTaskToRange(sheet, id, title, dueDate, dueTime, amount, category,
     var ids = sheet.getRange(3, 24, lastRow - 2, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]).trim() === String(id).trim()) {
-        return; // Already exists
+        return;
       }
     }
   }
@@ -970,7 +960,6 @@ function handleUpdateTaskRange(sheet, data) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-// টাস্ক ডিলিট: শুধুমাত্র X-AJ কলাম ডিলিট হবে, বামের কলামের ডেটা অক্ষত থাকবে!
 function handleDeleteTaskRange(sheet, data, params) {
   var idToDelete = String(data.id || (params ? params.id : '') || '').trim();
   var lastRow = sheet.getLastRow();
@@ -991,7 +980,6 @@ function handleDeleteTaskRange(sheet, data, params) {
       
       if (isMatch) {
         var rowNumber = i + 3;
-        // শুধুমাত্র কলাম X-AJ (Cols 24-36) ডিলিট ও শিফট আপ!
         sheet.getRange(rowNumber, 24, 1, 13).deleteCells(SpreadsheetApp.Dimension.ROWS);
         
         return ContentService.createTextOutput(JSON.stringify({
@@ -1053,7 +1041,6 @@ function readTasksFromRange(sheet, ss) {
     }
   }
   
-  // Fallback to legacy 'Tasks' sheet if empty
   if (list.length === 0 && ss) {
     var legacyT = ss.getSheetByName('Tasks');
     if (legacyT && legacyT.getLastRow() >= 2) {
@@ -1084,9 +1071,9 @@ function readTasksFromRange(sheet, ss) {
   return list;
 }
 
-// ====================================================================
+// ----------------------------------------------------
 // ইউটিলিটি ফাংশনস
-// ====================================================================
+// ----------------------------------------------------
 
 function parseLabelString(val) {
   if (!val) return '';
@@ -1124,4 +1111,50 @@ function formatDateVal(val) {
     }
   }
   return str;
+}
+
+// ইউজার ডিটেইলস সংরক্ষণ বা আপডেট (AL:AQ কলাম রেঞ্জ)
+function saveUserToRange(ss, data) {
+  var mainSheet = ss.getSheetByName('abujar287');
+  if (!mainSheet) {
+    mainSheet = ss.getSheets()[0];
+    if (mainSheet) {
+      try { mainSheet.setName('abujar287'); } catch (err) {}
+    } else {
+      mainSheet = ss.insertSheet('abujar287');
+    }
+  }
+  ensureUnifiedTemplateHeaders(mainSheet);
+
+  var fullName = String(data.fullName || data.displayName || '').trim();
+  var username = String(data.username || '').trim().toLowerCase();
+  var password = String(data.password || '').trim();
+  var userSheetTab = String(data.userSheetTab || data.sheetTab || username).trim();
+  var role = String(data.role || 'user').trim();
+  var accessTab = String(data.accessTab || 'Summary, Details, Add Entry, Setting').trim();
+
+  if (!username) return;
+
+  var lastRow = mainSheet.getLastRow();
+  var foundRow = -1;
+
+  if (lastRow >= 3) {
+    var userVals = mainSheet.getRange(3, 39, lastRow - 2, 1).getValues(); // Column AM (39) is username
+    for (var i = 0; i < userVals.length; i++) {
+      if (String(userVals[i][0] || '').trim().toLowerCase() === username) {
+        foundRow = i + 3;
+        break;
+      }
+    }
+  }
+
+  if (foundRow > 0) {
+    mainSheet.getRange(foundRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+  } else {
+    var targetRow = getNextEmptyRowInRange(mainSheet, 38, 6);
+    mainSheet.getRange(targetRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+    try {
+      mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
 }

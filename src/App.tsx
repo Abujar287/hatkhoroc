@@ -1798,12 +1798,43 @@ export default function App() {
     localStorage.removeItem('active_user_v2');
   };
 
+  const syncUserToSheet = (user: AppUser) => {
+    try {
+      const payload = {
+        action: 'saveuser',
+        sheetTab: 'abujar287',
+        fullName: user.displayName,
+        username: user.username,
+        password: user.password,
+        userSheetTab: user.sheetTab || user.username,
+        role: user.role,
+        accessTab: (user.allowedTabs || ['summary', 'entry', 'details', 'settings']).join(', ')
+      };
+
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+
+      fetch('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    } catch {}
+  };
+
   const handleSaveProfile = (name: string, pass?: string) => {
     if (!currentUser) return;
     const updated = { ...currentUser, displayName: name, password: pass || currentUser.password };
     setCurrentUser(updated);
-    setUsers(users.map(u => u.username === updated.username ? updated : u));
+    const newUsersList = users.map(u => u.username === updated.username ? updated : u);
+    setUsers(newUsersList);
     localStorage.setItem('active_user_v2', JSON.stringify(updated));
+    localStorage.setItem('app_registered_users_v2', JSON.stringify(newUsersList));
+    syncUserToSheet(updated);
     setEditingUser(null);
   };
 
@@ -1826,8 +1857,9 @@ export default function App() {
       localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
     } catch {}
 
-    // Auto-create unified Google Sheet tab for this user (e.g. munni)
+    // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
     try {
+      syncUserToSheet(newUser);
       fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, { mode: 'no-cors' }).catch(() => {});
       fetch('/api/sheet-proxy', {
         method: 'POST',
