@@ -408,7 +408,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             {/* City Bank */}
             <div className="px-4 py-2.5 sm:px-5 flex items-center justify-between gap-3 hover:bg-teal-900/30">
               <span className="text-xs sm:text-sm font-semibold text-[#F0FDFA]">
-                City Bank
+                Bank
               </span>
               <div className="w-36 sm:w-48">
                 <input

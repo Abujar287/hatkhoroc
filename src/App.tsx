@@ -180,10 +180,12 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('active_user_v2');
-      if (saved) return true;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.username) return true;
+      }
     } catch {}
-    // Default logged in as admin to prevent login reload in preview
-    return true;
+    return false;
   });
 
 
@@ -322,7 +324,7 @@ export default function App() {
         }
       }
     } catch {}
-    return DEFAULT_ADMIN;
+    return null;
   });
 
   // Login form state
@@ -1609,21 +1611,23 @@ export default function App() {
           });
         }
 
-        const finalExpList = deduplicateCategories(aggregatedExp);
-        const finalIncList = deduplicateCategories(aggregatedInc);
+        const finalExpList = aggregatedExp.length > 0
+          ? deduplicateCategories(aggregatedExp)
+          : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]);
 
-        if (finalExpList.length > 0) {
-          setExpenseCategories(finalExpList);
-          try {
-            localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(finalExpList));
-          } catch {}
-        }
-        if (finalIncList.length > 0) {
-          setIncomeCategories(finalIncList);
-          try {
-            localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
-          } catch {}
-        }
+        const finalIncList = aggregatedInc.length > 0
+          ? deduplicateCategories(aggregatedInc)
+          : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]);
+
+        setExpenseCategories(finalExpList);
+        try {
+          localStorage.setItem(`app_expense_categories_${tabToSync}`, JSON.stringify(finalExpList));
+        } catch {}
+
+        setIncomeCategories(finalIncList);
+        try {
+          localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
+        } catch {}
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
       }
@@ -1751,12 +1755,44 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [catModalType, setCatModalType] = useState<TransactionType>('Expense');
 
-  const handleAddCategory = (newCat: string, type: TransactionType) => {
-    const updated = type === 'Expense' ? [...expenseCategories, newCat] : [...incomeCategories, newCat];
-    if (type === 'Expense') setExpenseCategories(deduplicateCategories(updated));
-    else setIncomeCategories(deduplicateCategories(updated));
-    localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(updated));
-    showToast('Category Added', 'success');
+  const handleAddCategory = async (newCat: string, type: TransactionType) => {
+    const cleanCat = newCat.trim();
+    if (!cleanCat) return;
+
+    const updated = type === 'Expense' ? [...expenseCategories, cleanCat] : [...incomeCategories, cleanCat];
+    const deduped = deduplicateCategories(updated);
+    if (type === 'Expense') setExpenseCategories(deduped);
+    else setIncomeCategories(deduped);
+
+    try {
+      localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(deduped));
+    } catch {}
+
+    showToast(lang === 'en' ? `Category '${cleanCat}' added!` : `'${cleanCat}' ক্যাটাগরি গুগল শিটে যুক্ত হয়েছে!`, 'success');
+
+    // Cloud Save: Write new category to Google Sheet (Cols 15-16 / O-P range in currentTab sheet)
+    const payload = {
+      action: 'addcategory',
+      sheetTab: currentTab,
+      category: cleanCat,
+      type
+    };
+
+    try {
+      await fetch('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch {}
+
+    const qParams = new URLSearchParams({
+      action: 'addcategory',
+      sheetTab: currentTab,
+      category: cleanCat,
+      type
+    }).toString();
+    fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
   };
 
   const handleUpdateCategories = (newCats: string[], type: TransactionType) => {
@@ -1808,14 +1844,30 @@ export default function App() {
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
-    const target = users.find(u => u.username.toLowerCase() === loginUsername.toLowerCase());
-    if (target && target.password === loginPassword) {
+    setLoginError('');
+    const cleanU = loginUsername.trim().toLowerCase();
+    const cleanP = loginPassword.trim();
+
+    if (!cleanU || !cleanP) {
+      setLoginError(lang === 'en' ? 'Please enter username and password' : 'ইউজারনেম এবং পাসওয়ার্ড দিন');
+      setIsLoggingIn(false);
+      return;
+    }
+
+    let target = users.find(u => u.username.toLowerCase() === cleanU);
+    if (!target && (cleanU === 'abujar287' || cleanU === 'abujar')) {
+      target = DEFAULT_ADMIN;
+    }
+
+    if (target && target.password === cleanP) {
       setCurrentUser(target);
       setIsAuthenticated(true);
       localStorage.setItem('active_user_v2', JSON.stringify(target));
-      showToast('Welcome!', 'success');
+      showToast(lang === 'en' ? `Welcome, ${target.displayName}!` : `স্বাগতম, ${target.displayName}!`, 'success');
+      setLoginError('');
     } else {
-      setLoginError('Invalid credentials');
+      setLoginError(lang === 'en' ? 'Invalid username or password' : 'ইউজারনেম অথবা পাসওয়ার্ড ভুল হয়েছে');
+      showToast(lang === 'en' ? 'Invalid username or password' : 'ইউজারনেম অথবা পাসওয়ার্ড ভুল হয়েছে', 'error');
     }
     setIsLoggingIn(false);
   };
@@ -1879,6 +1931,16 @@ export default function App() {
       allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'settings'],
       createdAt: new Date().toISOString().split('T')[0]
     };
+
+    // Purge any old local storage keys for this tab so it starts 100% clean with 0 budgets
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.includes(`_${cleanUname}`)) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     try {

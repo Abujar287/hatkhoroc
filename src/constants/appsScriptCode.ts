@@ -734,6 +734,29 @@ function readCategoriesFromRange(sheet, ss) {
       }
     }
   }
+
+  if (cats.length === 0) {
+    var defaultCats = [
+      ['Expense', 'Personal'],
+      ['Expense', 'WiFi & Internet'],
+      ['Expense', 'Others Expense'],
+      ['Expense', 'Medicines'],
+      ['Income', 'Borrowed Money'],
+      ['Income', 'Others Income'],
+      ['Expense', 'Loan Repaid'],
+      ['Income', 'Salary'],
+      ['Expense', 'Room Rent'],
+      ['Expense', "Family's Cost"],
+      ['Expense', 'Official'],
+      ['Expense', 'Electricity'],
+      ['Income', 'Previous Month Arrears'],
+      ['Expense', 'Shopping']
+    ];
+    sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
+    for (var j = 0; j < defaultCats.length; j++) {
+      cats.push({ type: defaultCats[j][0], category: defaultCats[j][1] });
+    }
+  }
   return cats;
 }
 

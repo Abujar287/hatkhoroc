@@ -21,8 +21,8 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const handleDownload = () => {
     recordUpdateAcknowledged(updateInfo.latestSha);
-    // Prefer direct release download or actions page
-    window.open(updateInfo.actionsUrl, '_blank');
+    const targetUrl = updateInfo.releaseUrl || updateInfo.actionsUrl || 'https://github.com/Abujar287/hatkhoroc/releases';
+    window.open(targetUrl, '_blank');
   };
 
   const handleDismiss = () => {
