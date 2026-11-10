@@ -376,21 +376,28 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
-      const url = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
-      if (url) {
-        fetch(url)
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.users) {
-              const mappedUsers = data.users.map(mapUserFromSheet);
-              setUsers(mappedUsers);
-              localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
-            }
-          })
-          .catch(err => console.error('Failed to sync users:', err));
-      } else {
-        console.error('GOOGLE_SCRIPT_URL is not configured');
-      }
+      const syncUsers = () => {
+        const url = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
+        if (url) {
+          fetch(url)
+            .then(async res => {
+              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+              return res.json();
+            })
+            .then(data => {
+              if (data && data.users) {
+                const mappedUsers = data.users.map(mapUserFromSheet);
+                setUsers(mappedUsers);
+                localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+              }
+            })
+            .catch(err => console.error('Failed to sync users:', err));
+        }
+      };
+
+      syncUsers();
+      const interval = setInterval(syncUsers, 60000); // Sync users every minute for admins
+      return () => clearInterval(interval);
     }
   }, [currentUser]);
 
@@ -574,8 +581,6 @@ export default function App() {
     return [];
   });
 
-  const [activeRingingTask, setActiveRingingTask] = useState<CostTask | null>(null);
-  const [showDueEntryModal, setShowDueEntryModal] = useState<boolean>(true);
   const [hasNotifiedOnEntry, setHasNotifiedOnEntry] = useState<boolean>(false);
 
   // Compute tasks due today or overdue
@@ -584,10 +589,7 @@ export default function App() {
     return tasks.filter(t => (t.status === 'pending' || !t.status) && t.dueDate <= todayStr);
   }, [tasks]);
 
-  const handleStopRingingAlarm = useCallback(() => {
-    stopTaskAlarmSound();
-    setActiveRingingTask(null);
-  }, []);
+
 
   useEffect(() => {
     initAudioUnlock();
@@ -598,12 +600,7 @@ export default function App() {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       const handleSwMessage = (e: MessageEvent) => {
         if (e.data?.type === 'TASK_ALARM_PUSH_RECEIVED' && e.data?.taskId) {
-          const target = tasks.find(t => t.id === e.data.taskId) || tasks[0];
-          if (target) {
-            setActiveRingingTask(target);
-            playTaskAlarmSound();
-            vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
-          }
+          // Just let the header banner handle it quietly
         }
       };
       navigator.serviceWorker.addEventListener('message', handleSwMessage);
@@ -627,36 +624,18 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const ringTaskId = urlParams.get('ringTask');
       if (ringTaskId && tasks && tasks.length > 0) {
-        const found = tasks.find(t => t.id === ringTaskId);
-        if (found) {
-          setActiveRingingTask(found);
-          playTaskAlarmSound();
-          vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
-        }
+        // Just let the header banner handle it quietly
       }
     } catch {}
   }, [tasks]);
 
-  // When entering the app: auto-trigger sound, vibration, notification, and highlight for tasks due today
+  // When entering the app: auto-sync web push subscription
   useEffect(() => {
     if (dueTodayTasks.length > 0 && !hasNotifiedOnEntry) {
       setHasNotifiedOnEntry(true);
-      ensureNotificationPermission();
       setupWebPushSubscription().catch(() => {});
-      playTaskAlarmSound();
-      vibrateDevice([500, 200, 500, 200, 500, 200, 800]);
-      setActiveRingingTask(dueTodayTasks[0]);
-
-      dueTodayTasks.forEach(task => {
-        sendSystemNotification(`🚨 ${t('Due Today', 'আজকের দিন পরিশোধ')}: ${task.title}`, {
-          body: `${t('Amount', 'পরিমাণ')}: ${task.amount.toLocaleString()} | ${t('Due Date', 'তারিখ')}: ${task.dueDate} ${task.dueTime ? formatTime12h(task.dueTime) : ''}`,
-          tag: `due-today-${task.id}`,
-          requireInteraction: true,
-          renotify: true
-        });
-      });
     }
-  }, [dueTodayTasks, hasNotifiedOnEntry, t]);
+  }, [dueTodayTasks, hasNotifiedOnEntry]);
 
   // Background Task Alarm Engine (Active while app is running in foreground/background tab)
   useEffect(() => {
@@ -680,17 +659,7 @@ export default function App() {
         const targetTime = task.dueTime || '09:00';
 
         if (isDueTodayOrOverdue || (todayStr >= targetDateStr && currentTimeStr >= targetTime)) {
-          const triggerKey = `${task.id}_${todayStr}`;
-          if (!hasTaskBeenNotified(task.id, triggerKey)) {
-            markTaskAsNotified(task.id, triggerKey);
-            // Send system notification quietly without repeatedly looping alarm audio in app
-            sendSystemNotification(`🚨 ${t('Due Task Reminder', 'আজকের বকেয়া বিল/টাস্ক')}: ${task.title}`, {
-              body: `${t('Amount', 'পরিমাণ')}: ${task.amount.toLocaleString()} | ${t('Due', 'তারিখ')}: ${task.dueDate} ${task.dueTime ? formatTime12h(task.dueTime) : ''}`,
-              tag: `task-alarm-${task.id}`,
-              requireInteraction: true,
-              renotify: true
-            });
-          }
+          // Check quietly for banner display in header
         }
       });
     };
@@ -899,7 +868,6 @@ export default function App() {
     showCategoryManager,
     showCreateUserModal,
     showMobileModal,
-    showDueEntryModal,
     activeTab
   });
 
@@ -915,7 +883,6 @@ export default function App() {
       showCategoryManager,
       showCreateUserModal,
       showMobileModal,
-      showDueEntryModal,
       activeTab
     };
   }, [
@@ -929,7 +896,6 @@ export default function App() {
     showCategoryManager,
     showCreateUserModal,
     showMobileModal,
-    showDueEntryModal,
     activeTab
   ]);
 
@@ -986,10 +952,7 @@ export default function App() {
       return;
     }
 
-    if (modalStateRef.current.showDueEntryModal) {
-      setShowDueEntryModal(false);
-      return;
-    }
+
 
     // 4. If in another tab, return to summary tab first
     if (modalStateRef.current.activeTab !== 'summary') {
@@ -1695,6 +1658,24 @@ export default function App() {
         try {
           localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
         } catch {}
+        // Also sync users if current user is admin
+        if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
+          try {
+            const userUrl = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
+            if (userUrl) {
+              const uRes = await fetch(userUrl);
+              const uData = await uRes.json();
+              if (uData && uData.users) {
+                const mappedUsers = uData.users.map(mapUserFromSheet);
+                setUsers(mappedUsers);
+                localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+              }
+            }
+          } catch (uErr) {
+            console.error('Failed to sync users during manual sync:', uErr);
+          }
+        }
+
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
       }
@@ -1760,7 +1741,6 @@ export default function App() {
       note: `[Task] ${task.title}${task.notes ? ' - ' + task.notes : ''}`
     };
 
-    handleStopRingingAlarm();
     saveTransactionsLocally([newTx, ...transactions]);
     
     // Automatically delete/remove task from task list upon payment
@@ -2240,100 +2220,13 @@ export default function App() {
           lang={lang}
           selectedMonth={selectedMonth}
           monthMappings={monthMappings}
-          taskDueCount={taskDueCount}
+          dueTodayTask={tasks.find(t => t.status === 'pending' && t.dueDate === new Date().toISOString().split('T')[0]) || null}
+          onPayTask={handleConvertTaskToExpense}
         />
 
         <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
           <div className="w-full max-w-7xl mx-auto space-y-4">
-            {/* Active Ringing Alarm Banner */}
-          {activeRingingTask && (
-            <div className="mb-3 bg-red-600 p-3.5 rounded-xl border-2 border-amber-300 shadow-xl text-white flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
-                  <BellRing className="w-6 h-6 text-amber-200 animate-bounce" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-amber-300 text-amber-950 font-black text-[9px] uppercase tracking-wider shadow-sm">
-                      Alarm Ringing
-                    </span>
-                    <span className="text-xs text-white/90">{activeRingingTask.dueDate} ({formatTime12h(activeRingingTask.dueTime)})</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-white mt-0.5">
-                    {activeRingingTask.title} — {activeRingingTask.amount.toLocaleString()}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleStopRingingAlarm}
-                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1 cursor-pointer border border-slate-700"
-                >
-                  <VolumeX className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Stop</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleStopRingingAlarm();
-                    handleConvertTaskToExpense(activeRingingTask);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-md"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Pay Now</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Today's Due Task Banner (Visible on entry if tasks are due today) */}
-          {!activeRingingTask && dueTodayTasks.length > 0 && (
-            <div className="mb-3 bg-[#0B3C39] p-3 rounded-xl border border-teal-700/80 shadow-md text-[#F0FDFA] flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-teal-950 text-amber-300 border border-teal-700 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-teal-800 text-teal-200 font-bold text-[9px] uppercase tracking-wider">
-                      Due Today
-                    </span>
-                    <span className="text-xs font-semibold text-teal-200">
-                      {dueTodayTasks.length} task(s) require payment
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-bold text-white mt-0.5">
-                    {dueTodayTasks[0].title} — {dueTodayTasks[0].amount.toLocaleString()}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {activeTab !== 'upcoming_cost' && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('upcoming_cost')}
-                    className="px-3 py-1.5 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-200 border border-teal-700 font-semibold text-xs cursor-pointer"
-                  >
-                    View Tasks
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleConvertTaskToExpense(dueTodayTasks[0])}
-                  className="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs flex items-center gap-1 cursor-pointer shadow-sm"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Pay Now</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="w-full">
+            <div className="w-full">
               {activeTab === 'summary' && (
                 <SummaryTab
                   transactions={transactions}
@@ -2396,8 +2289,6 @@ export default function App() {
                   showToast={showToast}
                   currentUser={currentUser}
                   categories={expenseCategories}
-                  activeRingingTask={activeRingingTask}
-                  onStopRingingAlarm={handleStopRingingAlarm}
                 />
               )}
 
@@ -2479,102 +2370,7 @@ export default function App() {
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
 
 
-      {/* Entrance Due Task Alert Modal (shows automatically when entering app if tasks due today) */}
-      {showDueEntryModal && dueTodayTasks.length > 0 && (
-        <ModalPortal>
-          <div
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
-            onClick={() => setShowDueEntryModal(false)}
-          >
-            <div
-              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border-2 border-[#FF7A59]/80 animate-modalSpring space-y-0 my-auto"
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Coral Gradient Header */}
-              <div className="bg-gradient-to-r from-[#FF7A59] to-[#E05338] px-5 py-4 text-white flex items-center justify-between border-b border-[#FF7A59]/40">
-                <div className="flex items-center gap-2.5">
-                  <AlertTriangle className="w-6 h-6 text-white animate-bounce shrink-0" />
-                  <div>
-                    <h2 className="text-base font-black">
-                      {t("Today's Due Task Notice!", 'আজকের বকেয়া বিলের নোটিশ!')}
-                    </h2>
-                    <p className="text-xs text-white/90 font-medium">
-                      {dueTodayTasks.length} {t('task(s) due today or overdue', 'টি বিল আজকের দিনে পরিশোধ করতে হবে')}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDueEntryModal(false)}
-                  className="p-1.5 rounded-lg bg-black/20 hover:bg-black/30 text-white cursor-pointer transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              {/* Task Items List */}
-              <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2.5 divide-y divide-teal-800/40">
-                {dueTodayTasks.map(task => (
-                  <div key={task.id} className="pt-2.5 first:pt-0 flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#FF7A59]/20 text-[#FF7A59] border border-[#FF7A59]/40">
-                          {task.category}
-                        </span>
-                        <h4 className="text-sm font-bold text-white truncate">{task.title}</h4>
-                      </div>
-                      <p className="text-xs text-teal-200 mt-0.5 flex items-center gap-1">
-                        <span>{task.dueDate}</span>
-                        {task.dueTime && <span className="text-amber-300">({formatTime12h(task.dueTime)})</span>}
-                      </p>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="text-base font-black text-amber-300">
-                        {task.amount.toLocaleString()}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowDueEntryModal(false);
-                          handleConvertTaskToExpense(task);
-                        }}
-                        className="mt-1 px-2.5 py-1 rounded-lg bg-amber-300 hover:bg-amber-200 text-amber-950 font-black text-xs cursor-pointer flex items-center gap-1 shadow-sm"
-                      >
-                        <Zap className="w-3 h-3" />
-                        <span>{t('Pay Now', 'পরিশোধ')}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-3 bg-teal-950/80 border-t border-teal-800 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowDueEntryModal(false)}
-                  className="px-3.5 py-1.5 rounded-xl bg-teal-900 text-teal-200 text-xs font-bold border border-teal-700 cursor-pointer"
-                >
-                  {t('Dismiss', 'পরে দেখব')}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDueEntryModal(false);
-                    setActiveTab('upcoming_cost');
-                  }}
-                  className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs cursor-pointer shadow-md"
-                >
-                  {t('View in Task Tab', 'টাস্ক লিস্টে যান')}
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </ModalPortal>
-      )}
 
       {isAppExited && (
         <div className="fixed inset-0 z-[9999999] bg-[#042F2E] flex flex-col items-center justify-center p-6 text-center animate-fadeIn text-[#F0FDFA]">

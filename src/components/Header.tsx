@@ -17,7 +17,8 @@ interface HeaderProps {
   onLogout?: () => void;
   selectedMonth: string;
   monthMappings: import('../types').MonthMapping[];
-  taskDueCount?: number;
+  dueTodayTask?: import('../types').CostTask | null;
+  onPayTask?: (task: import('../types').CostTask) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,7 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   lang = 'en',
   selectedMonth,
   monthMappings,
-  taskDueCount = 0
+  dueTodayTask,
+  onPayTask
 }) => {
   const activeMonthLabel = React.useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
@@ -62,6 +64,20 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="shrink-0 z-40 bg-[#042F2E] text-[#F0FDFA] w-full shadow-md pt-safe border-b border-teal-800/60">
+      {dueTodayTask && (
+        <div className="bg-[#FF7A59] text-white px-3 py-1 flex items-center justify-between animate-pulse">
+          <span className="truncate mr-2 text-[10px] font-bold">
+            {dueTodayTask.title} : {dueTodayTask.amount.toLocaleString()}
+          </span>
+          <button 
+            type="button" 
+            onClick={() => onPayTask?.(dueTodayTask)}
+            className="bg-white text-[#FF7A59] px-2 py-0.5 rounded-lg text-[9px] font-black uppercase shrink-0"
+          >
+            Pay Now
+          </button>
+        </div>
+      )}
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
         {/* Left: App Title & User Full Name */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -88,11 +104,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-xs sm:text-sm font-extrabold text-emerald-300 tracking-wide">
               {activeMonthLabel}
             </span>
-            {taskDueCount > 0 && (
-              <span className="px-1.5 py-0.5 bg-[#FF7A59] text-white text-[9px] font-black rounded-full shadow-xs animate-pulse ml-0.5">
-                {taskDueCount}
-              </span>
-            )}
           </div>
 
           {/* Sync Button */}

@@ -117,28 +117,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   };
 
   const handleTestAlarmSound = (taskObj?: CostTask) => {
-    initAudioUnlock();
-    if (isTestingSound) {
-      stopTaskAlarmSound();
-      setIsTestingSound(false);
-      showToast(t('Alarm test stopped', 'অ্যালার্ম পরীক্ষা বন্ধ করা হয়েছে'), 'info');
-      return;
-    }
-
-    setIsTestingSound(true);
-    playTaskAlarmSound();
-    vibrateDevice([200, 100, 200, 100, 300]);
-
-    sendSystemNotification('Alarm Sound Test', {
-      body: taskObj ? `Task: ${taskObj.title} (${taskObj.amount})` : 'Testing task reminder alarm sound & alert notification.'
-    });
-
-    showToast(t('Playing alarm sound... Tap button to stop', 'অ্যালার্ম সাউন্ড বাজছে... বন্ধ করতে আবার চাপুন'), 'success');
-
-    setTimeout(() => {
-      stopTaskAlarmSound();
-      setIsTestingSound(false);
-    }, 8000);
+    showToast(t('Alarm test functionality disabled', 'অ্যালার্ম পরীক্ষা এখন বন্ধ'), 'info');
   };
 
   const openFormModal = (taskToEdit?: CostTask) => {
@@ -314,44 +293,14 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   return (
     <div className="w-full flex flex-col space-y-3 pb-28 p-2 md:p-4">
 
-      {/* 1-Row Top Action Buttons Bar */}
-      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 shadow-md flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
-        {/* 1. Task Sound Button */}
-        <button
-          type="button"
-          onClick={() => handleTestAlarmSound()}
-          className={`flex-1 min-w-[100px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer whitespace-nowrap border ${
-            isTestingSound
-              ? 'bg-[#FF7A59] text-white border-[#FF7A59] shadow-lg shadow-[#FF7A59]/30'
-              : 'bg-teal-950 hover:bg-teal-900 text-amber-300 border-teal-700/80'
-          }`}
-        >
-          {isTestingSound ? <VolumeX className="w-3.5 h-3.5 shrink-0 animate-bellShake" /> : <Volume2 className="w-3.5 h-3.5 shrink-0" />}
-          <span>{isTestingSound ? 'Stop Sound' : 'Task Sound'}</span>
-        </button>
-
-        {/* 2. Notification Button */}
-        {notificationPermission !== 'granted' ? (
-          <button
-            type="button"
-            onClick={requestNotificationPermission}
-            className="flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-bold active:scale-95 cursor-pointer whitespace-nowrap"
-          >
-            <span>Notification</span>
-          </button>
-        ) : (
-          <div className="flex-1 min-w-[100px] flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-950/80 text-teal-300 border border-teal-700/60 text-xs font-bold whitespace-nowrap">
-            <span>Notification On</span>
-          </div>
-        )}
-
-        {/* 3. Add Task Button */}
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-end mb-1">
         <button
           type="button"
           onClick={() => openFormModal()}
-          className="flex-1 min-w-[95px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5 stroke-[3] shrink-0" />
+          <Plus className="w-4 h-4 stroke-[3]" />
           <span>Add Task</span>
         </button>
       </div>
@@ -840,19 +789,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 bg-teal-950/60 rounded-xl border border-teal-800">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-teal-100">
-                    Enable Sound Alarm
-                  </span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={autoNotify}
-                  onChange={e => setAutoNotify(e.target.checked)}
-                  className="w-4 h-4 accent-teal-400 rounded cursor-pointer"
-                />
-              </div>
+
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-teal-800">
                 <button

@@ -62,13 +62,9 @@ export function stopTaskAlarmSound() {
   }
 }
 
-// Trigger Web Vibration API (phone vibration)
+// Trigger Web Vibration API (phone vibration) - Disabled per user request
 export function vibrateDevice(pattern: number[] = [500, 200, 500, 200, 500, 200, 800]) {
-  if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-    try {
-      navigator.vibrate(pattern);
-    } catch {}
-  }
+  // Silent per request
 }
 
 // Request or ensure notification permission
@@ -103,7 +99,6 @@ export async function sendSystemNotification(title: string, options?: any): Prom
   const notificationOptions: any = {
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    vibrate: [500, 200, 500, 200, 500, 200, 800],
     requireInteraction: true,
     renotify: true,
     tag: options?.tag || `task-${Date.now()}`,
