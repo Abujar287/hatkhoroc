@@ -767,9 +767,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
-      {/* 2. ACTIONS & TOOLS (EXPORT ZIP, INSTALL APP, SCRIPT, UPDATE IN 1 LINE) */}
+      {/* 2. ACTIONS & TOOLS (EXPORT ZIP, SCRIPT, UPDATE) */}
       <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-0">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {/* 1. Export ZIP */}
           <button
             type="button"
@@ -786,18 +786,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span className="truncate">{t('Export ZIP', 'Export ZIP')}</span>
           </button>
 
-          {/* 2. Install App */}
-          <button
-            type="button"
-            onClick={onOpenInstallModal}
-            className="py-3 px-2 bg-gradient-to-r from-teal-800 to-teal-900 hover:from-teal-700 hover:to-teal-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-teal-950/40"
-            title={t('Install App / Add to Home Screen', 'অ্যাপ ইনস্টল করুন')}
-          >
-            <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="truncate">{t('Install App', 'Install App')}</span>
-          </button>
-
-          {/* 3. Google Apps Script */}
+          {/* 2. Google Apps Script */}
           <button
             type="button"
             onClick={() => setShowAppsScriptModal(true)}
@@ -808,7 +797,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span className="truncate">{t('Script', 'Script')}</span>
           </button>
 
-          {/* 4. Check for Updates */}
+          {/* 3. Check for Updates */}
           <button
             type="button"
             onClick={onCheckForUpdates}
@@ -979,6 +968,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Small Clean Version Footer */}
+      <div className="pt-3 pb-6 text-center select-none space-y-0.5">
+        <p className="text-xs font-bold text-teal-300/80 tracking-wide">
+          হাত খরচ • v1.1.0
+        </p>
+        <p className="text-[10px] text-teal-400/50">
+          Smart Personal Expense, Task Reminder & Budget Tracker
+        </p>
       </div>
 
       {/* Apps Script Modal */}

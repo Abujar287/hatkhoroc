@@ -81,7 +81,7 @@ import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
 import { AppUpdateModal } from './components/AppUpdateModal';
-import { checkGitHubForUpdates, isUpdateDismissedRecently, UpdateInfo } from './utils/updateChecker';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, UpdateInfo, APP_VERSION } from './utils/updateChecker';
 
 
 // Default Admin User
@@ -206,13 +206,25 @@ export default function App() {
 
   const handleCheckForUpdates = useCallback(async (isManual = false) => {
     try {
+      if (isManual) {
+        showToast(lang === 'en' ? 'Checking for updates...' : 'আপডেট চেক করা হচ্ছে...', 'info');
+      }
       const info = await checkGitHubForUpdates();
       if (info && info.hasUpdate) {
         setUpdateInfo(info);
         setShowUpdateModal(true);
+        // Automatically open the update / release link
+        const targetUrl = info.releaseUrl || 'https://github.com/Abujar287/hatkhoroc/releases';
+        try {
+          window.open(targetUrl, '_blank');
+        } catch {}
+        showToast(
+          lang === 'en' ? `Update found! Downloading latest ${APP_VERSION}...` : `নতুন আপডেট পাওয়া গেছে! ডাউনলোড শুরু হচ্ছে (${APP_VERSION})...`,
+          'success'
+        );
       } else if (isManual) {
         showToast(
-          lang === 'en' ? 'App is completely up to date!' : 'আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে!',
+          lang === 'en' ? `App is completely up to date (${APP_VERSION})!` : `আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে (${APP_VERSION})!`,
           'success'
         );
       }
@@ -1796,19 +1808,35 @@ export default function App() {
   };
 
   const handleCreateUser = (name: string, uname: string, pass: string, role: UserRole) => {
+    const cleanUname = uname.trim().toLowerCase();
     const newUser: AppUser = { 
-      username: uname, 
+      username: cleanUname, 
       password: pass, 
       displayName: name, 
-      initialUsername: uname, 
+      initialUsername: cleanUname, 
       role, 
-      sheetTab: uname, 
+      sheetTab: cleanUname, 
       isActive: true, 
-      allowedTabs: ['summary', 'entry', 'details', 'budget'],
+      allowedTabs: ['summary', 'entry', 'details', 'budget', 'task', 'settings'],
       createdAt: new Date().toISOString().split('T')[0]
     };
-    setUsers([...users, newUser]);
-    showToast('User Created', 'success');
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    try {
+      localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
+    } catch {}
+
+    // Auto-create unified Google Sheet tab for this user (e.g. munni)
+    try {
+      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, { mode: 'no-cors' }).catch(() => {});
+      fetch('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
+      }).catch(() => {});
+    } catch {}
+
+    showToast(lang === 'en' ? `User @${cleanUname} created with sheet tab "${cleanUname}"!` : `ইউজার @${cleanUname} ও গুগল শিট ট্যাব "${cleanUname}" তৈরি হয়েছে!`, 'success');
   };
 
   const handleSwitchUser = (user: AppUser) => {
@@ -1990,15 +2018,7 @@ export default function App() {
             </div>
           )}
 
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.1 }}
-              className="w-full"
-            >
+          <div className="w-full">
               {activeTab === 'summary' && (
                 <SummaryTab
                   transactions={transactions}
@@ -2088,8 +2108,7 @@ export default function App() {
                   onCheckForUpdates={() => handleCheckForUpdates(true)}
                 />
               )}
-            </motion.div>
-          </AnimatePresence>
+            </div>
           </div>
         </main>
 
