@@ -302,7 +302,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ৮. ক্যাটাগরি যোগ ও ডিলিট (GET সাপোর্ট)
+  // 8. ক্যাটাগরি যোগ ও ডিলিট (GET সাপোর্ট)
   if (action === 'addcategory') {
     var cName = String(params.category || '').trim();
     var cType = String(params.type || 'Expense').trim();
@@ -321,8 +321,16 @@ function doGet(e) {
       message: 'ক্যাটাগরি ডিলিট হয়েছে'
     })).setMimeType(ContentService.MimeType.JSON);
   }
+  
+  // ৯. গেট ইউজারস
+  if (action === 'getusers') {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      users: readUsersFromRange(ss)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 
-  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks) পড়া
+  // ১০. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks) পড়া
   ensureUnifiedTemplateHeaders(sheet);
   
   var txData = readEntriesFromRange(sheet);
@@ -1103,6 +1111,27 @@ function saveUserToRange(ss, data) {
       mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
+}
+
+function readUsersFromRange(ss) {
+  var mainSheet = ss.getSheetByName('abujar287');
+  if (!mainSheet) return [];
+  var lastRow = mainSheet.getLastRow();
+  if (lastRow < 3) return [];
+  var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
+  var list = [];
+  for (var i = 0; i < vals.length; i++) {
+    if (!vals[i][1]) continue;
+    list.push({
+      displayName: vals[i][0],
+      username: vals[i][1],
+      password: vals[i][2],
+      sheetTab: vals[i][3],
+      role: vals[i][4],
+      allowedTabs: String(vals[i][5] || '').split(', ')
+    });
+  }
+  return list;
 }
 
 // ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)

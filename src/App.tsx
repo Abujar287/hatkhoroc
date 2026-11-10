@@ -346,6 +346,20 @@ export default function App() {
     return null;
   });
 
+  useEffect(() => {
+    if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
+      fetch(`${GOOGLE_SCRIPT_URL}?action=getusers`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.users) {
+            setUsers(data.users);
+            localStorage.setItem('app_registered_users_v2', JSON.stringify(data.users));
+          }
+        })
+        .catch(err => console.error('Failed to sync users:', err));
+    }
+  }, [currentUser]);
+
   // Login form state
   const [loginUsername, setLoginUsername] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
@@ -2052,9 +2066,21 @@ export default function App() {
     setUsers(users.map(u => u.username === user.username ? { ...u, isActive: !u.isActive } : u));
   };
 
-  const handleConfirmDeleteUser = (user: AppUser) => {
+  const handleConfirmDeleteUser = async (user: AppUser) => {
     setUsers(users.filter(u => u.username !== user.username));
+    
+    // Cloud Delete: delete user from Google Sheet
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteuser', username: user.username })
+      }).catch(() => {});
+    } catch {}
+
     setUserToDelete(null);
+    showToast(lang === 'en' ? `User ${user.username} deleted` : `ইউজার ${user.username} ডিলিট হয়েছে`, 'info');
   };
 
   const handleImportJson = (data: any) => {

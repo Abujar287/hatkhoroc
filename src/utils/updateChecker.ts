@@ -7,7 +7,7 @@ export const GITHUB_BRANCH = 'main';
 // This gets stamped with the current commit so when a new commit is pushed to main,
 // any client opening the app detects that a newer commit is available on GitHub!
 export const CURRENT_BUILD_SHA = '7754138e6eb2364848c1754c4b24e8a066141120';
-export const APP_VERSION = 'v1.1.0';
+export const APP_VERSION = 'v1.1.1';
 
 export interface UpdateInfo {
   hasUpdate: boolean;
