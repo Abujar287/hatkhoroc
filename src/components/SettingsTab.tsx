@@ -26,7 +26,8 @@ import {
   Scale,
   RotateCcw,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
@@ -74,6 +75,7 @@ interface SettingsTabProps {
   onRequestDeleteUser?: (user: AppUser) => void;
   onSwitchUser?: (user: AppUser) => void;
   onToggleActiveUser?: (user: AppUser) => void;
+  onCheckForUpdates?: () => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -109,7 +111,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onOpenEditUserModal,
   onRequestDeleteUser,
   onSwitchUser,
-  onToggleActiveUser
+  onToggleActiveUser,
+  onCheckForUpdates
 }) => {
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
@@ -764,9 +767,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
-      {/* 2. ACTIONS & TOOLS (EXPORT ZIP, INSTALL APP, SCRIPT IN 1 LINE) */}
+      {/* 2. ACTIONS & TOOLS (EXPORT ZIP, INSTALL APP, SCRIPT, UPDATE IN 1 LINE) */}
       <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-0">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {/* 1. Export ZIP */}
           <button
             type="button"
@@ -803,6 +806,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           >
             <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
             <span className="truncate">{t('Script', 'Script')}</span>
+          </button>
+
+          {/* 4. Check for Updates */}
+          <button
+            type="button"
+            onClick={onCheckForUpdates}
+            className="py-3 px-2 bg-gradient-to-r from-teal-800 to-emerald-900 hover:from-teal-700 hover:to-emerald-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-emerald-950/30"
+            title={t('Check for App Updates from GitHub', 'GitHub থেকে অ্যাপ আপডেট চেক করুন')}
+          >
+            <RefreshCw className="w-4 h-4 text-teal-300 shrink-0" />
+            <span className="truncate">{t('Check Update', 'আপডেট চেক')}</span>
           </button>
         </div>
       </div>

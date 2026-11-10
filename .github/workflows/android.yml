@@ -32,17 +32,71 @@ jobs:
       - name: Build Web App
         run: npm run build --if-present
 
-      - name: Generate App Icons and Splash (Optional)
-        run: |
-          # যদি আপনার প্রজেক্টের assets/icon.png ফাইল থাকে তবে এটি অটোমেটিক লোগো সেট করে দেবে
-          if [ -f "assets/icon.png" ]; then
-            npx @capacitor/assets generate --iconAndSplashPath assets/icon.png
-          fi
-
       - name: Add & Sync Capacitor Android
         run: |
           npx cap add android || true
           npx cap sync android
+
+      - name: Generate Custom Android App Icons & Splash Screen
+        run: |
+          # 1. Ensure assets directory has the custom app logo
+          mkdir -p assets
+          cp public/logo.png assets/icon.png || true
+          cp public/logo.png assets/splash.png || true
+          cp public/logo.png assets/logo.png || true
+
+          # 2. Try @capacitor/assets first
+          npx @capacitor/assets generate --android || true
+
+          # 3. Direct high-fidelity icon generator into Android res folders
+          python3 -m pip install pillow --quiet || true
+          python3 - << 'EOF'
+          from PIL import Image
+          import os
+
+          logo_path = 'public/logo.png'
+          if not os.path.exists(logo_path):
+              logo_path = 'assets/icon.png'
+
+          print(f"Applying custom app icon from: {logo_path}")
+          img = Image.open(logo_path).convert("RGBA")
+
+          res_dir = "android/app/src/main/res"
+          densities = {
+              "mipmap-mdpi": (48, 108),
+              "mipmap-hdpi": (72, 162),
+              "mipmap-xhdpi": (96, 216),
+              "mipmap-xxhdpi": (144, 324),
+              "mipmap-xxxhdpi": (192, 432)
+          }
+
+          for folder, (sz, fg_sz) in densities.items():
+              target_dir = os.path.join(res_dir, folder)
+              os.makedirs(target_dir, exist_ok=True)
+              
+              # Save standard and round launcher icons
+              icon_img = img.resize((sz, sz), Image.Resampling.LANCZOS)
+              icon_img.save(os.path.join(target_dir, "ic_launcher.png"), "PNG")
+              icon_img.save(os.path.join(target_dir, "ic_launcher_round.png"), "PNG")
+              
+              # Save foreground icon for adaptive launchers
+              fg_img = img.resize((fg_sz, fg_sz), Image.Resampling.LANCZOS)
+              fg_img.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
+              print(f"Updated icons in {folder} -> {sz}x{sz}")
+
+          # Update splash images
+          splash_folders = [
+              "drawable", "drawable-port-mdpi", "drawable-port-hdpi",
+              "drawable-port-xhdpi", "drawable-port-xxhdpi", "drawable-port-xxxhdpi",
+              "drawable-land-mdpi", "drawable-land-hdpi", "drawable-land-xhdpi",
+              "drawable-land-xxhdpi", "drawable-land-xxxhdpi"
+          ]
+          for sf in splash_folders:
+              s_path = os.path.join(res_dir, sf)
+              if os.path.exists(s_path):
+                  img.save(os.path.join(s_path, "splash.png"), "PNG")
+          print("All Android launcher icons and splash screens updated successfully!")
+          EOF
 
       - name: Force Fix Kotlin Versions in Gradle
         run: |
@@ -64,8 +118,26 @@ jobs:
           ./gradlew clean
           ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK File
+      - name: Prepare and Rename APK to হাত খরচ.apk
+        run: |
+          mkdir -p apk_output
+          find android/app/build/outputs/apk/ -name "*.apk" -exec cp {} "apk_output/হাত খরচ.apk" \;
+          ls -la apk_output/
+
+      - name: Upload APK File (হাত খরচ.apk in Zip)
         uses: actions/upload-artifact@v4
         with:
-          name: Hat-Khoroch-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: হাত-খরচ-APK
+          path: "apk_output/হাত খরচ.apk"
+
+      - name: Publish to GitHub Releases (Direct Download)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: latest
+          name: "হাত খরচ - v1.1.0 (Latest Release)"
+          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (হাত খরচ.apk)।"
+          files: "apk_output/হাত খরচ.apk"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

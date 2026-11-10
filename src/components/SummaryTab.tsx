@@ -899,40 +899,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </div>
       )}
 
-      {/* 5. SUMMARY CARDS */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all cursor-default"
-        >
-          <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Inc', 'আয়')}</span>
-          <span className="text-[12px] font-black text-emerald-400 block mt-0.5 tabular-nums">
-            +{formatNumberLocale(filteredRangeStats.inc, lang)}
-          </span>
-        </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="bg-[#0B3C39] rounded-xl p-2.5 border border-[#FF7A59]/30 text-center shadow-sm text-[#F0FDFA] hover:border-[#FF7A59]/60 transition-all cursor-default"
-        >
-          <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Exp', 'ব্যয়')}</span>
-          <span className="text-[12px] font-black text-[#FF7A59] block mt-0.5 tabular-nums drop-shadow-[0_1px_3px_rgba(255,122,89,0.25)]">
-            -{formatNumberLocale(filteredRangeStats.exp, lang)}
-          </span>
-        </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="bg-[#0B3C39] rounded-xl p-2.5 border border-teal-800/80 text-center shadow-sm text-[#F0FDFA] hover:border-teal-700/80 transition-all cursor-default"
-        >
-          <span className="text-[9px] text-teal-300/80 font-bold uppercase block">{t('Bal', 'ব্যালেন্স')}</span>
-          <span className={`text-[12px] font-black block mt-0.5 tabular-nums ${filteredRangeStats.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'}`}>
-            {formatNumberLocale(filteredRangeStats.net, lang)}
-          </span>
-        </motion.div>
-      </div>
-
       {/* ======================================================== */}
       {/* 7. CATEGORY DONUT CHART (FULL 100% CIRCLE, DYNAMIC FILTER, DEFAULT THIS MONTH TOP 5) */}
       {/* ======================================================== */}

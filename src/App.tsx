@@ -79,6 +79,8 @@ import {
 import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
+import { AppUpdateModal } from './components/AppUpdateModal';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, UpdateInfo } from './utils/updateChecker';
 
 
 // Default Admin User
@@ -166,6 +168,8 @@ export default function App() {
   const [showCreateUserModal, setShowCreateUserModal] = useState<boolean>(false);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   // ----------------------------------------------------
   // 2. BACK BUTTON EXIT LOGIC (Robust Interception)
@@ -204,6 +208,43 @@ export default function App() {
     setTimeout(() => {
       setToast(prev => ({ ...prev, show: false }));
     }, 3500);
+  }, []);
+
+  const handleCheckForUpdates = useCallback(async (isManual = false) => {
+    try {
+      const info = await checkGitHubForUpdates();
+      if (info && info.hasUpdate) {
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+      } else if (isManual) {
+        showToast(
+          lang === 'en' ? 'App is completely up to date!' : 'আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে!',
+          'success'
+        );
+      }
+    } catch {
+      if (isManual) {
+        showToast(
+          lang === 'en' ? 'Could not check for updates. Check internet connection.' : 'আপডেট চেক করা সম্ভব হয়নি। ইন্টারনেট কানেকশন চেক করুন।',
+          'error'
+        );
+      }
+    }
+  }, [lang, showToast]);
+
+  // Automatic GitHub update check on entry (for APK / Web / PWA)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkGitHubForUpdates().then(info => {
+        if (info && info.hasUpdate) {
+          setUpdateInfo(info);
+          if (!isUpdateDismissedRecently()) {
+            setShowUpdateModal(true);
+          }
+        }
+      }).catch(() => {});
+    }, 1800);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1932,6 +1973,7 @@ export default function App() {
                   onRequestDeleteUser={setUserToDelete}
                   onSwitchUser={handleSwitchUser}
                   onToggleActiveUser={handleToggleActiveUser}
+                  onCheckForUpdates={() => handleCheckForUpdates(true)}
                 />
               )}
             </motion.div>
@@ -1989,6 +2031,7 @@ export default function App() {
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
+      <AppUpdateModal isOpen={showUpdateModal} updateInfo={updateInfo} onClose={() => setShowUpdateModal(false)} lang={lang} />
 
       {/* Entrance Due Task Alert Modal (shows automatically when entering app if tasks due today) */}
       {showDueEntryModal && dueTodayTasks.length > 0 && (
