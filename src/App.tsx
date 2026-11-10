@@ -81,8 +81,8 @@ import {
 import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
-import { AppUpdateModal } from './components/AppUpdateModal';
-import { checkGitHubForUpdates, isUpdateDismissedRecently, UpdateInfo, APP_VERSION } from './utils/updateChecker';
+
+import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, UpdateInfo, APP_VERSION } from './utils/updateChecker';
 
 
 // Default Admin User
@@ -178,8 +178,6 @@ export default function App() {
   });
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
   // ----------------------------------------------------
   // 2. BACK BUTTON EXIT LOGIC (Robust Interception)
@@ -224,12 +222,14 @@ export default function App() {
       }
       const info = await checkGitHubForUpdates();
       if (info && info.hasUpdate) {
-        setUpdateInfo(info);
-        setShowUpdateModal(true);
+        recordUpdateAcknowledged(info.latestSha);
         showToast(
-          lang === 'en' ? 'New update version found!' : 'নতুন আপডেট পাওয়া গেছে!',
-          'success'
+          lang === 'en' ? 'Updating app...' : 'অ্যাপ আপডেট হচ্ছে...',
+          'info'
         );
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else if (isManual) {
         showToast(
           lang === 'en' ? `App is completely up to date (${APP_VERSION})!` : `আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে (${APP_VERSION})!`,
@@ -248,18 +248,17 @@ export default function App() {
 
   // Automatic GitHub update check on entry (for APK / Web / PWA)
   useEffect(() => {
+    if (!isAuthenticated) return;
     const timer = setTimeout(() => {
       checkGitHubForUpdates().then(info => {
         if (info && info.hasUpdate) {
-          setUpdateInfo(info);
-          if (!isUpdateDismissedRecently()) {
-            setShowUpdateModal(true);
-          }
+          recordUpdateAcknowledged(info.latestSha);
+          window.location.reload();
         }
       }).catch(() => {});
     }, 1800);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthenticated]);
 
   // Lightweight wheel scroll forwarding for margins without lag
   useEffect(() => {
@@ -852,7 +851,6 @@ export default function App() {
     showCategoryManager,
     showCreateUserModal,
     showMobileModal,
-    showUpdateModal,
     showDueEntryModal,
     activeTab
   });
@@ -869,7 +867,6 @@ export default function App() {
       showCategoryManager,
       showCreateUserModal,
       showMobileModal,
-      showUpdateModal,
       showDueEntryModal,
       activeTab
     };
@@ -884,7 +881,6 @@ export default function App() {
     showCategoryManager,
     showCreateUserModal,
     showMobileModal,
-    showUpdateModal,
     showDueEntryModal,
     activeTab
   ]);
@@ -941,10 +937,7 @@ export default function App() {
       setShowMobileModal(false);
       return;
     }
-    if (modalStateRef.current.showUpdateModal) {
-      setShowUpdateModal(false);
-      return;
-    }
+
     if (modalStateRef.current.showDueEntryModal) {
       setShowDueEntryModal(false);
       return;
@@ -2424,7 +2417,7 @@ export default function App() {
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
-      <AppUpdateModal isOpen={showUpdateModal} updateInfo={updateInfo} onClose={() => setShowUpdateModal(false)} lang={lang} />
+
 
       {/* Entrance Due Task Alert Modal (shows automatically when entering app if tasks due today) */}
       {showDueEntryModal && dueTodayTasks.length > 0 && (
