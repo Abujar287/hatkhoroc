@@ -114,7 +114,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onToggleActiveUser,
   onCheckForUpdates
 }) => {
-  const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.username === 'abujar287';
+  const isAdmin = ['super_admin', 'super_admin_2', 'admin'].includes(currentUser?.role || '') || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
