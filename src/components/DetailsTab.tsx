@@ -236,7 +236,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                 const circleColor = getCategoryColor(tx.category);
                 return (
                   <motion.div
-                    key={tx.id}
+                    key={tx.id ? `dt_tx_${tx.id}_${group.dateStr}_${idx}` : `dt_tx_idx_${group.dateStr}_${idx}`}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.2) }}
@@ -303,8 +303,8 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map(tx => (
-                <tr key={tx.id} className="border-b border-slate-100">
+              {filteredTransactions.map((tx, idx) => (
+                <tr key={tx.id ? `dt_print_${tx.id}_${idx}` : `dt_print_${idx}`} className="border-b border-slate-100">
                   <td className="py-2">{tx.date}</td>
                   <td className="py-2">{cleanCategoryName(tx.category, lang)}</td>
                   <td className={`py-2 text-right font-bold ${tx.type === 'Expense' ? 'text-rose-700' : 'text-emerald-700'}`}>

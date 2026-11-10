@@ -1053,8 +1053,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               </tr>
             </thead>
             <tbody>
-              {monthTransactions.map(tx => (
-                <tr key={tx.id} className="border-b border-slate-200">
+              {monthTransactions.map((tx, idx) => (
+                <tr key={tx.id ? `set_tx_${tx.id}_${idx}` : `set_tx_idx_${idx}`} className="border-b border-slate-200">
                   <td className="p-1.5 text-[10.5px] whitespace-nowrap">{formatCleanDateTime(tx.datetime || tx.date, lang)}</td>
                   <td className="p-1.5 text-center font-semibold">{tx.type}</td>
                   <td className="p-1.5 font-semibold">{cleanCategoryName(tx.category, lang)}</td>

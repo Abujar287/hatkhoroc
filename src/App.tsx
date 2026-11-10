@@ -215,13 +215,8 @@ export default function App() {
       if (info && info.hasUpdate) {
         setUpdateInfo(info);
         setShowUpdateModal(true);
-        // Automatically open the update / release link
-        const targetUrl = info.releaseUrl || 'https://github.com/Abujar287/hatkhoroc/releases';
-        try {
-          window.open(targetUrl, '_blank');
-        } catch {}
         showToast(
-          lang === 'en' ? `Update found! Downloading latest ${APP_VERSION}...` : `নতুন আপডেট পাওয়া গেছে! ডাউনলোড শুরু হচ্ছে (${APP_VERSION})...`,
+          lang === 'en' ? 'New update version found!' : 'নতুন আপডেট পাওয়া গেছে!',
           'success'
         );
       } else if (isManual) {
@@ -1419,16 +1414,24 @@ export default function App() {
 
       if (data && data.result === 'success') {
         if (Array.isArray(data.transactions)) {
-          const formatted: Transaction[] = data.transactions.map((t: any) => ({
-            id: String(t.id || Date.now() + Math.random()),
-            rowNumber: t.rowNumber || t.row || t.rowIndex,
-            datetime: formatCleanDateTime(t.datetime, 'en') || t.datetime || '',
-            type: (String(t.type || '').toLowerCase().includes('inc') || String(t.type || '').includes('আয়')) ? 'Income' : 'Expense',
-            category: t.category || '',
-            date: normalizeDate(t.date),
-            value: Math.abs(Number(t.value) || 0),
-            note: t.note || ''
-          }));
+          const seenTxIds = new Set<string>();
+          const formatted: Transaction[] = data.transactions.map((t: any, idx: number) => {
+            let rawId = String(t.id || `tx_${idx}_${Date.now()}`).trim();
+            if (seenTxIds.has(rawId)) {
+              rawId = `${rawId}_row${t.rowNumber || t.row || idx}`;
+            }
+            seenTxIds.add(rawId);
+            return {
+              id: rawId,
+              rowNumber: t.rowNumber || t.row || t.rowIndex,
+              datetime: formatCleanDateTime(t.datetime, 'en') || t.datetime || '',
+              type: (String(t.type || '').toLowerCase().includes('inc') || String(t.type || '').includes('আয়')) ? 'Income' : 'Expense',
+              category: t.category || '',
+              date: normalizeDate(t.date),
+              value: Math.abs(Number(t.value) || 0),
+              note: t.note || ''
+            };
+          });
           saveTransactionsLocally(formatted);
         }
         

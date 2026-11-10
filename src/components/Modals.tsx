@@ -119,13 +119,13 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
           </p>
         ) : (
           <div className="space-y-0.5 max-h-[50vh] overflow-y-auto pr-0.5">
-            {dayTransactions.map(tx => {
+            {dayTransactions.map((tx, idx) => {
               const isExpense = tx.type === 'Expense';
               const emoji = getCategoryEmoji(tx.category);
               const circleColor = getCategoryColor(tx.category);
               return (
                 <div
-                  key={tx.id}
+                  key={tx.id ? `day_tx_${tx.id}_${idx}` : `day_tx_idx_${idx}`}
                   className="flex items-center justify-between py-2 px-1.5 hover:bg-[#062423] rounded-xl transition-all group border border-transparent hover:border-teal-700/60"
                 >
                   <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -1432,13 +1432,13 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
           </p>
         ) : (
           <div className="space-y-1.5 max-h-[55vh] overflow-y-auto pr-0.5">
-            {catTxs.map(tx => {
+            {catTxs.map((tx, idx) => {
               const isExpense = tx.type === 'Expense';
               const emoji = getCategoryEmoji(tx.category);
               const circleColor = getCategoryColor(tx.category);
               return (
                 <div
-                  key={tx.id}
+                  key={tx.id ? `cat_tx_${tx.id}_${idx}` : `cat_tx_idx_${idx}`}
                   className="flex items-center justify-between p-2 bg-[#062423] hover:bg-teal-900/60 border border-teal-700/70 rounded-xl transition-all group shadow-2xs"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
