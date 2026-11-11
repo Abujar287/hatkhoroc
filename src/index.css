@@ -13,15 +13,17 @@
   body {
     background-color: #042F2E;
     color: #F0FDFA;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Anek Bangla" !important;
+    font-family: 'Plus Jakarta Sans', 'Hind Siliguri', 'Anek Bangla', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-weight: 400;
+    text-rendering: optimizeLegibility;
   }
   #main-scroll-container {
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    scroll-behavior: smooth;
   }
   .pb-safe {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));

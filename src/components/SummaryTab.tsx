@@ -611,17 +611,17 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-2xl bg-[#0B3C39] text-[#F0FDFA] p-3 sm:p-5 shadow-sm border border-teal-800/80 relative overflow-hidden"
+        className="rounded-2xl bg-gradient-to-b from-[#0D4441] to-[#0A3734] text-[#F0FDFA] p-3.5 sm:p-5 shadow-lg border border-teal-700/50 relative overflow-hidden backdrop-blur-md"
       >
         {/* Top Header of Hero Card: Month Filter and Custom Filter directly inline on single row */}
-        <div className="flex items-center justify-between border-b border-teal-800/60 pb-2 mb-3 gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center justify-between border-b border-teal-800/60 pb-2.5 mb-3 gap-2 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             {globalFilterMode === 'month' ? (
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(-1)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/70"
+                  className="w-7 h-7 flex items-center justify-center rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
                   title={t('Previous Month', 'পূর্ববর্তী মাস')}
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
@@ -632,10 +632,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setSelectedMonth(e.target.value);
                     setFilterPreset('this_month');
                   }}
-                  className="bg-[#062423] border border-teal-700/70 text-[#F0FDFA] text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-teal-400 cursor-pointer shadow-xs"
+                  className="bg-[#062423]/90 border border-teal-700/70 text-white text-[11px] font-bold rounded-xl px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 cursor-pointer shadow-xs transition-all"
                 >
                   {monthOptions.map(m => (
-                    <option key={m.val} value={m.val} className="bg-[#062423] text-[#F0FDFA]">
+                    <option key={m.val} value={m.val} className="bg-[#062423] text-white">
                       {m.label}
                     </option>
                   ))}
@@ -643,7 +643,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(1)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/70"
+                  className="w-7 h-7 flex items-center justify-center rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
                   title={t('Next Month', 'পরবর্তী মাস')}
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -843,7 +843,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 
       {/* 3. DYNAMIC CALENDAR / RANGE GRID */}
       {globalFilterMode === 'month' && (
-        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5 hover:border-teal-700/80 transition-colors">
+        <div className="bg-gradient-to-b from-[#0D4441] to-[#0A3734] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-700/50 shadow-md space-y-3.5 backdrop-blur-md">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

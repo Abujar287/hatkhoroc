@@ -2403,12 +2403,13 @@ export default function App() {
   // RENDER: APP
   // ----------------------------------------------------
   return (
-    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
-      <div className="w-full flex flex-col h-full bg-[#042F2E] relative overflow-hidden">
+    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] bg-[radial-gradient(ellipse_100%_80%_at_50%_-15%,rgba(13,148,136,0.18),rgba(4,47,46,1))] flex flex-col items-center">
+      <div className="w-full flex flex-col h-full bg-transparent relative overflow-hidden">
         
         {toast.show && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#0B3C39] rounded-2xl shadow-xl border border-teal-700 animate-fadeIn text-xs font-bold text-[#F0FDFA]">
-            {toast.message}
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#0B3C39]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-teal-500/40 animate-fadeIn text-xs font-bold text-[#F0FDFA] flex items-center gap-2 ring-1 ring-black/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span>{toast.message}</span>
           </div>
         )}
 
@@ -2574,7 +2575,7 @@ export default function App() {
           </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-md px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center shadow-[0_-4px_24px_rgba(4,47,46,0.3)] z-40 w-full min-h-[64px] border-t border-teal-800/60">
+        <nav className="shrink-0 bg-[#042F2E]/90 backdrop-blur-2xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-40 w-full min-h-[64px] border-t border-teal-800/40">
           <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
               { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
@@ -2590,17 +2591,17 @@ export default function App() {
                   key={item.id}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => setActiveTab(item.id)}
-                  className="flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-colors"
+                  className="flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-all duration-150"
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className="absolute inset-0 bg-gradient-to-b from-[#0D5F58] to-[#0A4B45] rounded-xl border border-teal-500/40 shadow-sm"
+                      className="absolute inset-0 bg-gradient-to-b from-[#0F766E] to-[#0A4B45] rounded-xl border border-teal-400/40 shadow-[0_2px_12px_rgba(20,184,166,0.25)]"
                       transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                     />
                   )}
-                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 transition-transform duration-200 ${isActive ? 'text-[#F0FDFA] scale-110 drop-shadow-xs' : 'text-teal-300/70 hover:text-teal-200'}`} />
-                  <span className={`text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-[#F0FDFA]' : 'text-teal-300/70'}`}>
+                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 transition-transform duration-200 ${isActive ? 'text-white scale-110 drop-shadow-xs' : 'text-teal-300/70 hover:text-teal-100'}`} />
+                  <span className={`text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-white' : 'text-teal-300/70'}`}>
                     {item.label}
                   </span>
                   {item.id === 'upcoming_cost' && taskDueCount > 0 && (
