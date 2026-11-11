@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Users } from 'lucide-react';
 import { AppUser, AppTab } from '../types';
 import { findMonthMapping, getMonthKeyFromLabel } from '../utils/dateUtils';
 
@@ -19,6 +19,7 @@ interface HeaderProps {
   monthMappings: import('../types').MonthMapping[];
   dueTodayTask?: import('../types').CostTask | null;
   onPayTask?: (task: import('../types').CostTask) => void;
+  onProfileClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,7 +31,10 @@ export const Header: React.FC<HeaderProps> = ({
   selectedMonth,
   monthMappings,
   dueTodayTask,
-  onPayTask
+  onPayTask,
+  onProfileClick,
+  activeTab,
+  setActiveTab
 }) => {
   const activeMonthLabel = React.useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
@@ -79,21 +83,40 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
-        {/* Left: App Title & User Full Name */}
+        {/* Left: App Logo, Title, and Super Admin Users Tab */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            src="/logo.png"
-            alt="হাত খরচ Logo"
-            className="w-9 h-9 sm:w-10 sm:h-10 object-contain rounded-xl shadow-md shrink-0 border border-teal-500/30 bg-[#062423] p-0.5"
-          />
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight text-white truncate">
-              হাত খরচ
-            </h1>
-            <p className="text-[11px] sm:text-xs font-semibold text-teal-200/90 truncate leading-none mt-0.5">
-              {userDisplayName}
-            </p>
+          <div className="flex items-center gap-2.5 min-w-0 select-none">
+            <img
+              src="/logo.png"
+              alt="হাত খরচ Logo"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain rounded-xl shadow-md shrink-0 border border-teal-500/30 bg-[#062423] p-0.5"
+            />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight text-white truncate">
+                হাত খরচ
+              </h1>
+              <p className="text-[11px] sm:text-xs font-semibold text-teal-200/90 truncate leading-none mt-0.5">
+                {userDisplayName}
+              </p>
+            </div>
           </div>
+
+          {/* Super Admin Users Tab in Header */}
+          {(currentUser?.role === 'super_admin' || currentUser?.username === 'abujar287') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('users')}
+              className={`ml-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all flex items-center gap-1.5 border shadow-sm active:scale-95 cursor-pointer ${
+                activeTab === 'users'
+                  ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/30'
+                  : 'bg-teal-900/60 text-teal-200 border-teal-700/80 hover:bg-teal-800 hover:text-white'
+              }`}
+              title={t('Users Management', 'ইউজার তালিকা')}
+            >
+              <Users className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Users</span>
+            </button>
+          )}
         </div>
 
         {/* Right: Month Name Badge (Left of Sync) + Sync Button */}

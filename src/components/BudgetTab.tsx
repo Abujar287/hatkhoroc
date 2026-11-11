@@ -22,6 +22,7 @@ import {
   getMonthKeyFromLabel
 } from '../utils/dateUtils';
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 
 export interface CategoryBudgetRow {
   category: string;
@@ -145,7 +146,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       }
 
       if (isMatch) {
-        const val = Number(tx.value) || 0;
+        const val = evaluateExpression(tx.value);
         if (val <= 0) return;
 
         const raw = String(tx.category || '').trim();

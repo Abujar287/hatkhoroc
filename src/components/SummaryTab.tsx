@@ -28,6 +28,7 @@ import {
   getMonthKeyFromLabel
 } from '../utils/dateUtils';
 import { cleanCategoryName } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 import { CategoryDetailsModal } from './Modals';
 
 interface SummaryTabProps {
@@ -250,7 +251,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     const dailyMap: Record<string, { inc: number; exp: number; count: number }> = {};
 
     displayTransactions.forEach(tx => {
-      const val = Number(tx.value) || 0;
+      const val = typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value);
       const cleanDate = normalizeDate(tx.date);
       if (!dailyMap[cleanDate]) dailyMap[cleanDate] = { inc: 0, exp: 0, count: 0 };
       dailyMap[cleanDate].count += 1;
@@ -276,15 +277,14 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   const filteredRangeStats = stats;
 
   const filteredDayWiseList = useMemo(() => {
-    // 1. Calculate Opening Balance (Net sum of all transactions before the dateRange.start)
+    // 1. Calculate Opening Balance (Sum of all transactions before the start of the current filtered range)
     let openingBalance = 0;
     if (dateRange.start) {
       transactions.forEach(tx => {
-        const txDate = normalizeDate(tx.date);
-        if (txDate < dateRange.start) {
-          const val = Number(tx.value) || 0;
-          if (tx.type === 'Income') openingBalance += val;
-          else openingBalance -= val;
+        if (normalizeDate(tx.date) < dateRange.start!) {
+          const val = typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value);
+          if (tx.type === 'Expense') openingBalance -= val;
+          else openingBalance += val;
         }
       });
     }
@@ -294,7 +294,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     displayTransactions.forEach(tx => {
       const clean = normalizeDate(tx.date);
       if (!allDateMap[clean]) allDateMap[clean] = { inc: 0, exp: 0, count: 0 };
-      const val = Number(tx.value) || 0;
+      const val = typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value);
       allDateMap[clean].count += 1;
       if (tx.type === 'Expense') allDateMap[clean].exp += val;
       else allDateMap[clean].inc += val;
@@ -320,7 +320,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         dayOfWeek,
         inc: d.inc,
         exp: d.exp,
-        net: d.inc - d.exp, // Show Daily Net instead of running balance
+        net: runningBalance, // Correct Running Balance (Opening + Sum of daily nets)
         count: d.count,
         hasActivity: d.inc > 0 || d.exp > 0
       };
@@ -487,7 +487,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       if (tx.type !== chartType) return;
       const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { val: 0, rawCat: tx.category || c };
-      catMap[c].val += Math.abs(Number(tx.value) || 0);
+      catMap[c].val += Math.abs(typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value));
     });
 
     const allSorted = Object.entries(catMap)
@@ -531,7 +531,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       if (tx.type !== categoryBreakdownType) return;
       const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { total: 0, count: 0, rawCat: tx.category || c };
-      catMap[c].total += Math.abs(Number(tx.value) || 0);
+      const val = typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value);
+      catMap[c].total += Math.abs(val);
       catMap[c].count += 1;
     });
 
@@ -562,7 +563,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         map[monthKey] = { inc: 0, exp: 0, topCat: '', topCatVal: 0 };
         catByMonth[monthKey] = {};
       }
-      const val = Number(tx.value) || 0;
+      const val = evaluateExpression(tx.value);
       if (tx.type === 'Expense') {
         map[monthKey].exp += val;
         const c = cleanCategoryName(tx.category || '', lang);
@@ -1187,7 +1188,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             <span>{t('Date', 'তারিখ')}</span>
             <span className="text-right">{t('Income', 'আয়')}</span>
             <span className="text-right">{t('Expense', 'ব্যয়')}</span>
-            <span className="text-right">{t('Net', 'নিট')}</span>
+            <span className="text-right">{t('Balance', 'ব্যালেন্স')}</span>
           </div>
 
           <div className="divide-y divide-teal-800/60">

@@ -63,6 +63,7 @@ import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
+import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
   DayDetailsModal,
@@ -76,6 +77,7 @@ import {
   EditProfileModal,
   ExitConfirmModal,
   SelfSignupModal,
+  UserProfileModal,
   ModalPortal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
@@ -165,6 +167,7 @@ export default function App() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
   const [showAddCatModal, setShowAddCatModal] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showCategoryManager, setShowCategoryManager] = useState<boolean>(false);
   const [showMobileModal, setShowMobileModal] = useState<boolean>(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState<boolean>(false);
@@ -387,19 +390,32 @@ export default function App() {
     };
   };
 
+  const [userSyncStatus, setUserSyncStatus] = useState<{ loading: boolean; error: string | null; lastSuccess: string | null }>({
+    loading: false,
+    error: null,
+    lastSuccess: null
+  });
+
   useEffect(() => {
     if (isAuthenticated) {
       const syncUsers = () => {
-        const url = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
-        if (url) {
-          fetch(url)
-            .then(async res => {
-              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-              return res.json();
-            })
-            .then(data => {
-              if (data && data.users) {
-                const mappedUsers = data.users.map(mapUserFromSheet);
+        setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
+        const url = `/api/sheet-proxy?action=getusers`;
+        fetch(url)
+          .then(async res => {
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(`HTTP ${res.status}: ${text || 'Unknown Error'}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data && Array.isArray(data.users)) {
+              if (data.users.length > 0) {
+                let mappedUsers = data.users.map(mapUserFromSheet);
+                if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+                  mappedUsers = [DEFAULT_ADMIN, ...mappedUsers];
+                }
                 setUsers(mappedUsers);
                 localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
                 
@@ -415,16 +431,35 @@ export default function App() {
                   }
                 }
               }
-            })
-            .catch(err => console.error('Failed to sync users:', err));
-        }
+
+              if (data.needsDeployUpdate) {
+                setUserSyncStatus({
+                  loading: false,
+                  error: 'Apps Script deployment needs update (Deploy > Manage deployments > Edit > New version)',
+                  lastSuccess: null
+                });
+              } else {
+                setUserSyncStatus({ loading: false, error: null, lastSuccess: new Date().toLocaleTimeString() });
+              }
+            } else {
+              setUserSyncStatus({
+                loading: false,
+                error: 'Apps Script deployment needs update (Deploy > Manage deployments > Edit > New version)',
+                lastSuccess: null
+              });
+            }
+          })
+          .catch(err => {
+            console.warn('Sync users notice:', err.message);
+            setUserSyncStatus(prev => ({ ...prev, loading: false, error: err.message }));
+          });
       };
 
       syncUsers();
       const interval = setInterval(syncUsers, 60000); // Sync users every minute for admins
       return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [isAuthenticated, currentUser?.username]);
 
   // Login form state
   const [loginUsername, setLoginUsername] = useState<string>('');
@@ -469,6 +504,9 @@ export default function App() {
     }
     if (!tabs.includes('upcoming_cost') && currentUser?.role !== 'super_admin_2') {
       tabs = [...tabs, 'upcoming_cost'];
+    }
+    if ((currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') && !tabs.includes('users')) {
+      tabs = [...tabs, 'users'];
     }
     return tabs;
   }, [currentUser]);
@@ -750,7 +788,6 @@ export default function App() {
       if (!isSaved) {
         await fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
@@ -772,7 +809,7 @@ export default function App() {
         autoNotify: newTask.autoNotify ? 'true' : 'false'
       }).toString();
 
-      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
+      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
 
       showToast(lang === 'en' ? 'Task saved & synced to Google Sheet!' : 'টাস্ক সেভ এবং গুগল শিটে যুক্ত হয়েছে!', 'success');
     } catch (err) {
@@ -800,7 +837,6 @@ export default function App() {
       if (!isSaved) {
         await fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
@@ -822,7 +858,7 @@ export default function App() {
         autoNotify: updatedTask.autoNotify ? 'true' : 'false'
       }).toString();
 
-      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
+      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
     } catch {}
   };
 
@@ -854,13 +890,12 @@ export default function App() {
       if (!isSaved) {
         await fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
       }
 
-      fetch(`${GOOGLE_SCRIPT_URL}?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`, { mode: 'no-cors' }).catch(() => {});
+      fetch(`${GOOGLE_SCRIPT_URL}?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`, {  }).catch(() => {});
 
       showToast(lang === 'en' ? 'Task deleted from Google Sheet' : 'টাস্ক গুগল শিট থেকে ডিলিট হয়েছে', 'info');
     } catch {}
@@ -1098,6 +1133,16 @@ export default function App() {
     };
   }, [handleBackButtonAction]);
 
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveTab(e.detail as AppTab);
+      }
+    };
+    window.addEventListener('app-set-tab', handleSetTab);
+    return () => window.removeEventListener('app-set-tab', handleSetTab);
+  }, []);
+
   const [monthMappings, setMonthMappings] = useState<MonthMapping[]>(() => {
     try {
       const saved = localStorage.getItem(`app_month_mappings_${currentTab}`);
@@ -1189,12 +1234,12 @@ export default function App() {
       // Dual Cloud Sync: POST + GET param ping for max reliability
       const defMonthLabel = defItem ? defItem.label : '';
       fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(defMonthLabel)}`, {
-        mode: 'no-cors'
+        
       }).catch(() => {});
 
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         body: JSON.stringify({
           action: 'savemappings',
           defaultMonth: defMonthLabel,
@@ -1302,14 +1347,13 @@ export default function App() {
       if (!isSaved) {
         await fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
       }
 
       fetch(`${GOOGLE_SCRIPT_URL}?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
-        mode: 'no-cors'
+        
       }).catch(() => {});
 
       showToast(lang === 'en' ? `Budget updated in Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে আপডেট হয়েছে`, 'success');
@@ -1372,7 +1416,7 @@ export default function App() {
 
     // 3. Direct GET Parameter Cloud Ping
     fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(cleanLabel)}&sheetTab=${encodeURIComponent(currentTab)}`, {
-      mode: 'no-cors'
+      
     }).catch(() => {});
 
     showToast(lang === 'en' ? `'${cleanLabel}' set as default month` : `'${cleanLabel}' ডিফল্ট মাস করা হয়েছে`, 'success');
@@ -1751,7 +1795,7 @@ export default function App() {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
       });
@@ -1786,7 +1830,7 @@ export default function App() {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
       });
@@ -1801,7 +1845,7 @@ export default function App() {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         body: JSON.stringify({ action: 'update', sheetTab: currentTab, ...updatedTx })
       });
     } catch {}
@@ -1816,7 +1860,7 @@ export default function App() {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         body: JSON.stringify({ action: 'delete', sheetTab: currentTab, id: txToDelete.id })
       });
     } catch {}
@@ -1874,7 +1918,7 @@ export default function App() {
       category: cleanCat,
       type
     }).toString();
-    fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, { mode: 'no-cors' }).catch(() => {});
+    fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
   };
 
   const handleUpdateCategories = (newCats: string[], type: TransactionType) => {
@@ -1917,7 +1961,7 @@ export default function App() {
     } catch {}
 
     fetch(`${GOOGLE_SCRIPT_URL}?action=deletecategory&sheetTab=${encodeURIComponent(currentTab)}&category=${encodeURIComponent(cat)}`, {
-      mode: 'no-cors'
+      
     }).catch(() => {});
 
     showToast(lang === 'en' ? `Category '${cat}' deleted from Google Sheet` : `'${cat}' ক্যাটাগরি গুগল শিট থেকে ডিলিট হয়েছে`, 'info');
@@ -2004,7 +2048,7 @@ export default function App() {
     // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
     try {
       syncUserToSheet(newUser);
-      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, { mode: 'no-cors' }).catch(() => {});
+      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, {  }).catch(() => {});
       fetch('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2038,7 +2082,7 @@ export default function App() {
 
       fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).catch(() => {});
@@ -2095,7 +2139,7 @@ export default function App() {
     // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
     try {
       syncUserToSheet(newUser);
-      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, { mode: 'no-cors' }).catch(() => {});
+      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, {  }).catch(() => {});
       fetch('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2122,7 +2166,7 @@ export default function App() {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'deleteuser', username: user.username })
       }).catch(() => {});
@@ -2245,7 +2289,7 @@ export default function App() {
 
         <Header
           currentUser={currentUser}
-          activeTab={activeTab === 'users' ? 'settings' : activeTab}
+          activeTab={activeTab}
           setActiveTab={setActiveTab}
           lastSyncTime={lastSyncTime}
           isSyncing={isSyncing}
@@ -2257,6 +2301,7 @@ export default function App() {
           monthMappings={monthMappings}
           dueTodayTask={tasks.find(t => t.status === 'pending' && t.dueDate === new Date().toISOString().split('T')[0]) || null}
           onPayTask={handleConvertTaskToExpense}
+          onProfileClick={() => setShowProfileModal(true)}
         />
 
         <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
@@ -2328,7 +2373,55 @@ export default function App() {
                 />
               )}
 
-              {(activeTab === 'settings' || (activeTab as string) === 'users') && (
+              {activeTab === 'users' && (
+                <UsersTab
+                  currentUser={currentUser}
+                  users={users}
+                  onOpenCreateUserModal={() => setShowCreateUserModal(true)}
+                  onOpenEditUserModal={setEditingUser}
+                  onRequestDeleteUser={setUserToDelete}
+                  onToggleActiveUser={handleToggleActiveUser}
+                  syncStatus={userSyncStatus}
+                  onManualSync={() => {
+                    setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
+                    fetch(`/api/sheet-proxy?action=getusers`)
+                      .then(async res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                      })
+                      .then(data => {
+                        if (data && Array.isArray(data.users) && data.users.length > 0) {
+                          let mapped = data.users.map(mapUserFromSheet);
+                          if (!mapped.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+                            mapped = [DEFAULT_ADMIN, ...mapped];
+                          }
+                          setUsers(mapped);
+                          localStorage.setItem('app_registered_users_v2', JSON.stringify(mapped));
+                          setUserSyncStatus({ loading: false, error: null, lastSuccess: new Date().toLocaleTimeString() });
+                          showToast(t('User list synced from Sheet AL:AQ!', 'শিট AL:AQ থেকে ইউজার সিঙ্ক সম্পন্ন!'), 'success');
+                        } else if (data && data.needsDeployUpdate) {
+                          setUserSyncStatus({
+                            loading: false,
+                            error: 'Apps Script deployment needs update (Deploy > Manage deployments > Edit > New version)',
+                            lastSuccess: null
+                          });
+                          showToast(t('Deploy new version in Apps Script to sync users', 'ইউজার পেতে Apps Script এ New version দিয়ে Deploy করুন'), 'info');
+                        } else {
+                          setUserSyncStatus({ loading: false, error: null, lastSuccess: new Date().toLocaleTimeString() });
+                          showToast(t('No additional users found in AL:AQ', 'AL:AQ তে অতিরিক্ত ইউজার পাওয়া যায়নি'), 'info');
+                        }
+                      })
+                      .catch(err => {
+                        console.warn('Manual sync error:', err);
+                        setUserSyncStatus(prev => ({ ...prev, loading: false, error: err.message }));
+                        showToast(t('Sync failed', 'সিঙ্ক ব্যর্থ হয়েছে'), 'error');
+                      });
+                  }}
+                  t={t}
+                />
+              )}
+
+              {activeTab === 'settings' && (
                 <SettingsTab
                   currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
                   onOpenAddCategoryModal={type => { setCatModalType(type); setShowAddCatModal(true); }}
@@ -2362,9 +2455,10 @@ export default function App() {
               { id: 'details' as const, label: 'Details', icon: ListOrdered },
               { id: 'budget' as const, label: 'Budget', icon: Sliders },
               { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
+              { id: 'users' as const, label: 'Users', icon: Users },
               { id: 'settings' as const, label: 'Settings', icon: Settings }
             ].filter(x => allowedTabs.includes(x.id)).map(item => {
-              const isActive = activeTab === item.id || (item.id === 'settings' && (activeTab as string) === 'users');
+                const isActive = activeTab === item.id;
               return (
                 <motion.button
                   key={item.id}
@@ -2404,6 +2498,7 @@ export default function App() {
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
+      <UserProfileModal user={currentUser} isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} lang={lang} t={t} onLogout={handleLogout} />
 
 
 

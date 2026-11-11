@@ -170,7 +170,15 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.৭ ইউজার ডিটেইলস সংরক্ষণ (SAVE USER - AL:AQ কলামে)
+    // ৫.৭ ইউজার লিস্ট পাওয়া (GET USERS - AL:AQ কলাম থেকে)
+    if (action === 'getusers' || action === 'users') {
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        users: readUsersFromRange(ss)
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৫.৮ ইউজার ডিটেইলস সংরক্ষণ (SAVE USER - AL:AQ কলামে)
     if (action === 'saveuser') {
       saveUserToRange(ss, data);
       return ContentService.createTextOutput(JSON.stringify({
@@ -325,7 +333,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks) পড়া
+  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks, Users) পড়া
   ensureUnifiedTemplateHeaders(sheet);
   
   var txData = readEntriesFromRange(sheet);
@@ -333,6 +341,7 @@ function doGet(e) {
   var mapData = readMonthMappingsFromRange(sheet, ss);
   var budgetData = readBudgetsFromRange(sheet, ss);
   var taskData = readTasksFromRange(sheet, ss);
+  var userData = readUsersFromRange(ss);
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -342,6 +351,7 @@ function doGet(e) {
     monthMappings: mapData,
     categoryBudgets: budgetData,
     tasks: taskData,
+    users: userData,
     count: txData.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -1108,25 +1118,44 @@ function saveUserToRange(ss, data) {
   }
 }
 function readUsersFromRange(ss) {
-  var mainSheet = ss.getSheetByName('abujar287');
-  if (!mainSheet) mainSheet = ss.getSheets()[0];
+  var mainSheet = getTargetSheet(ss, 'abujar287');
   if (!mainSheet) return [];
-  ensureUnifiedTemplateHeaders(mainSheet);
   
   var lastRow = mainSheet.getLastRow();
   var users = [];
   if (lastRow >= 3) {
+    // Read columns AL (38) to AQ (43)
     var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
     for (var i = 0; i < vals.length; i++) {
-      var username = String(vals[i][1] || '').trim();
-      if (username) {
+      var r = vals[i];
+      var colAL = String(r[0] || '').trim();
+      var colAM = String(r[1] || '').trim();
+      var colAN = String(r[2] || '').trim();
+      var colAO = String(r[3] || '').trim();
+      var colAP = String(r[4] || '').trim();
+      var colAQ = String(r[5] || '').trim();
+      
+      // If row has any data in AL:AQ
+      if (colAL || colAM || colAN || colAO) {
+        var username = colAM || colAL;
+        // Skip header if repeated
+        if (username.toLowerCase() === 'username' || username.toLowerCase() === 'full name') {
+          continue;
+        }
+        var displayName = colAL || colAM || username;
+        var password = colAN || '123456';
+        var sheetTab = colAO || username;
+        var role = colAP || 'member';
+        var rawAllowed = colAQ || 'summary,entry,details,budget,upcoming_cost,settings';
+        var allowedTabs = rawAllowed.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s !== '';});
+        
         users.push({
-          displayName: vals[i][0],
+          displayName: displayName,
           username: username,
-          password: vals[i][2],
-          sheetTab: vals[i][3],
-          role: vals[i][4],
-          allowedTabs: String(vals[i][5] || '').split(',').filter(function(s){return s.trim() !== '';}).map(function(s){return s.trim();})
+          password: password,
+          sheetTab: sheetTab,
+          role: role,
+          allowedTabs: allowedTabs
         });
       }
     }

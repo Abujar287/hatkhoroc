@@ -13,6 +13,7 @@ import {
 import { Transaction, AppUser } from '../types';
 import { normalizeDate, formatNumberLocale, formatCleanDateTime, formatDateShortDemo, formatDayHeader } from '../utils/dateUtils';
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor, isOthersCategory } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 
 
 interface DetailsTabProps {
@@ -94,7 +95,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
     let inc = 0;
     let exp = 0;
     filteredTransactions.forEach(tx => {
-      const val = Number(tx.value) || 0;
+      const val = evaluateExpression(tx.value);
       if (tx.type === 'Expense') exp += val;
       else inc += val;
     });
@@ -119,7 +120,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
       let totalIncome = 0;
       let totalExpense = 0;
       txs.forEach(t => {
-        const val = Number(t.value) || 0;
+        const val = evaluateExpression(t.value);
         if (t.type === 'Expense') totalExpense += val;
         else totalIncome += val;
       });

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 import {
   normalizeDate,
   formatNumberLocale,
@@ -222,8 +223,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   // Full month stats for printing
   const currentMonthPrefix = new Date().toISOString().slice(0, 7);
   const monthTransactions = transactions.filter(tx => normalizeDate(tx.date).startsWith(currentMonthPrefix));
-  const monthInc = monthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + (Number(tx.value) || 0) : acc, 0);
-  const monthExp = monthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + (Number(tx.value) || 0) : acc, 0);
+  const monthInc = monthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + evaluateExpression(tx.value) : acc, 0);
+  const monthExp = monthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + evaluateExpression(tx.value) : acc, 0);
   const monthNet = monthInc - monthExp;
 
   // Export full JSON backup
@@ -355,11 +356,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   }, [transactions, selectedMapping, selectedMonth]);
 
   const activeMonthInc = useMemo(() =>
-    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + (Number(tx.value) || 0) : acc, 0),
+    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + evaluateExpression(tx.value) : acc, 0),
     [activeMonthTransactions]
   );
   const activeMonthExp = useMemo(() =>
-    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + (Number(tx.value) || 0) : acc, 0),
+    activeMonthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + evaluateExpression(tx.value) : acc, 0),
     [activeMonthTransactions]
   );
   const activeMonthlyBalance = activeMonthInc - activeMonthExp;
@@ -812,124 +813,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
-      {/* 3. USER DETAILS (CONSOLIDATED IN ONE PLACE) */}
+      {/* 3. ACTIVE PROFILE OVERVIEW */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden">
-        {/* Team Members List (If Admin, embedded cleanly in this single place) */}
-        {isAdmin && users && users.length > 0 && (
-          <div className="p-4 sm:p-5 space-y-3 border-b border-teal-800/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs sm:text-sm font-bold text-[#F0FDFA]">
-                  {t('Team Members', 'টিম মেম্বার্স')} ({users.length})
-                </span>
-              </div>
-              {onOpenCreateUserModal && (
-                <button
-                  type="button"
-                  onClick={onOpenCreateUserModal}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{t('Add User', 'ইউজার যোগ')}</span>
-                </button>
-              )}
-            </div>
-
-            {/* User Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {users.map(u => {
-                const isCurrent = currentUser?.username === u.username;
-                const isMainAdmin = u.username === 'abujar287';
-
-                return (
-                  <div
-                    key={u.username}
-                    className={`p-3 sm:p-3.5 rounded-xl border border-teal-700/70 bg-[#062423] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
-                      isCurrent ? 'bg-teal-900/30 border-teal-600' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-[#0B3C39] border border-teal-700/70 flex items-center justify-center font-bold text-[#F0FDFA] text-xs shrink-0">
-                        {u.displayName.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-[#F0FDFA] text-xs sm:text-sm truncate">{u.displayName}</span>
-                          {isCurrent && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 font-bold border border-emerald-800/60">
-                              {t('YOU', 'আপনি')}
-                            </span>
-                          )}
-                          <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-teal-900/80 text-teal-200 border border-teal-700/60">
-                            {getRoleLabel(u.role)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-teal-300/80 mt-0.5">
-                          <span>@{u.username}</span>
-                          <span>·</span>
-                          <span className="flex items-center gap-1 font-mono">
-                            <span>{visiblePasswords[u.username] ? u.password : '••••••'}</span>
-                            <button
-                              type="button"
-                              onClick={() => setVisiblePasswords(prev => ({ ...prev, [u.username]: !prev[u.username] }))}
-                              className="text-teal-400 hover:text-white p-0.5 cursor-pointer"
-                              title={visiblePasswords[u.username] ? 'Hide' : 'Show'}
-                            >
-                              {visiblePasswords[u.username] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                            </button>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 justify-end shrink-0">
-                      {onToggleActiveUser && (
-                        <button
-                          type="button"
-                          onClick={() => onToggleActiveUser(u)}
-                          disabled={isMainAdmin}
-                          className={`text-[10px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition-all ${
-                            u.isActive !== false
-                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/60'
-                              : 'bg-rose-950/60 text-rose-300 border-rose-800/60'
-                          } ${isMainAdmin ? 'opacity-70' : 'cursor-pointer active:scale-95'}`}
-                        >
-                          {u.isActive !== false ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                          <span>{u.isActive !== false ? t('Active', 'সক্রিয়') : t('Inactive', 'নিষ্ক্রিয়')}</span>
-                        </button>
-                      )}
-
-                      {onOpenEditUserModal && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenEditUserModal(u)}
-                          className="p-1.5 rounded-lg bg-teal-900/80 hover:bg-teal-800 text-[#F0FDFA] border border-teal-700/60 cursor-pointer active:scale-95"
-                          title={t('Edit User', 'এডিট')}
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
-                        </button>
-                      )}
-
-                      {onRequestDeleteUser && !isMainAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => onRequestDeleteUser(u)}
-                          className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95"
-                          title={t('Delete User', 'মুছুন')}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Active Profile Info Header (Moved below Team Members) */}
+        {/* Active Profile Info Header */}
         <div className="p-4 sm:p-5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/60 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">

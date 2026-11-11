@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { Transaction } from '../types';
 import { cleanCategoryName } from './categoryUtils';
 import { normalizeDate, getMonthKeyFromLabel, cleanMappingLabel } from './dateUtils';
+import { evaluateExpression } from './calcUtils';
 
 export interface ExportZipOptions {
   month?: string; // e.g. "2026-10" or "Oct-2026" or "all" or "custom"
@@ -89,7 +90,7 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
   const dailyMap: Record<string, { income: number; expense: number; count: number }> = {};
 
   targetTxs.forEach(tx => {
-    const val = Math.abs(Number(tx.value) || 0);
+    const val = Math.abs(evaluateExpression(tx.value));
     const catClean = cleanCategoryName(tx.category, 'en') || 'Other';
     const dateStr = normalizeDate(tx.date);
 
@@ -411,7 +412,7 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
       tx.type,
       cleanCategoryName(tx.category, 'en'),
       tx.note || '—',
-      (tx.type === 'Expense' ? '-' : '+') + formatAmount(Math.abs(Number(tx.value) || 0))
+      (tx.type === 'Expense' ? '-' : '+') + formatAmount(Math.abs(evaluateExpression(tx.value)))
     ]);
 
     autoTable(doc, {
@@ -474,7 +475,7 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
       normalizeDate(t.date),
       t.type,
       cleanCategoryName(t.category, 'en'),
-      Math.abs(Number(t.value) || 0),
+      Math.abs(evaluateExpression(t.value)),
       t.note || '',
       t.datetime || '',
       t.id

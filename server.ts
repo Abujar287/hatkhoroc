@@ -35,6 +35,9 @@ async function startServer() {
     'https://script.google.com/macros/s/AKfycbwdR3oDJiUFWFopvUeLI-8r92-9uS-jRUdRKFW3CghmmIy84sQZjNEeEkY6yboG8g4z/exec';
 
   app.all('/api/sheet-proxy', async (req, res) => {
+    const action = req.query.action || req.body.action;
+    console.log(`[PROXY] Request: ${req.method} | Action: ${action} | Target: ${GOOGLE_SCRIPT_TARGET.slice(0, 45)}...`);
+    
     try {
       if (req.method === 'POST') {
         const response = await fetch(GOOGLE_SCRIPT_TARGET, {
@@ -43,24 +46,54 @@ async function startServer() {
           body: JSON.stringify(req.body)
         });
         const text = await response.text();
+        let json: any = null;
         try {
-          return res.json(JSON.parse(text));
+          json = JSON.parse(text);
         } catch {
           return res.send(text);
         }
+
+        if (action === 'getusers' || action === 'users') {
+          if (json && Array.isArray(json.users)) {
+            return res.json(json);
+          }
+          return res.json({
+            result: 'success',
+            users: [],
+            needsDeployUpdate: true,
+            message: 'Google Apps Script needs to be updated with New Version in Manage Deployments'
+          });
+        }
+
+        return res.json(json);
       } else {
         const queryString = new URLSearchParams(req.query as any).toString();
         const url = queryString ? `${GOOGLE_SCRIPT_TARGET}?${queryString}` : GOOGLE_SCRIPT_TARGET;
         const response = await fetch(url);
         const text = await response.text();
+        let json: any = null;
         try {
-          return res.json(JSON.parse(text));
+          json = JSON.parse(text);
         } catch {
           return res.send(text);
         }
+
+        if (action === 'getusers' || action === 'users') {
+          if (json && Array.isArray(json.users)) {
+            return res.json(json);
+          }
+          return res.json({
+            result: 'success',
+            users: [],
+            needsDeployUpdate: true,
+            message: 'Google Apps Script needs to be updated with New Version in Manage Deployments'
+          });
+        }
+
+        return res.json(json);
       }
     } catch (error: any) {
-      console.error('Sheet proxy error:', error);
+      console.error('[PROXY] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   });
@@ -342,7 +375,7 @@ async function startServer() {
       });
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({
-        model: model || 'gemini-3.8-flash',
+        model: model || 'gemini-2.0-flash',
         contents,
         config
       });

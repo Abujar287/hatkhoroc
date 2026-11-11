@@ -1373,7 +1373,7 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
     if (b1 === b2) return true;
     return c1.includes(c2) || c2.includes(c1) || b1.includes(b2) || b2.includes(b1);
   });
-  const totalVal = catTxs.reduce((sum, tx) => sum + Math.abs(Number(tx.value) || 0), 0);
+  const totalVal = catTxs.reduce((sum, tx) => sum + Math.abs(evaluateExpression(tx.value)), 0);
   const isExpense = catTxs.length > 0 ? catTxs[0].type === 'Expense' : true;
 
   return (
@@ -2188,3 +2188,114 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
   );
 };
 
+
+// ========================================================
+// 12. USER PROFILE MODAL (FOR HEADER)
+// ========================================================
+interface UserProfileModalProps {
+  user: AppUser | null;
+  isOpen: boolean;
+  onClose: () => void;
+  lang: 'en' | 'bn';
+  t: (en: string, bn: string) => string;
+  onLogout: () => void;
+}
+
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  user,
+  isOpen,
+  onClose,
+  lang,
+  t,
+  onLogout
+}) => {
+  if (!isOpen || !user) return null;
+
+  const isSuperAdmin = user.role === 'super_admin';
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+        onClick={onClose}
+      >
+        <div
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring space-y-4 my-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-teal-800/60 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-900/60 text-emerald-400 flex items-center justify-center border border-teal-700/70 shadow-sm">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#F0FDFA]">{user.displayName}</h3>
+                <span className="text-[10px] text-teal-300/80 font-bold uppercase tracking-wider">
+                  {user.role?.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center text-teal-300 hover:text-white rounded-full bg-[#062423] hover:bg-teal-900/80 cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* User Stats/Info */}
+          <div className="space-y-3 py-1">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#062423] border border-teal-700/60">
+              <span className="text-[11px] font-medium text-teal-300">{t('Username', 'ইউজারনেম')}</span>
+              <span className="text-[11px] font-bold text-white">@{user.username}</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#062423] border border-teal-700/60">
+              <span className="text-[11px] font-medium text-teal-300">{t('Sheet Tab', 'শিট ট্যাব')}</span>
+              <span className="text-[11px] font-bold text-emerald-400">{user.sheetTab}</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#062423] border border-teal-700/60">
+              <span className="text-[11px] font-medium text-teal-300">{t('Member Since', 'অ্যাকাউন্ট তৈরি')}</span>
+              <span className="text-[11px] font-bold text-teal-100">{user.createdAt}</span>
+            </div>
+
+            {/* Direct Link to Users Tab for Admins */}
+            {(user.role === 'super_admin' || user.username === 'abujar287') && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  // We need to trigger setActiveTab('users') in App.tsx
+                  window.dispatchEvent(new CustomEvent('app-set-tab', { detail: 'users' }));
+                }}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-teal-900/40 border border-teal-600/50 hover:bg-teal-800/60 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-bold text-emerald-200">{t('Manage Team', 'টিম ম্যানেজমেন্ট')}</span>
+                </div>
+                <ArrowUpRight className="w-3 h-3 text-teal-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </button>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              <DoorOpen className="w-4 h-4" />
+              {t('Logout from App', 'লগআউট করুন')}
+            </button>
+            <p className="text-[10px] text-center text-teal-400/60 italic font-medium pt-1">
+              হাত খরচ v3.8.0-Stable
+            </p>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
