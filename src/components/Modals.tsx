@@ -2317,8 +2317,41 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const [isDownloading, setIsDownloading] = useState(false);
+
   const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
   const releasesPageUrl = 'https://github.com/Abujar287/hatkhoroc/releases/tag/latest';
+
+  const handleDirectDownload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDownloading(true);
+
+    try {
+      // 1. Silent programmatic anchor click without opening external _blank browser tab
+      const link = document.createElement('a');
+      link.href = downloadApkUrl;
+      link.download = 'hatkhoroc.apk';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 2. Hidden iframe fallback to trigger Android System Download Manager in background
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadApkUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        try { document.body.removeChild(iframe); } catch {}
+      }, 10000);
+    } catch {
+      window.location.href = downloadApkUrl;
+    }
+
+    setTimeout(() => {
+      setIsDownloading(false);
+    }, 4000);
+  };
 
   const handleWebReload = () => {
     if (updateInfo?.latestSha) {
@@ -2365,16 +2398,31 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
           )}
 
           <div className="space-y-2 pt-1">
-            {/* 1. DIRECT APK DOWNLOAD BUTTON */}
-            <a
-              href={downloadApkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center"
+            {/* 1. DIRECT BACKGROUND APK DOWNLOAD BUTTON */}
+            <button
+              type="button"
+              onClick={handleDirectDownload}
+              disabled={isDownloading}
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center disabled:opacity-80"
             >
-              <Smartphone className="w-4 h-4 text-emerald-200 shrink-0" />
-              <span>{t('Download New APK (হাত খরচ.apk)', 'নতুন APK ডাউনলোড করুন (হাত খরচ.apk)')}</span>
-            </a>
+              {isDownloading ? (
+                <>
+                  <Download className="w-4 h-4 text-emerald-200 animate-bounce shrink-0" />
+                  <span>{t('Downloading in Background...', 'ব্যাকগ্রাউন্ডে ডাউনলোড হচ্ছে...')}</span>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-4 h-4 text-emerald-200 shrink-0" />
+                  <span>{t('Auto Download New APK (hatkhoroc.apk)', 'নতুন APK অটো ডাউনলোড করুন')}</span>
+                </>
+              )}
+            </button>
+
+            {isDownloading && (
+              <div className="p-2 bg-emerald-900/80 border border-emerald-500/60 rounded-xl text-center text-[11px] text-emerald-200 font-semibold animate-fadeIn">
+                📥 {t('APK download started! Check phone notification bar.', 'এপিকে ডাউনলোডিং শুরু হয়েছে! ফোনের নোটিফিকেশন বার চেক করুন।')}
+              </div>
+            )}
 
             {/* 2. WEB / PWA RELOAD BUTTON */}
             <button

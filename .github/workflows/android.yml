@@ -113,19 +113,29 @@ jobs:
               }
           }" >> android/build.gradle
 
-      - name: Create Consistent Signing Keystore
+      - name: Cache Permanent Signing Keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: hatkhoroc-android-keystore-v2
+
+      - name: Ensure Consistent Signing Keystore
         run: |
           mkdir -p ~/.android
-          keytool -genkeypair -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Abujar, OU=HatKhoroc, O=HatKhorocApp, L=Dhaka, C=BD"
-          echo "Consistent signing debug.keystore created!"
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Abujar, OU=HatKhoroc, O=HatKhorocApp, L=Dhaka, C=BD"
+            echo "Created new permanent signing debug.keystore!"
+          else
+            echo "Restored existing permanent signing debug.keystore from cache!"
+          fi
 
       - name: Auto Increment Android Version Code
         run: |
