@@ -39,6 +39,61 @@ jobs:
           npx cap add android || true
           npx cap sync android
 
+      - name: Configure Native Android DownloadManager in MainActivity
+        run: |
+          mkdir -p android/app/src/main/java/com/abujar/hatkhoroc/
+          cat << 'EOF' > android/app/src/main/java/com/abujar/hatkhoroc/MainActivity.java
+          package com.abujar.hatkhoroc;
+
+          import android.app.DownloadManager;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.webkit.DownloadListener;
+          import android.webkit.WebView;
+          import android.widget.Toast;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  
+                  try {
+                      WebView webView = this.bridge.getWebView();
+                      if (webView != null) {
+                          webView.setDownloadListener(new DownloadListener() {
+                              @Override
+                              public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                                  try {
+                                      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                                      request.setMimeType("application/vnd.android.package-archive");
+                                      request.addRequestHeader("User-Agent", userAgent);
+                                      request.setDescription("হাত খরচ অ্যাপ আপডেট ডাউনলোড হচ্ছে...");
+                                      request.setTitle("hatkhoroc.apk");
+                                      request.allowScanningByMediaScanner();
+                                      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                                      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "hatkhoroc.apk");
+                                      
+                                      DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                                      if (dm != null) {
+                                          dm.enqueue(request);
+                                          Toast.makeText(getApplicationContext(), "📥 নোটিফিকেশন বারে এপিকে ডাউনলোড শুরু হয়েছে!", Toast.LENGTH_LONG).show();
+                                      }
+                                  } catch (Exception e) {
+                                      e.printStackTrace();
+                                  }
+                              }
+                          });
+                      }
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+          }
+          EOF
+          echo "Native DownloadManager attached to MainActivity.java!"
+
       - name: Generate Custom Android App Icons & Splash Screen
         run: |
           # 1. Ensure assets directory has the custom app logo

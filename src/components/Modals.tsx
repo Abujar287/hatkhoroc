@@ -2327,25 +2327,17 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     setIsDownloading(true);
 
     try {
-      // 1. Silent programmatic anchor click without opening external _blank browser tab
+      // Direct window.location.href trigger in Capacitor Android WebView invokes native DownloadListener
+      // which sends the APK download directly to Android System DownloadManager in top status bar!
+      window.location.href = downloadApkUrl;
+    } catch {
       const link = document.createElement('a');
       link.href = downloadApkUrl;
       link.download = 'hatkhoroc.apk';
-      link.style.display = 'none';
+      link.setAttribute('target', '_self');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // 2. Hidden iframe fallback to trigger Android System Download Manager in background
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = downloadApkUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        try { document.body.removeChild(iframe); } catch {}
-      }, 10000);
-    } catch {
-      window.location.href = downloadApkUrl;
     }
 
     setTimeout(() => {

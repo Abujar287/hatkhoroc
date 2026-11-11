@@ -125,23 +125,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setIsDownloadingApk(true);
     const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
     try {
+      window.location.href = downloadApkUrl;
+    } catch {
       const link = document.createElement('a');
       link.href = downloadApkUrl;
       link.download = 'hatkhoroc.apk';
-      link.style.display = 'none';
+      link.setAttribute('target', '_self');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = downloadApkUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        try { document.body.removeChild(iframe); } catch {}
-      }, 10000);
-    } catch {
-      window.location.href = downloadApkUrl;
     }
     setTimeout(() => {
       setIsDownloadingApk(false);

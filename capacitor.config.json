@@ -1,5 +1,12 @@
 {
   "appId": "com.abujar.hatkhoroc",
   "appName": "হাত খরচ",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "allowNavigation": [
+      "github.com",
+      "*.github.com",
+      "*.githubusercontent.com"
+    ]
+  }
 }
