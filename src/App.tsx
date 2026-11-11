@@ -56,7 +56,7 @@ import {
 import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
 import { fetchSheetApi } from './utils/sheetApi';
-import { processOfflineQueue, addToOfflineQueue } from './utils/offlineQueue';
+import { processOfflineQueue, addToOfflineQueue, getOfflineQueue } from './utils/offlineQueue';
 
 // Modular Components
 import { Header } from './components/Header';
@@ -1820,6 +1820,9 @@ export default function App() {
   // Offline queue listener & auto-sync when back online
   useEffect(() => {
     const triggerQueueSync = async () => {
+      if (getOfflineQueue().length === 0) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
       const count = await processOfflineQueue((syncedCount) => {
         showToast(
           lang === 'en'
@@ -1833,11 +1836,21 @@ export default function App() {
       }
     };
 
-    const handleOnline = () => {
-      triggerQueueSync();
+    const handleOnline = () => triggerQueueSync();
+    const handleFocus = () => triggerQueueSync();
+    const handleVisChange = () => {
+      if (document.visibilityState === 'visible') triggerQueueSync();
     };
 
     window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisChange);
+
+    const intervalId = setInterval(() => {
+      if (navigator.onLine && getOfflineQueue().length > 0) {
+        triggerQueueSync();
+      }
+    }, 5000);
 
     if (navigator.onLine) {
       triggerQueueSync();
@@ -1845,6 +1858,9 @@ export default function App() {
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisChange);
+      clearInterval(intervalId);
     };
   }, [isAuthenticated, currentTab, handleManualSync, lang, showToast]);
 

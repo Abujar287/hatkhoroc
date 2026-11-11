@@ -1,4 +1,4 @@
-import { fetchSheetApi } from './sheetApi';
+import { fetchSheetApi, DIRECT_GOOGLE_SCRIPT_URL } from './sheetApi';
 
 export interface PendingSyncItem {
   id: string;
@@ -63,13 +63,32 @@ export async function processOfflineQueue(onSuccessToast?: (count: number) => vo
 
   for (const item of queue) {
     try {
-      const res = await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item.payload)
-      });
+      let isSynced = false;
+      try {
+        const res = await fetchSheetApi('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(item.payload)
+        });
+        if (res.ok) {
+          isSynced = true;
+        }
+      } catch (proxyErr) {
+        console.warn(`[OFFLINE QUEUE] Proxy sync failed for ${item.action}, trying direct:`, proxyErr);
+      }
 
-      if (res.ok) {
+      if (!isSynced) {
+        const directRes = await fetch(DIRECT_GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(item.payload)
+        });
+        if (directRes.ok) {
+          isSynced = true;
+        }
+      }
+
+      if (isSynced) {
         removeFromOfflineQueue(item.id);
         syncedCount++;
       }

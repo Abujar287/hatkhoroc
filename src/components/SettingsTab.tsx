@@ -842,20 +842,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="px-3.5 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 cursor-pointer active:scale-95 transition-all text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                title={t('Log Out', 'লগআউট')}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>{t('Log Out', 'লগআউট')}</span>
-              </button>
-            )}
-          </div>
         </div>
       </div>
 

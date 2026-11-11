@@ -153,10 +153,18 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
   doc.setTextColor(203, 213, 225); // slate-300
   doc.text('Monthly Financial Summary & Audit Statement', 14, 23);
 
+function toAsciiSafe(str: string): string {
+  if (!str) return '';
+  return str.replace(/[^\x00-\x7F]/g, '').trim();
+}
+
+  const safeUserName = toAsciiSafe(userName) || 'User';
+  const safePeriodLabel = toAsciiSafe(periodLabel) || 'Monthly Record';
+
   doc.setFontSize(8.5);
   doc.setTextColor(148, 163, 184); // slate-400
-  doc.text(`Account Holder: ${userName}  |  Generated: ${generatedDateStr}`, 14, 30);
-  doc.text(`Statement Period: ${periodLabel}`, 14, 36);
+  doc.text(`Account Holder: ${safeUserName}  |  Generated: ${generatedDateStr}`, 14, 30);
+  doc.text(`Statement Period: ${safePeriodLabel}`, 14, 36);
 
   // Status Badge on Right
   doc.setFillColor(30, 41, 59); // slate-800
@@ -571,18 +579,44 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
     compressionOptions: { level: 9 }
   });
 
-  // Download Trigger in Browser
-  const downloadUrl = URL.createObjectURL(zipBlob);
-  const a = document.createElement('a');
-  a.href = downloadUrl;
-  a.download = `${filePrefix}_Package.zip`;
-  document.body.appendChild(a);
-  a.click();
+  // Download Trigger using Data URL + Blob URL for universal browser & mobile WebView support
+  const fileName = `${filePrefix}_Package.zip`;
 
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(downloadUrl);
-  }, 1200);
+  try {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      try {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = fileName;
+        a.setAttribute('target', '_self');
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (document.body.contains(a)) {
+            document.body.removeChild(a);
+          }
+        }, 3000);
+      } catch {
+        window.location.href = dataUrl;
+      }
+    };
+    reader.readAsDataURL(zipBlob);
+  } catch {
+    const downloadUrl = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(downloadUrl);
+    }, 3000);
+  }
 
   return true;
 }
