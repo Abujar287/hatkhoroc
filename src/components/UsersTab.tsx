@@ -9,7 +9,8 @@ import {
   Search, 
   Shield, 
   Layers,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { AppUser } from '../types';
 
@@ -93,6 +94,10 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     );
   }, [users, searchTerm]);
 
+  const totalRecords = useMemo(() => {
+    return filteredUsers.reduce((sum, u) => sum + (u.recordCount || 0), 0);
+  }, [filteredUsers]);
+
   return (
     <div className="w-full max-w-7xl mx-auto space-y-3 pb-16 animate-fadeIn px-1 sm:px-2">
       {/* Top Card Container */}
@@ -112,6 +117,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                   </h2>
                   <span className="px-1.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 text-[10px] font-bold">
                     {users.length} {t('Users', 'জন')}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-teal-950/90 text-teal-300 border border-teal-700/60 text-[10px] font-black font-mono shadow-xs">
+                    {totalRecords} {t('total records', 'মোট রেকর্ডস')}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-teal-300/80">
@@ -162,9 +170,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           </div>
         </div>
 
-        {/* DATA TABLE (Compact: Full Name | username | password | sheet tab name | role | access tab | edit | remove) */}
+        {/* DATA TABLE (Compact: Full Name | username | records | password | sheet tab name | role | access tab | edit | remove) */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px] select-text">
+          <table className="w-full text-left border-collapse min-w-[760px] select-text">
             <thead>
               <tr className="bg-[#062423] text-teal-300/90 border-b border-teal-800/80">
                 <th scope="col" className="py-2.5 px-3 text-[10px] font-black uppercase tracking-wider">
@@ -172,6 +180,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                 </th>
                 <th scope="col" className="py-2.5 px-2.5 text-[10px] font-black uppercase tracking-wider">
                   username
+                </th>
+                <th scope="col" className="py-2.5 px-2.5 text-[10px] font-black uppercase tracking-wider">
+                  records
                 </th>
                 <th scope="col" className="py-2.5 px-2.5 text-[10px] font-black uppercase tracking-wider">
                   password
@@ -204,6 +215,8 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                 const accessTabString = (u.allowedTabs && u.allowedTabs.length > 0)
                   ? u.allowedTabs.join(', ')
                   : 'summary, entry, details, budget, task, settings';
+
+                const recordVal = u.recordCount ?? 0;
 
                 return (
                   <tr 
@@ -251,12 +264,25 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       </div>
                     </td>
 
-                    {/* 2. username (Compact Monospace) */}
+                    {/* 2. username + Record Count Badge */}
                     <td className="py-1.5 px-2.5 font-mono font-bold text-[11px] sm:text-xs text-emerald-400 whitespace-nowrap">
-                      @{u.username}
+                      <div className="flex items-center gap-1.5">
+                        <span>@{u.username}</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono text-[9px] font-extrabold shadow-xs">
+                          ({recordVal} {t('records', 'রেকর্ডস')})
+                        </span>
+                      </div>
                     </td>
 
-                    {/* 3. password (Compact Box with Eye Toggle) */}
+                    {/* 3. records count column */}
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono text-[11px] font-black shadow-xs">
+                        <FileText className="w-3 h-3 text-emerald-400 shrink-0" />
+                        <span>{recordVal} {t('records', 'রেকর্ডস')}</span>
+                      </span>
+                    </td>
+
+                    {/* 4. password (Compact Box with Eye Toggle) */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5 bg-[#062423] border border-teal-700/60 px-2 py-0.5 rounded-lg font-mono text-[11px]">
                         <span className={`tracking-wider ${isPassVisible ? 'text-[#F0FDFA] font-bold select-all' : 'text-teal-400 font-extrabold select-none'}`}>
@@ -273,7 +299,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       </div>
                     </td>
 
-                    {/* 4. sheet tab name (Compact Pill) */}
+                    {/* 5. sheet tab name (Compact Pill) */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-800/60 text-amber-300 font-mono text-[11px] font-bold shadow-xs">
                         <FileSpreadsheet className="w-2.5 h-2.5 text-amber-400 shrink-0" />
@@ -281,19 +307,19 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       </span>
                     </td>
 
-                    {/* 5. role (Compact Badge) */}
+                    {/* 6. role (Compact Badge) */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
                       {getRoleBadge(u.role)}
                     </td>
 
-                    {/* 6. access tab (Comma-separated text on single line without breaks) */}
+                    {/* 7. access tab (Comma-separated text on single line without breaks) */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
                       <span className="text-[10px] sm:text-[11px] font-mono text-teal-200/90 whitespace-nowrap">
                         {accessTabString}
                       </span>
                     </td>
 
-                    {/* 7. edit (Icon Button Only - No text label) */}
+                    {/* 8. edit (Icon Button Only - No text label) */}
                     <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                       <button
                         type="button"
@@ -306,7 +332,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       </button>
                     </td>
 
-                    {/* 8. remove (Icon Button Only - No text label) */}
+                    {/* 9. remove (Icon Button Only - No text label) */}
                     <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                       {isMainAdmin ? (
                         <span className="inline-block text-[8px] font-bold text-teal-600 bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/60 select-none">
@@ -345,11 +371,20 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 
         {/* Table Footer Summary */}
         <div className="p-2.5 sm:p-3 bg-[#062423] border-t border-teal-800/80 flex items-center justify-between flex-wrap gap-2 text-[10px] text-teal-300/80">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3 h-3 text-emerald-400" />
-            <span>
-              {t('Total Accounts:', 'মোট অ্যাকাউন্ট:')} <strong className="text-white">{filteredUsers.length}</strong>
-            </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3 h-3 text-emerald-400" />
+              <span>
+                {t('Total Accounts:', 'মোট অ্যাকাউন্ট:')} <strong className="text-white">{filteredUsers.length}</strong>
+              </span>
+            </div>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <FileText className="w-3 h-3 text-emerald-400" />
+              <span>
+                {t('Total Synced Records:', 'মোট সিঙ্ক হওয়া এন্ট্রি রেকর্ড:')} <strong className="text-emerald-300 font-mono font-bold">{totalRecords}</strong>
+              </span>
+            </div>
           </div>
           <div className="font-mono text-teal-400/70">
             Sheet Range: abujar287!AL:AQ

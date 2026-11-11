@@ -48,10 +48,28 @@ export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
     const commitDate = data.commit?.author?.date || data.commit?.committer?.date || new Date().toISOString();
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
 
-    // Read stored installed SHA if user previously acknowledged an update
-    const installedSha = localStorage.getItem('app_installed_sha') || CURRENT_BUILD_SHA;
+    // Read stored installed / acknowledged / dismissed SHA
+    const installedSha = localStorage.getItem('app_installed_sha');
+    const dismissedSha = localStorage.getItem('app_dismissed_sha');
 
-    const hasUpdate = latestSha !== CURRENT_BUILD_SHA && latestSha !== installedSha;
+    // On initial app launch (if no installedSha saved yet), stamp latestSha as current
+    if (!installedSha) {
+      localStorage.setItem('app_installed_sha', latestSha);
+      return {
+        hasUpdate: false,
+        currentSha: latestSha,
+        latestSha,
+        commitMessage,
+        commitAuthor,
+        commitDate,
+        htmlUrl,
+        releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
+        actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`
+      };
+    }
+
+    // Only flag hasUpdate if latestSha is DIFFERENT from installedSha AND dismissedSha
+    const hasUpdate = latestSha !== installedSha && latestSha !== dismissedSha;
 
     return {
       hasUpdate,
@@ -71,27 +89,31 @@ export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
 }
 
 /**
- * Checks if the update popup was dismissed within the last hour
+ * Checks if the update popup was dismissed
  */
 export function isUpdateDismissedRecently(): boolean {
   try {
     const dismissedAt = localStorage.getItem('app_update_dismissed_at');
     if (!dismissedAt) return false;
     const diffHours = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60);
-    return diffHours < 1; // Remind again after 1 hour if not updated
+    return diffHours < 12; // Do not nag again for 12 hours once dismissed
   } catch {
     return false;
   }
 }
 
-export function recordUpdateDismissed() {
+export function recordUpdateDismissed(sha?: string) {
   try {
     localStorage.setItem('app_update_dismissed_at', String(Date.now()));
+    if (sha) {
+      localStorage.setItem('app_dismissed_sha', sha);
+    }
   } catch {}
 }
 
 export function recordUpdateAcknowledged(sha: string) {
   try {
     localStorage.setItem('app_installed_sha', sha);
+    localStorage.setItem('app_dismissed_sha', sha);
   } catch {}
 }

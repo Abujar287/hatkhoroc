@@ -657,7 +657,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('member');
-  const [allowedTabs, setAllowedTabs] = useState<AppTab[]>(['summary', 'entry', 'details']);
+  const [allowedTabs, setAllowedTabs] = useState<AppTab[]>(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings']);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [viewTargetTab, setViewTargetTab] = useState<string>('abujar287');
   const [error, setError] = useState('');
@@ -665,17 +665,17 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
     if (newRole === 'super_admin' || newRole === 'admin') {
-      setAllowedTabs(['summary', 'entry', 'details', 'users', 'settings']);
+      setAllowedTabs(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings', 'users']);
       setIsReadOnly(false);
     } else if (newRole === 'super_admin_2') {
       setAllowedTabs(['summary', 'details']);
       setIsReadOnly(true);
       setViewTargetTab('abujar287');
     } else if (newRole === 'senior_member') {
-      setAllowedTabs(['summary', 'entry', 'details']);
+      setAllowedTabs(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings']);
       setIsReadOnly(false);
     } else {
-      setAllowedTabs(['summary', 'entry', 'details']);
+      setAllowedTabs(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings']);
       setIsReadOnly(false);
     }
   };

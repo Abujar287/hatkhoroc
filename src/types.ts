@@ -58,6 +58,7 @@ export interface AppUser {
   googleId?: string;
   googleEmail?: string;
   spreadsheetId?: string;
+  recordCount?: number;
 }
 
 export interface MonthMapping {

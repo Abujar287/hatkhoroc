@@ -1,5 +1,17 @@
-import React from 'react';
-import { RefreshCw, Users } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  RefreshCw,
+  Users,
+  Menu,
+  LayoutDashboard,
+  PlusCircle,
+  ListFilter,
+  PieChart,
+  Clock,
+  Settings,
+  Check,
+  LogOut
+} from 'lucide-react';
 import { AppUser, AppTab } from '../types';
 import { findMonthMapping, getMonthKeyFromLabel } from '../utils/dateUtils';
 
@@ -33,9 +45,27 @@ export const Header: React.FC<HeaderProps> = ({
   dueTodayTask,
   onPayTask,
   onProfileClick,
+  onLogout,
   activeTab,
   setActiveTab
 }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   const activeMonthLabel = React.useMemo(() => {
     const mapping = findMonthMapping(monthMappings, selectedMonth);
     if (mapping && mapping.label) {
@@ -66,6 +96,27 @@ export const Header: React.FC<HeaderProps> = ({
 
   const userDisplayName = currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari';
 
+  const userAllowedTabs: AppTab[] = React.useMemo(() => {
+    if (!currentUser) return ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
+    const tabs = currentUser.allowedTabs || ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
+    if (['super_admin', 'super_admin_2', 'admin'].includes(currentUser.role || '') || currentUser.username === 'abujar287') {
+      if (!tabs.includes('users')) return [...tabs, 'users'];
+    }
+    return tabs;
+  }, [currentUser]);
+
+  const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'summary', label: t('Summary', 'হিসাব'), icon: LayoutDashboard },
+    { id: 'entry', label: t('Add Entry', 'এন্ট্রি'), icon: PlusCircle },
+    { id: 'details', label: t('Details', 'ডিটেইলস'), icon: ListFilter },
+    { id: 'budget', label: t('Budget', 'বাজেট'), icon: PieChart },
+    { id: 'upcoming_cost', label: t('Upcoming Cost', 'আপকামিং'), icon: Clock },
+    { id: 'settings', label: t('Settings', 'সেটিং'), icon: Settings },
+    { id: 'users', label: t('Users', 'ইউজার'), icon: Users },
+  ];
+
+  const visibleMenuItems = menuItems.filter(item => userAllowedTabs.includes(item.id));
+
   return (
     <header className="shrink-0 z-40 bg-[#042F2E] text-[#F0FDFA] w-full shadow-md pt-safe border-b border-teal-800/60">
       {dueTodayTask && (
@@ -83,8 +134,73 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
-        {/* Left: App Logo, Title, and Super Admin Users Tab */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        {/* Left: 3-Line Menu, App Logo, Title */}
+        <div className="flex items-center gap-2 min-w-0">
+          {/* 3-Line Dropdown Menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-1.5 rounded-xl bg-[#062423] hover:bg-teal-900/80 text-teal-200 hover:text-white border border-teal-700/60 transition-colors cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+              title={t('Menu', 'মেনু')}
+            >
+              <Menu className="w-5 h-5 text-emerald-400" />
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 w-52 bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl z-50 py-1.5 animate-fadeIn backdrop-blur-md">
+                <div className="px-3 py-1.5 border-b border-teal-800/60 mb-1">
+                  <span className="text-[10px] font-black text-teal-300/80 uppercase tracking-wider">
+                    {t('Navigation Menu', 'মেনু নেভিগেশন')}
+                  </span>
+                </div>
+                {visibleMenuItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setIsMenuOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-emerald-600/90 text-white font-black'
+                          : 'text-[#F0FDFA] hover:bg-[#062423]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                        <span>{item.label}</span>
+                      </div>
+                      {isActive && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  );
+                })}
+
+                {onLogout && (
+                  <div className="border-t border-teal-800/60 mt-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full px-3 py-2 text-xs font-extrabold text-rose-300 hover:text-white hover:bg-rose-950/60 flex items-center justify-between transition-colors cursor-pointer rounded-b-xl"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <LogOut className="w-4 h-4 text-rose-400" />
+                        <span>{t('Log Out', 'লগআউট')}</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-2.5 min-w-0 select-none">
             <img
               src="/logo.png"
@@ -100,15 +216,14 @@ export const Header: React.FC<HeaderProps> = ({
               </p>
             </div>
           </div>
-
         </div>
 
         {/* Right: Month Name Badge (Left of Sync) + Sync Button */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Month Name Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-[#062A28] border border-teal-700/60 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="text-xs sm:text-sm font-extrabold text-emerald-300 tracking-wide">
+          <div className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg bg-[#062A28] border border-teal-700/60 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="text-[11px] sm:text-xs font-bold text-emerald-300 tracking-wide">
               {activeMonthLabel}
             </span>
           </div>
@@ -118,13 +233,13 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onSync}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border shadow-xs ${
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer border shadow-xs ${
               isSyncing
                 ? 'bg-teal-900 text-teal-300 border-teal-800'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500/80 active:scale-95'
             }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-white ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3 h-3 text-white ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? '...' : t('Sync', 'সিঙ্ক')}</span>
           </button>
         </div>
@@ -132,3 +247,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

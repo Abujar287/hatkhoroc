@@ -118,27 +118,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 }) => {
   const isAdmin = ['super_admin', 'super_admin_2', 'admin'].includes(currentUser?.role || '') || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
-  const [isDownloadingApk, setIsDownloadingApk] = useState(false);
-
-  const handleDirectApkDownload = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDownloadingApk(true);
-    const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
-    try {
-      window.location.href = downloadApkUrl;
-    } catch {
-      const link = document.createElement('a');
-      link.href = downloadApkUrl;
-      link.download = 'hatkhoroc.apk';
-      link.setAttribute('target', '_self');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-    setTimeout(() => {
-      setIsDownloadingApk(false);
-    }, 4000);
-  };
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -831,27 +810,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           >
             <RefreshCw className="w-4 h-4 text-teal-300 shrink-0" />
             <span className="truncate">{t('Check Update', 'আপডেট চেক')}</span>
-          </button>
-
-          {/* 4. Download Latest APK */}
-          <button
-            type="button"
-            onClick={handleDirectApkDownload}
-            disabled={isDownloadingApk}
-            className="py-3 px-2 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-600 hover:to-teal-700 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shrink-0 disabled:opacity-80"
-            title={t('Download Latest Android APK File', 'সর্বশেষ অ্যান্ড্রয়েড APK ডাউনলোড করুন')}
-          >
-            {isDownloadingApk ? (
-              <>
-                <Download className="w-4 h-4 text-emerald-300 animate-bounce shrink-0" />
-                <span className="truncate">{t('Downloading...', 'ডাউনলোড হচ্ছে...')}</span>
-              </>
-            ) : (
-              <>
-                <Smartphone className="w-4 h-4 text-emerald-300 shrink-0" />
-                <span className="truncate">{t('Download APK', 'APK ডাউনলোড')}</span>
-              </>
-            )}
           </button>
         </div>
       </div>

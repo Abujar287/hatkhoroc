@@ -56,6 +56,7 @@ import {
 import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
 import { fetchSheetApi } from './utils/sheetApi';
+import { processOfflineQueue, addToOfflineQueue } from './utils/offlineQueue';
 
 // Modular Components
 import { Header } from './components/Header';
@@ -86,7 +87,7 @@ import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
 
-import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, UpdateInfo, APP_VERSION } from './utils/updateChecker';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, recordUpdateDismissed, UpdateInfo, APP_VERSION } from './utils/updateChecker';
 
 
 // Default Admin User
@@ -373,17 +374,34 @@ export default function App() {
       tabs = [...tabs, 'upcoming_cost'];
     }
     
+    const userTab = String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase();
+    let recordCount = Number(u.recordCount || u.recordsCount || u.records || u.txCount || 0);
+    if (!recordCount) {
+      if (userTab === currentTab.toLowerCase() && Array.isArray(transactions)) {
+        recordCount = transactions.length;
+      } else {
+        try {
+          const storedTxs = localStorage.getItem(`app_transactions_${userTab}`);
+          if (storedTxs) {
+            const parsed = JSON.parse(storedTxs);
+            if (Array.isArray(parsed)) recordCount = parsed.length;
+          }
+        } catch {}
+      }
+    }
+
     return {
       username: String(u.username || '').trim(),
       password: String(u.password || '').trim(),
       displayName: String(u.displayName || u.username || 'User').trim(),
-      sheetTab: String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase(),
+      sheetTab: userTab,
       initialUsername: String(u.username || '').trim(),
       createdAt: u.createdAt || '2026-10-01',
       role: role as UserRole,
       isActive: u.isActive !== false && String(u.isActive).toLowerCase() !== 'false',
       allowedTabs: tabs,
-      isReadOnly: u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true'
+      isReadOnly: u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true',
+      recordCount
     };
   };
 
@@ -625,6 +643,16 @@ export default function App() {
     try {
       localStorage.setItem(`app_transactions_${currentTab}`, JSON.stringify(updated));
     } catch {}
+
+    // Auto-update record count for active user/tab in users list
+    setUsers(prevUsers =>
+      prevUsers.map(u => {
+        const uTab = (u.sheetTab || u.username || '').toLowerCase();
+        return uTab === currentTab.toLowerCase()
+          ? { ...u, recordCount: updated.length }
+          : u;
+      })
+    );
   }, [currentTab]);
 
   // ----------------------------------------------------
@@ -810,7 +838,8 @@ export default function App() {
 
       showToast(lang === 'en' ? 'Task saved & synced to Google Sheet!' : 'টাস্ক সেভ এবং গুগল শিটে যুক্ত হয়েছে!', 'success');
     } catch (err) {
-      showToast(lang === 'en' ? 'Task saved locally' : 'টাস্ক লোকালি সেভ হয়েছে', 'info');
+      addToOfflineQueue({ action: 'insertTask', sheetTab: currentTab, payload });
+      showToast(lang === 'en' ? 'Task saved offline! Will sync when online.' : 'টাস্ক অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
     }
   };
 
@@ -856,7 +885,9 @@ export default function App() {
       }).toString();
 
       fetchSheetApi(`?${qParams}`, {  }).catch(() => {});
-    } catch {}
+    } catch {
+      addToOfflineQueue({ action: 'updateTask', sheetTab: currentTab, payload });
+    }
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -895,7 +926,9 @@ export default function App() {
       fetchSheetApi(`?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`).catch(() => {});
 
       showToast(lang === 'en' ? 'Task deleted from Google Sheet' : 'টাস্ক গুগল শিট থেকে ডিলিট হয়েছে', 'info');
-    } catch {}
+    } catch {
+      addToOfflineQueue({ action: 'deleteTask', sheetTab: currentTab, payload });
+    }
   };
 
   const taskDueCount = useMemo(() => {
@@ -1784,6 +1817,37 @@ export default function App() {
     }
   }, [isAuthenticated, currentTab, handleManualSync]);
 
+  // Offline queue listener & auto-sync when back online
+  useEffect(() => {
+    const triggerQueueSync = async () => {
+      const count = await processOfflineQueue((syncedCount) => {
+        showToast(
+          lang === 'en'
+            ? `${syncedCount} offline item(s) auto-synced!`
+            : `${syncedCount}টি অফলাইন ডাটা অটো-সিঙ্ক হয়েছে!`,
+          'success'
+        );
+      });
+      if (count > 0 && isAuthenticated) {
+        handleManualSync(currentTab);
+      }
+    };
+
+    const handleOnline = () => {
+      triggerQueueSync();
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    if (navigator.onLine) {
+      triggerQueueSync();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [isAuthenticated, currentTab, handleManualSync, lang, showToast]);
+
   const handleSaveTransaction = async (overrideVal?: number) => {
     if (isReadOnly) return;
     const val = typeof overrideVal === 'number' ? overrideVal : Math.abs(evaluateExpression(calcDisplay));
@@ -1803,19 +1867,30 @@ export default function App() {
     saveTransactionsLocally([newTx, ...transactions]);
     playSound('success');
 
-    try {
-      await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
-      });
-    } catch {}
+    const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
+
+    if (!navigator.onLine) {
+      addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+      showToast(lang === 'en' ? 'Saved offline! Will sync when online.' : 'অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
+    } else {
+      try {
+        const res = await fetchSheetApi('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Proxy failed');
+        showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
+      } catch (err) {
+        addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+        showToast(lang === 'en' ? 'Saved offline! Will sync when online.' : 'অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
+      }
+    }
 
     setCalcDisplay('0');
     setEntryCategory('');
     setEntryNote('');
     setIsSubmitting(false);
-    showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
   };
 
   const handleConvertTaskToExpense = async (task: CostTask) => {
@@ -1837,13 +1912,21 @@ export default function App() {
     
     playSound('success');
 
-    try {
-      await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
-      });
-    } catch {}
+    const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
+
+    if (!navigator.onLine) {
+      addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+    } else {
+      try {
+        await fetchSheetApi('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch {
+        addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+      }
+    }
 
     showToast(t(`${task.amount.toLocaleString()} paid & removed from tasks!`, `${task.amount.toLocaleString()} খরচে যোগ করা হয়েছে এবং টাস্ক লিস্ট থেকে সরানো হয়েছে!`), 'success');
   };
@@ -1851,13 +1934,25 @@ export default function App() {
   const handleUpdateTransaction = async (updatedTx: Transaction) => {
     const updatedList = transactions.map(t => (t.id === updatedTx.id ? updatedTx : t));
     saveTransactionsLocally(updatedList);
-    try {
-      await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'update', sheetTab: currentTab, ...updatedTx })
-      });
-    } catch {}
-    showToast('Updated!', 'success');
+
+    const payload = { action: 'update', sheetTab: currentTab, ...updatedTx };
+
+    if (!navigator.onLine) {
+      addToOfflineQueue({ action: 'update', sheetTab: currentTab, payload });
+      showToast(lang === 'en' ? 'Updated offline!' : 'অফলাইনে আপডেট হয়েছে!', 'info');
+    } else {
+      try {
+        await fetchSheetApi('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        showToast('Updated!', 'success');
+      } catch {
+        addToOfflineQueue({ action: 'update', sheetTab: currentTab, payload });
+        showToast(lang === 'en' ? 'Updated offline!' : 'অফলাইনে আপডেট হয়েছে!', 'info');
+      }
+    }
   };
 
   const handleConfirmDelete = async (txToDelete: Transaction) => {
@@ -1865,15 +1960,28 @@ export default function App() {
     setIsDeleting(true);
     saveTransactionsLocally(transactions.filter(t => t.id !== txToDelete.id));
     playSound('delete');
-    try {
-      await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'delete', sheetTab: currentTab, id: txToDelete.id })
-      });
-    } catch {}
+
+    const payload = { action: 'delete', sheetTab: currentTab, id: txToDelete.id };
+
+    if (!navigator.onLine) {
+      addToOfflineQueue({ action: 'delete', sheetTab: currentTab, payload });
+      showToast(lang === 'en' ? 'Deleted offline' : 'অফলাইনে ডিলিট হয়েছে', 'info');
+    } else {
+      try {
+        await fetchSheetApi('/api/sheet-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        showToast('Deleted', 'info');
+      } catch {
+        addToOfflineQueue({ action: 'delete', sheetTab: currentTab, payload });
+        showToast(lang === 'en' ? 'Deleted offline' : 'অফলাইনে ডিলিট হয়েছে', 'info');
+      }
+    }
+
     setIsDeleting(false);
     setDeletingTx(null);
-    showToast('Deleted', 'info');
   };
 
   // ----------------------------------------------------
@@ -2299,6 +2407,7 @@ export default function App() {
           dueTodayTask={tasks.find(t => t.status === 'pending' && t.dueDate === new Date().toISOString().split('T')[0]) || null}
           onPayTask={handleConvertTaskToExpense}
           onProfileClick={() => setShowProfileModal(true)}
+          onLogout={handleLogout}
         />
 
         <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
@@ -2452,7 +2561,6 @@ export default function App() {
               { id: 'details' as const, label: 'Details', icon: ListOrdered },
               { id: 'budget' as const, label: 'Budget', icon: Sliders },
               { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
-              { id: 'users' as const, label: 'Users', icon: Users },
               { id: 'settings' as const, label: 'Settings', icon: Settings }
             ].filter(x => allowedTabs.includes(x.id)).map(item => {
                 const isActive = activeTab === item.id;
@@ -2496,7 +2604,17 @@ export default function App() {
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
       <UserProfileModal user={currentUser} isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} lang={lang} t={t} onLogout={handleLogout} />
-      <AppUpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} updateInfo={updateInfoModal} t={t} />
+      <AppUpdateModal 
+        isOpen={showUpdateModal} 
+        onClose={() => {
+          if (updateInfoModal?.latestSha) {
+            recordUpdateDismissed(updateInfoModal.latestSha);
+          }
+          setShowUpdateModal(false);
+        }} 
+        updateInfo={updateInfoModal} 
+        t={t} 
+      />
 
 
 
