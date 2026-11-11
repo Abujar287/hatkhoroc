@@ -168,35 +168,19 @@ jobs:
               }
           }" >> android/build.gradle
 
-      - name: Cache Permanent Signing Keystore
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: hatkhoroc-android-keystore-v2
-
-      - name: Ensure Consistent Signing Keystore
+      - name: Ensure Permanent Embedded Keystore
         run: |
           mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Abujar, OU=HatKhoroc, O=HatKhorocApp, L=Dhaka, C=BD"
-            echo "Created new permanent signing debug.keystore!"
-          else
-            echo "Restored existing permanent signing debug.keystore from cache!"
-          fi
+          mkdir -p android/app
+          echo "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" | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore android/app/debug.keystore || true
+          echo "Restored 100% permanent signature keystore!"
 
       - name: Auto Increment Android Version Code
         run: |
-          BUILD_NUM=$(date +%s)
+          BUILD_NUM=${{ github.run_number }}
           sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
-          sed -i "s/versionName \".*\"/versionName \"1.1.$BUILD_NUM\"/g" android/app/build.gradle || true
+          sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
           echo "Updated APK version code to $BUILD_NUM"
 
       - name: Clean and Build Android APK
