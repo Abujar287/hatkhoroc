@@ -227,12 +227,12 @@ export default function App() {
       if (info && info.hasUpdate) {
         recordUpdateAcknowledged(info.latestSha);
         showToast(
-          lang === 'en' ? 'Updating app...' : 'অ্যাপ আপডেট হচ্ছে...',
-          'info'
+          lang === 'en' ? 'Latest version found! Updating app...' : 'সর্বশেষ ভার্সন পাওয়া গেছে! আপডেট হচ্ছে...',
+          'success'
         );
         setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+          window.location.href = window.location.origin + window.location.pathname + '?v=' + info.latestSha + '&t=' + Date.now();
+        }, 1200);
       } else if (isManual) {
         showToast(
           lang === 'en' ? `App is completely up to date (${APP_VERSION})!` : `আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে (${APP_VERSION})!`,
