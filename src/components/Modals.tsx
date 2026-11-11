@@ -22,7 +22,9 @@ import {
   Delete,
   Check,
   Eye,
-  EyeOff
+  EyeOff,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -2293,6 +2295,106 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <p className="text-[10px] text-center text-teal-400/60 italic font-medium pt-1">
               হাত খরচ v3.8.0-Stable
             </p>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
+
+interface AppUpdateModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  updateInfo: import('../utils/updateChecker').UpdateInfo | null;
+  t: (en: string, bn: string) => string;
+}
+
+export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
+  isOpen,
+  onClose,
+  updateInfo,
+  t
+}) => {
+  if (!isOpen) return null;
+
+  const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
+  const releasesPageUrl = 'https://github.com/Abujar287/hatkhoroc/releases/tag/latest';
+
+  const handleWebReload = () => {
+    if (updateInfo?.latestSha) {
+      window.location.href = window.location.origin + window.location.pathname + '?v=' + updateInfo.latestSha + '&t=' + Date.now();
+    } else {
+      window.location.reload();
+    }
+  };
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
+        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-sm rounded-3xl p-5 shadow-2xl relative border border-emerald-500/50 space-y-4 animate-modalSpring">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 text-teal-400 hover:text-white p-1 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="text-center space-y-2 pt-2">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
+              {t('New Version Available!', 'নতুন অ্যাপ ভার্সন এসেছে!')}
+            </h3>
+            <p className="text-xs text-teal-200/90 font-medium">
+              {t('An update is ready for your app.', 'আপনার অ্যাপটির নতুন ফিচার ও ফিক্স পাওয়া গেছে।')}
+            </p>
+          </div>
+
+          {updateInfo && (
+            <div className="bg-[#062423] p-3 rounded-2xl border border-teal-700/60 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-teal-400 font-bold">{t('Commit:', 'কোড আপডেট:')}</span>
+                <span className="font-mono text-emerald-300 font-bold">{updateInfo.latestSha.slice(0, 8)}</span>
+              </div>
+              <p className="text-[#F0FDFA] font-bold line-clamp-2 bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 text-[11px]">
+                "{updateInfo.commitMessage}"
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2 pt-1">
+            {/* 1. DIRECT APK DOWNLOAD BUTTON */}
+            <a
+              href={downloadApkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span>{t('Download New APK (হাত খরচ.apk)', 'নতুন APK ডাউনলোড করুন (হাত খরচ.apk)')}</span>
+            </a>
+
+            {/* 2. WEB / PWA RELOAD BUTTON */}
+            <button
+              type="button"
+              onClick={handleWebReload}
+              className="w-full py-2.5 bg-teal-900/80 hover:bg-teal-800 text-teal-200 border border-teal-700/80 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t('Reload Web Version', 'ওয়েব ভার্সন রিলোড করুন')}</span>
+            </button>
+
+            {/* 3. GitHub Release Page Link */}
+            <a
+              href={releasesPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-[10px] text-teal-400 hover:text-white font-mono underline pt-1"
+            >
+              {t('View GitHub Release Page', 'গিটহাব রিলিজ পেজ দেখুন')}
+            </a>
           </div>
         </div>
       </div>

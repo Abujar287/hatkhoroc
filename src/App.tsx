@@ -55,6 +55,7 @@ import {
 } from './utils/dateUtils';
 import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
+import { fetchSheetApi } from './utils/sheetApi';
 
 // Modular Components
 import { Header } from './components/Header';
@@ -78,6 +79,7 @@ import {
   ExitConfirmModal,
   SelfSignupModal,
   UserProfileModal,
+  AppUpdateModal,
   ModalPortal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
@@ -181,6 +183,8 @@ export default function App() {
   });
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [updateInfoModal, setUpdateInfoModal] = useState<UpdateInfo | null>(null);
 
   // ----------------------------------------------------
   // 2. BACK BUTTON EXIT LOGIC (Robust Interception)
@@ -225,14 +229,8 @@ export default function App() {
       }
       const info = await checkGitHubForUpdates();
       if (info && info.hasUpdate) {
-        recordUpdateAcknowledged(info.latestSha);
-        showToast(
-          lang === 'en' ? 'Latest version found! Updating app...' : 'সর্বশেষ ভার্সন পাওয়া গেছে! আপডেট হচ্ছে...',
-          'success'
-        );
-        setTimeout(() => {
-          window.location.href = window.location.origin + window.location.pathname + '?v=' + info.latestSha + '&t=' + Date.now();
-        }, 1200);
+        setUpdateInfoModal(info);
+        setShowUpdateModal(true);
       } else if (isManual) {
         showToast(
           lang === 'en' ? `App is completely up to date (${APP_VERSION})!` : `আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে (${APP_VERSION})!`,
@@ -255,10 +253,9 @@ export default function App() {
     const checkUpdate = async () => {
       try {
         const info = await checkGitHubForUpdates();
-        if (info && info.hasUpdate) {
-          recordUpdateAcknowledged(info.latestSha);
-          // Force reload to bypass cache
-          window.location.href = window.location.origin + window.location.pathname + '?v=' + info.latestSha;
+        if (info && info.hasUpdate && !isUpdateDismissedRecently()) {
+          setUpdateInfoModal(info);
+          setShowUpdateModal(true);
         }
       } catch (err) {
         console.warn('Auto update check failed', err);
@@ -401,7 +398,7 @@ export default function App() {
       const syncUsers = () => {
         setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
         const url = `/api/sheet-proxy?action=getusers`;
-        fetch(url)
+        fetchSheetApi(url)
           .then(async res => {
             if (!res.ok) {
               const text = await res.text();
@@ -770,7 +767,7 @@ export default function App() {
     try {
       let isSaved = false;
       try {
-        const proxyRes = await fetch('/api/sheet-proxy', {
+        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -786,7 +783,7 @@ export default function App() {
       }
 
       if (!isSaved) {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
@@ -809,7 +806,7 @@ export default function App() {
         autoNotify: newTask.autoNotify ? 'true' : 'false'
       }).toString();
 
-      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
+      fetchSheetApi(`?${qParams}`).catch(() => {});
 
       showToast(lang === 'en' ? 'Task saved & synced to Google Sheet!' : 'টাস্ক সেভ এবং গুগল শিটে যুক্ত হয়েছে!', 'success');
     } catch (err) {
@@ -826,7 +823,7 @@ export default function App() {
     try {
       let isSaved = false;
       try {
-        const proxyRes = await fetch('/api/sheet-proxy', {
+        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -835,7 +832,7 @@ export default function App() {
       } catch {}
 
       if (!isSaved) {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        await fetchSheetApi(GOOGLE_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
@@ -858,7 +855,7 @@ export default function App() {
         autoNotify: updatedTask.autoNotify ? 'true' : 'false'
       }).toString();
 
-      fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
+      fetchSheetApi(`?${qParams}`, {  }).catch(() => {});
     } catch {}
   };
 
@@ -879,7 +876,7 @@ export default function App() {
     try {
       let isSaved = false;
       try {
-        const proxyRes = await fetch('/api/sheet-proxy', {
+        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -888,14 +885,14 @@ export default function App() {
       } catch {}
 
       if (!isSaved) {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
       }
 
-      fetch(`${GOOGLE_SCRIPT_URL}?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`, {  }).catch(() => {});
+      fetchSheetApi(`?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`).catch(() => {});
 
       showToast(lang === 'en' ? 'Task deleted from Google Sheet' : 'টাস্ক গুগল শিট থেকে ডিলিট হয়েছে', 'info');
     } catch {}
@@ -1233,13 +1230,10 @@ export default function App() {
       
       // Dual Cloud Sync: POST + GET param ping for max reliability
       const defMonthLabel = defItem ? defItem.label : '';
-      fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(defMonthLabel)}`, {
-        
-      }).catch(() => {});
+      fetchSheetApi(`?action=setdefaultmonth&defaultMonth=${encodeURIComponent(defMonthLabel)}`).catch(() => {});
 
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         body: JSON.stringify({
           action: 'savemappings',
           defaultMonth: defMonthLabel,
@@ -1332,7 +1326,7 @@ export default function App() {
     try {
       let isSaved = false;
       try {
-        const proxyRes = await fetch('/api/sheet-proxy', {
+        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1345,14 +1339,14 @@ export default function App() {
       }
 
       if (!isSaved) {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        await fetchSheetApi(GOOGLE_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
       }
 
-      fetch(`${GOOGLE_SCRIPT_URL}?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
+      fetchSheetApi(`?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
         
       }).catch(() => {});
 
@@ -1415,7 +1409,7 @@ export default function App() {
     saveMonthMappings(updatedList);
 
     // 3. Direct GET Parameter Cloud Ping
-    fetch(`${GOOGLE_SCRIPT_URL}?action=setdefaultmonth&defaultMonth=${encodeURIComponent(cleanLabel)}&sheetTab=${encodeURIComponent(currentTab)}`, {
+    fetchSheetApi(`?action=setdefaultmonth&defaultMonth=${encodeURIComponent(cleanLabel)}&sheetTab=${encodeURIComponent(currentTab)}`, {
       
     }).catch(() => {});
 
@@ -1487,15 +1481,25 @@ export default function App() {
     try {
       let data: any = null;
       try {
-        const proxyRes = await fetch(`/api/sheet-proxy?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
-        data = await proxyRes.json();
+        const proxyRes = await fetchSheetApi(`/api/sheet-proxy?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
+        if (proxyRes.ok) {
+          const text = await proxyRes.text();
+          try { data = JSON.parse(text); } catch {}
+        }
       } catch (proxyErr) {
         console.warn('Proxy fetch failed, using direct fetch:', proxyErr);
       }
 
       if (!data || data.result !== 'success') {
-        const res = await fetch(`${GOOGLE_SCRIPT_URL}?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
-        data = await res.json();
+        try {
+          const res = await fetchSheetApi(`?action=getDetails&sheetTab=${encodeURIComponent(tabToSync)}`);
+          if (res.ok) {
+            const text = await res.text();
+            try { data = JSON.parse(text); } catch {}
+          }
+        } catch (directErr) {
+          console.warn('Direct fetch failed:', directErr);
+        }
       }
 
       if (data && data.result === 'success') {
@@ -1729,12 +1733,16 @@ export default function App() {
         } catch {}
         // Also sync users list (Master list in abujar287 tab)
         try {
-          const userUrl = GOOGLE_SCRIPT_URL ? `${GOOGLE_SCRIPT_URL}?action=getusers` : null;
-          if (userUrl) {
-            const uRes = await fetch(userUrl);
-            const uData = await uRes.json();
-            if (uData && uData.users) {
-              const mappedUsers = uData.users.map(mapUserFromSheet);
+          const uRes = await fetchSheetApi('/api/sheet-proxy?action=getusers');
+          if (uRes.ok) {
+            const uText = await uRes.text();
+            let uData: any = null;
+            try { uData = JSON.parse(uText); } catch {}
+            if (uData && Array.isArray(uData.users) && uData.users.length > 0) {
+              let mappedUsers = uData.users.map(mapUserFromSheet);
+              if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+                mappedUsers = [DEFAULT_ADMIN, ...mappedUsers];
+              }
               setUsers(mappedUsers);
               localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
 
@@ -1757,6 +1765,9 @@ export default function App() {
 
         setLastSyncDate(new Date());
         showToast(lang === 'en' ? 'Synced successfully!' : 'সফলভাবে সিঙ্ক হয়েছে!', 'success');
+      } else {
+        setLastSyncDate(new Date());
+        showToast(lang === 'en' ? 'Synced with local device cache' : 'ডিভাইস ডাটা দিয়ে সিঙ্ক সম্পন্ন', 'info');
       }
     } catch (err) {
       console.error('Sync Error:', err);
@@ -1793,9 +1804,8 @@ export default function App() {
     playSound('success');
 
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
       });
@@ -1828,9 +1838,8 @@ export default function App() {
     playSound('success');
 
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'insert', sheetTab: currentTab, ...newTx })
       });
@@ -1843,9 +1852,8 @@ export default function App() {
     const updatedList = transactions.map(t => (t.id === updatedTx.id ? updatedTx : t));
     saveTransactionsLocally(updatedList);
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         body: JSON.stringify({ action: 'update', sheetTab: currentTab, ...updatedTx })
       });
     } catch {}
@@ -1858,9 +1866,8 @@ export default function App() {
     saveTransactionsLocally(transactions.filter(t => t.id !== txToDelete.id));
     playSound('delete');
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         body: JSON.stringify({ action: 'delete', sheetTab: currentTab, id: txToDelete.id })
       });
     } catch {}
@@ -1905,7 +1912,7 @@ export default function App() {
     };
 
     try {
-      await fetch('/api/sheet-proxy', {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1948,7 +1955,7 @@ export default function App() {
 
     // Cloud Delete: delete category row from Google Sheet
     try {
-      await fetch('/api/sheet-proxy', {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1960,9 +1967,7 @@ export default function App() {
       });
     } catch {}
 
-    fetch(`${GOOGLE_SCRIPT_URL}?action=deletecategory&sheetTab=${encodeURIComponent(currentTab)}&category=${encodeURIComponent(cat)}`, {
-      
-    }).catch(() => {});
+    fetchSheetApi(`?action=deletecategory&sheetTab=${encodeURIComponent(currentTab)}&category=${encodeURIComponent(cat)}`).catch(() => {});
 
     showToast(lang === 'en' ? `Category '${cat}' deleted from Google Sheet` : `'${cat}' ক্যাটাগরি গুগল শিট থেকে ডিলিট হয়েছে`, 'info');
   };
@@ -2048,8 +2053,8 @@ export default function App() {
     // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
     try {
       syncUserToSheet(newUser);
-      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, {  }).catch(() => {});
-      fetch('/api/sheet-proxy', {
+      fetchSheetApi(`/api/sheet-proxy?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`).catch(() => {});
+      fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
@@ -2080,14 +2085,7 @@ export default function App() {
         accessTab: (user.allowedTabs || ['summary', 'entry', 'details', 'settings']).join(', ')
       };
 
-      fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {});
-
-      fetch('/api/sheet-proxy', {
+      fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -2139,8 +2137,8 @@ export default function App() {
     // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
     try {
       syncUserToSheet(newUser);
-      fetch(`${GOOGLE_SCRIPT_URL}?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`, {  }).catch(() => {});
-      fetch('/api/sheet-proxy', {
+      fetchSheetApi(`/api/sheet-proxy?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`).catch(() => {});
+      fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
@@ -2164,9 +2162,8 @@ export default function App() {
     
     // Cloud Delete: delete user from Google Sheet
     try {
-      await fetch(GOOGLE_SCRIPT_URL, {
+      await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
-        
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'deleteuser', username: user.username })
       }).catch(() => {});
@@ -2384,7 +2381,7 @@ export default function App() {
                   syncStatus={userSyncStatus}
                   onManualSync={() => {
                     setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
-                    fetch(`/api/sheet-proxy?action=getusers`)
+                    fetchSheetApi(`/api/sheet-proxy?action=getusers`)
                       .then(async res => {
                         if (!res.ok) throw new Error(`HTTP ${res.status}`);
                         return res.json();
@@ -2499,6 +2496,7 @@ export default function App() {
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
       <UserProfileModal user={currentUser} isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} lang={lang} t={t} onLogout={handleLogout} />
+      <AppUpdateModal isOpen={showUpdateModal} onClose={() => setShowUpdateModal(false)} updateInfo={updateInfoModal} t={t} />
 
 
 

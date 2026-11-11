@@ -24,4 +24,4 @@ export const INCOME_CATEGORIES = DEFAULT_INCOME_CATEGORIES;
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
-export const GOOGLE_SCRIPT_URL = '/api/sheet-proxy';
+export { GOOGLE_SCRIPT_URL, DIRECT_GOOGLE_SCRIPT_URL } from './utils/sheetApi';

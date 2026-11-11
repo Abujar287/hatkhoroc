@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -111,6 +113,27 @@ jobs:
               }
           }" >> android/build.gradle
 
+      - name: Create Consistent Signing Keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Abujar, OU=HatKhoroc, O=HatKhorocApp, L=Dhaka, C=BD"
+          echo "Consistent signing debug.keystore created!"
+
+      - name: Auto Increment Android Version Code
+        run: |
+          BUILD_NUM=$(date +%s)
+          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
+          sed -i "s/versionName \".*\"/versionName \"1.1.$BUILD_NUM\"/g" android/app/build.gradle || true
+          echo "Updated APK version code to $BUILD_NUM"
+
       - name: Clean and Build Android APK
         run: |
           cd android
@@ -118,26 +141,27 @@ jobs:
           ./gradlew clean
           ./gradlew assembleDebug --stacktrace
 
-      - name: Prepare and Rename APK to হাত খরচ.apk
+      - name: Prepare and Rename APK Files
         run: |
           mkdir -p apk_output
+          find android/app/build/outputs/apk/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \;
           find android/app/build/outputs/apk/ -name "*.apk" -exec cp {} "apk_output/হাত খরচ.apk" \;
           ls -la apk_output/
 
-      - name: Upload APK File (হাত খরচ.apk in Zip)
+      - name: Upload APK File (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: হাত-খরচ-APK
-          path: "apk_output/হাত খরচ.apk"
+          name: hatkhoroc-APK
+          path: "apk_output/*"
 
       - name: Publish to GitHub Releases (Direct Download)
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: latest
-          name: "হাত খরচ - v1.1.0 (Latest Release)"
-          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (হাত খরচ.apk)।"
-          files: "apk_output/হাত খরচ.apk"
+          name: "হাত খরচ - Latest Release"
+          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)।"
+          files: "apk_output/*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
