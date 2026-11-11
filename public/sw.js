@@ -1,7 +1,7 @@
-// Service Worker for হাত খরচ (Task Reminders & Notifications)
-const CACHE_NAME = 'hat-khoroch-v2';
+// Service Worker for হাত খরচ (Auto-Update & Push Notifications)
+const CACHE_NAME = 'hat-khoroch-v3';
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
@@ -17,6 +17,33 @@ self.addEventListener('activate', (event) => {
         )
       )
     ])
+  );
+});
+
+// Network-first fetch strategy for HTML/JS/CSS to ensure instant updates when new version is pushed to GitHub/APK
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  
+  const url = new URL(event.request.url);
+  // Do not intercept API proxy requests
+  if (url.pathname.startsWith('/api/')) return;
+
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // If online and successful, clone and cache
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Fallback to cache if offline
+        return caches.match(event.request);
+      })
   );
 });
 
@@ -79,7 +106,6 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     Promise.all([
       self.registration.showNotification(title, notificationOptions),
-      // Broadcast to any active client tabs to start ringing immediately
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
         clients.forEach((client) => {
           client.postMessage({
