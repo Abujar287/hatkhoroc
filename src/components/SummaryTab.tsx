@@ -277,19 +277,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   const filteredRangeStats = stats;
 
   const filteredDayWiseList = useMemo(() => {
-    // 1. Calculate Opening Balance (Sum of all transactions before the start of the current filtered range)
-    let openingBalance = 0;
-    if (dateRange.start) {
-      transactions.forEach(tx => {
-        if (normalizeDate(tx.date) < dateRange.start!) {
-          const val = typeof tx.value === 'number' ? tx.value : evaluateExpression(tx.value);
-          if (tx.type === 'Expense') openingBalance -= val;
-          else openingBalance += val;
-        }
-      });
-    }
-
-    // 2. Group transactions by date within the filtered range
+    // 1. Group transactions by date within the filtered range
     const allDateMap: Record<string, { inc: number; exp: number; count: number }> = {};
     displayTransactions.forEach(tx => {
       const clean = normalizeDate(tx.date);
@@ -300,9 +288,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       else allDateMap[clean].inc += val;
     });
 
-    // 3. Sort dates ascending to calculate running balance correctly
+    // 2. Sort dates chronologically ascending (Day 1 -> Day 2 -> Day 3)
     const sortedDates = Object.keys(allDateMap).sort();
-    let runningBalance = openingBalance;
+    
+    // Strict Running Balance Formula:
+    // Month 1st day: Balance = Day 1 Income - Day 1 Expense
+    // 2nd day onwards: Balance = (Previous Day Balance + Current Day Income) - Current Day Expense
+    let runningBalance = 0;
     const allSummaries: DaySummary[] = sortedDates.map(dateStr => {
       const d = allDateMap[dateStr];
       const net = d.inc - d.exp;
@@ -320,20 +312,20 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         dayOfWeek,
         inc: d.inc,
         exp: d.exp,
-        net: runningBalance, // Correct Running Balance (Opening + Sum of daily nets)
+        net: runningBalance,
         count: d.count,
         hasActivity: d.inc > 0 || d.exp > 0
       };
     });
 
-    // 4. Return sorted descending for display (most recent first)
+    // 3. Return sorted descending for display (most recent first)
     return allSummaries.filter(item => {
       if (dayFilterMode === 'active') return item.hasActivity;
       return true;
     }).sort((a, b) => {
       return b.dateStr.localeCompare(a.dateStr);
     });
-  }, [transactions, displayTransactions, dateRange, dayFilterMode, lang]);
+  }, [displayTransactions, dayFilterMode, lang]);
 
   // 7-day Sun-Sat week aligned calendar grid
   const calendarGrid = useMemo(() => {

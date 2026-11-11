@@ -101,22 +101,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Super Admin Users Tab in Header */}
-          {(currentUser?.role === 'super_admin' || currentUser?.username === 'abujar287') && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('users')}
-              className={`ml-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all flex items-center gap-1.5 border shadow-sm active:scale-95 cursor-pointer ${
-                activeTab === 'users'
-                  ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/30'
-                  : 'bg-teal-900/60 text-teal-200 border-teal-700/80 hover:bg-teal-800 hover:text-white'
-              }`}
-              title={t('Users Management', 'ইউজার তালিকা')}
-            >
-              <Users className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Users</span>
-            </button>
-          )}
         </div>
 
         {/* Right: Month Name Badge (Left of Sync) + Sync Button */}

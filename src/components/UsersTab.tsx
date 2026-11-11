@@ -6,17 +6,12 @@ import {
   Trash2, 
   Eye, 
   EyeOff, 
-  RefreshCw, 
-  Copy, 
-  CheckCheck, 
-  FileSpreadsheet, 
-  HelpCircle,
-  Search,
-  Shield,
-  Layers
+  Search, 
+  Shield, 
+  Layers,
+  FileSpreadsheet
 } from 'lucide-react';
 import { AppUser } from '../types';
-import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
 
 interface UsersTabProps {
   currentUser: AppUser | null;
@@ -38,19 +33,10 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   onRequestDeleteUser,
   onToggleActiveUser,
   syncStatus,
-  onManualSync,
   t
 }) => {
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [copiedScript, setCopiedScript] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const handleCopyScript = () => {
-    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE_V7);
-    setCopiedScript(true);
-    setTimeout(() => setCopiedScript(false), 3000);
-  };
 
   const togglePasswordVisibility = (username: string) => {
     setVisiblePasswords(prev => ({
@@ -134,148 +120,47 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     <>
                       <span>•</span>
                       <span className="text-emerald-400 font-mono">
-                        {t('Synced:', 'সিঙ্ক:')} {syncStatus.lastSuccess}
+                        {t('Auto Synced:', 'অটো সিঙ্ক:')} {syncStatus.lastSuccess}
                       </span>
                     </>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-              <button
-                type="button"
-                onClick={() => setShowGuide(!showGuide)}
-                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs ${
-                  showGuide ? 'bg-amber-950/70 text-amber-300 border-amber-700/60' : 'bg-[#062423] hover:bg-teal-900/80 text-teal-300 border-teal-700/60'
-                }`}
-                title={t('Google Sheet Setup Guide', 'শিট AL:AQ গাইড')}
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[10px]">{t('AL:AQ Guide', 'AL:AQ গাইড')}</span>
-              </button>
-
-              {onManualSync && (
-                <button
-                  type="button"
-                  onClick={onManualSync}
-                  disabled={syncStatus?.loading}
-                  className={`px-2.5 py-1.5 rounded-lg border transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 text-[11px] font-bold ${
-                    syncStatus?.loading 
-                      ? 'bg-teal-900/40 border-teal-800 text-teal-600 animate-pulse' 
-                      : 'bg-[#062423] hover:bg-teal-900/80 border-teal-700/60 text-teal-300 hover:text-white'
-                  }`}
-                  title={t('Sync Now from Sheet', 'শিট থেকে রিফ্রেশ')}
-                >
-                  <RefreshCw className={`w-3 h-3 ${syncStatus?.loading ? 'animate-spin text-emerald-400' : ''}`} />
-                  <span className="text-[10px]">{t('Refresh', 'রিফ্রেশ')}</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={onOpenCreateUserModal}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
-              >
-                <Plus className="w-3 h-3" />
-                <span className="text-[11px]">{t('Add User', 'নতুন ইউজার')}</span>
-              </button>
-            </div>
           </div>
 
-          {/* Quick Filter Search */}
-          <div className="relative w-full">
-            <Search className="w-3.5 h-3.5 text-teal-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder={t('Search by name, username, or sheet tab...', 'নাম, ইউজারনেম বা শিট ট্যাব দিয়ে খুঁজুন...')}
-              className="w-full pl-8 pr-3 py-1.5 bg-[#062423] border border-teal-700/60 rounded-lg text-xs text-[#F0FDFA] placeholder:text-teal-600 focus:outline-none focus:border-teal-400 font-medium"
-            />
-            {searchTerm && (
-              <button 
-                type="button" 
-                onClick={() => setSearchTerm('')} 
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-teal-400 hover:text-white text-[11px]"
-              >
-                Clear
-              </button>
-            )}
+          {/* Search bar on left, Add User button on right in the same row */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-teal-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder={t('Search by name, username, or sheet tab...', 'নাম, ইউজারনেম বা শিট ট্যাব দিয়ে খুঁজুন...')}
+                className="w-full pl-8 pr-3 py-1.5 bg-[#062423] border border-teal-700/60 rounded-lg text-xs text-[#F0FDFA] placeholder:text-teal-600 focus:outline-none focus:border-teal-400 font-medium"
+              />
+              {searchTerm && (
+                <button 
+                  type="button" 
+                  onClick={() => setSearchTerm('')} 
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-teal-400 hover:text-white text-[11px]"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={onOpenCreateUserModal}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer active:scale-95 transition-all shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden sm:inline">{t('Add User', 'নতুন ইউজার')}</span>
+            </button>
           </div>
         </div>
-
-        {/* Setup / Sync Guide Banner */}
-        {(syncStatus?.error || showGuide) && (
-          <div className="p-3 mx-3 my-2 rounded-xl bg-[#062423] border border-amber-600/60 text-[#F0FDFA] space-y-2.5 shadow-sm animate-fadeIn text-xs">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-amber-950/80 border border-amber-700/60 text-amber-400 flex items-center justify-center shrink-0">
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-amber-300">
-                    গুগল শিট (AL:AQ রেঞ্জ) কলাম ফরম্যাট:
-                  </h4>
-                  <p className="text-[10px] text-teal-200/90">
-                    <span className="text-amber-300 font-mono font-bold">abujar287</span> শিটের AL:AQ কলামে ইউজার ডেটা এভাবে থাকবে:
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Column Guide Map */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center text-[9px] font-mono">
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AL (38)</span>
-                <span className="text-white">Full Name</span>
-              </div>
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AM (39)</span>
-                <span className="text-white">username</span>
-              </div>
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AN (40)</span>
-                <span className="text-white">password</span>
-              </div>
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AO (41)</span>
-                <span className="text-white">sheet tab name</span>
-              </div>
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AP (42)</span>
-                <span className="text-white">role</span>
-              </div>
-              <div className="bg-[#0B3C39] p-1.5 rounded border border-teal-700/60">
-                <span className="text-amber-400 font-bold block">AQ (43)</span>
-                <span className="text-white">access tab</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap pt-1">
-              <button
-                type="button"
-                onClick={handleCopyScript}
-                className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-              >
-                {copiedScript ? <CheckCheck className="w-3 h-3 text-emerald-200" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedScript ? '✓ কোড কপি হয়েছে!' : 'Apps Script কোড কপি করুন'}</span>
-              </button>
-
-              {onManualSync && (
-                <button
-                  type="button"
-                  onClick={onManualSync}
-                  className="px-2.5 py-1 bg-teal-900/80 hover:bg-teal-800 text-teal-200 border border-teal-700/60 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
-                >
-                  <RefreshCw className="w-2.5 h-2.5 text-emerald-400" />
-                  <span>সিঙ্ক চেক করুন</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* DATA TABLE (Compact: Full Name | username | password | sheet tab name | role | access tab | edit | remove) */}
         <div className="w-full overflow-x-auto">
@@ -328,7 +213,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     }`}
                   >
                     {/* 1. Full Name (Compact Font & Spacing) */}
-                    <td className="py-2 px-3">
+                    <td className="py-1.5 px-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-800 to-slate-900 border border-teal-700/80 flex items-center justify-center font-bold text-xs text-emerald-300 shrink-0 shadow-xs">
                           {u.displayName ? u.displayName.charAt(0).toUpperCase() : u.username.charAt(0).toUpperCase()}
@@ -367,13 +252,13 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     </td>
 
                     {/* 2. username (Compact Monospace) */}
-                    <td className="py-2 px-2.5 font-mono font-bold text-[11px] sm:text-xs text-emerald-400">
+                    <td className="py-1.5 px-2.5 font-mono font-bold text-[11px] sm:text-xs text-emerald-400 whitespace-nowrap">
                       @{u.username}
                     </td>
 
                     {/* 3. password (Compact Box with Eye Toggle) */}
-                    <td className="py-2 px-2.5">
-                      <div className="inline-flex items-center gap-1.5 bg-[#062423] border border-teal-700/60 px-2 py-1 rounded-lg font-mono text-[11px]">
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5 bg-[#062423] border border-teal-700/60 px-2 py-0.5 rounded-lg font-mono text-[11px]">
                         <span className={`tracking-wider ${isPassVisible ? 'text-[#F0FDFA] font-bold select-all' : 'text-teal-400 font-extrabold select-none'}`}>
                           {isPassVisible ? displayPass : '••••••'}
                         </span>
@@ -389,7 +274,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     </td>
 
                     {/* 4. sheet tab name (Compact Pill) */}
-                    <td className="py-2 px-2.5">
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-800/60 text-amber-300 font-mono text-[11px] font-bold shadow-xs">
                         <FileSpreadsheet className="w-2.5 h-2.5 text-amber-400 shrink-0" />
                         <span className="truncate max-w-[110px]">{u.sheetTab || u.username}</span>
@@ -397,19 +282,19 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     </td>
 
                     {/* 5. role (Compact Badge) */}
-                    <td className="py-2 px-2.5">
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
                       {getRoleBadge(u.role)}
                     </td>
 
-                    {/* 6. access tab (Comma-separated text for minimum space) */}
-                    <td className="py-2 px-2.5">
-                      <span className="text-[10px] sm:text-[11px] font-mono text-teal-200/90 leading-tight block max-w-[280px]">
+                    {/* 6. access tab (Comma-separated text on single line without breaks) */}
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
+                      <span className="text-[10px] sm:text-[11px] font-mono text-teal-200/90 whitespace-nowrap">
                         {accessTabString}
                       </span>
                     </td>
 
                     {/* 7. edit (Icon Button Only - No text label) */}
-                    <td className="py-2 px-1.5 text-center">
+                    <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => onOpenEditUserModal(u)}
@@ -422,7 +307,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     </td>
 
                     {/* 8. remove (Icon Button Only - No text label) */}
-                    <td className="py-2 px-1.5 text-center">
+                    <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                       {isMainAdmin ? (
                         <span className="inline-block text-[8px] font-bold text-teal-600 bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/60 select-none">
                           Main
