@@ -31,6 +31,7 @@ import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalize
 import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
+import { APP_VERSION } from '../utils/updateChecker';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
 export const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -2293,7 +2294,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {t('Logout from App', 'লগআউট করুন')}
             </button>
             <p className="text-[10px] text-center text-teal-400/60 italic font-medium pt-1">
-              হাত খরচ v3.8.0-Stable
+              হাত খরচ - {APP_VERSION}
             </p>
           </div>
         </div>
@@ -2320,23 +2321,16 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const handleUpdateClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (isDownloading) return;
     setIsDownloading(true);
 
     const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
     try {
       window.location.href = downloadApkUrl;
-    } catch {}
-
-    try {
-      const link = document.createElement('a');
-      link.href = downloadApkUrl;
-      link.download = 'hatkhoroc.apk';
-      link.setAttribute('target', '_self');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {}
+    } catch {
+      window.open(downloadApkUrl, '_blank');
+    }
 
     setTimeout(() => {
       setIsDownloading(false);

@@ -39,50 +39,107 @@ jobs:
           npx cap add android || true
           npx cap sync android
 
-      - name: Configure Native Android DownloadManager in MainActivity
+      - name: Configure Android Permissions, FileProvider and Auto-Installer
         run: |
+          # 1. Create file_paths.xml for FileProvider
+          mkdir -p android/app/src/main/res/xml
+          cat << 'EOF' > android/app/src/main/res/xml/file_paths.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+              <external-files-path name="my_download" path="Download"/>
+              <external-files-path name="external_files" path="."/>
+              <external-cache-path name="external_cache" path="."/>
+              <cache-path name="internal_cache" path="."/>
+              <files-path name="internal_files" path="."/>
+          </paths>
+          EOF
+
+          # 2. Update AndroidManifest.xml with required permissions and FileProvider
+          python3 - << 'EOF'
+          import os
+
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          if os.path.exists(manifest_path):
+              with open(manifest_path, 'r', encoding='utf-8') as f:
+                  content = f.read()
+
+              permissions = """
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+              """
+              if "REQUEST_INSTALL_PACKAGES" not in content:
+                  content = content.replace("<application", permissions + "\n    <application", 1)
+
+              file_provider = """
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${applicationId}.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
+              """
+              if "androidx.core.content.FileProvider" not in content:
+                  content = content.replace("</application>", file_provider + "\n    </application>")
+
+              with open(manifest_path, 'w', encoding='utf-8') as f:
+                  f.write(content)
+              print("Successfully injected permissions and FileProvider into AndroidManifest.xml")
+          else:
+              print(f"Warning: {manifest_path} does not exist yet!")
+          EOF
+
+          # 3. Create MainActivity.java with BroadcastReceiver and FileProvider auto-installer
           mkdir -p android/app/src/main/java/com/abujar/hatkhoroc/
           cat << 'EOF' > android/app/src/main/java/com/abujar/hatkhoroc/MainActivity.java
           package com.abujar.hatkhoroc;
 
           import android.app.DownloadManager;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.database.Cursor;
           import android.net.Uri;
+          import android.os.Build;
           import android.os.Bundle;
           import android.os.Environment;
+          import android.provider.Settings;
           import android.webkit.DownloadListener;
           import android.webkit.WebView;
           import android.widget.Toast;
+          import androidx.core.content.FileProvider;
           import com.getcapacitor.BridgeActivity;
+          import java.io.File;
+          import java.util.List;
 
           public class MainActivity extends BridgeActivity {
+              private long downloadId = -1;
+              private BroadcastReceiver downloadReceiver;
+              private boolean pendingInstall = false;
+
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   
+                  setupDownloadReceiver();
+                  setupDownloadListener();
+              }
+
+              private void setupDownloadListener() {
                   try {
                       WebView webView = this.bridge.getWebView();
                       if (webView != null) {
                           webView.setDownloadListener(new DownloadListener() {
                               @Override
                               public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
-                                  try {
-                                      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                                      request.setMimeType("application/vnd.android.package-archive");
-                                      request.addRequestHeader("User-Agent", userAgent);
-                                      request.setDescription("হাত খরচ অ্যাপ আপডেট ডাউনলোড হচ্ছে...");
-                                      request.setTitle("hatkhoroc.apk");
-                                      request.allowScanningByMediaScanner();
-                                      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                                      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "hatkhoroc.apk");
-                                      
-                                      DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                                      if (dm != null) {
-                                          dm.enqueue(request);
-                                          Toast.makeText(getApplicationContext(), "📥 নোটিফিকেশন বারে এপিকে ডাউনলোড শুরু হয়েছে!", Toast.LENGTH_LONG).show();
-                                      }
-                                  } catch (Exception e) {
-                                      e.printStackTrace();
-                                  }
+                                  startApkDownload(url, userAgent);
                               }
                           });
                       }
@@ -90,9 +147,145 @@ jobs:
                       e.printStackTrace();
                   }
               }
+
+              private void startApkDownload(String url, String userAgent) {
+                  try {
+                      DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                      if (dm == null) return;
+
+                      // Clean up previous update APK file to ensure forced update with clean package
+                      File downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                      if (downloadsDir != null) {
+                          File oldApk = new File(downloadsDir, "hatkhoroc_update.apk");
+                          if (oldApk.exists()) {
+                              oldApk.delete();
+                          }
+                      }
+
+                      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                      request.setMimeType("application/vnd.android.package-archive");
+                      request.addRequestHeader("User-Agent", userAgent);
+                      request.setDescription("হাত খরচ অ্যাপের নতুন আপডেট ডাউনলোড হচ্ছে...");
+                      request.setTitle("hatkhoroc.apk");
+                      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                      request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "hatkhoroc_update.apk");
+
+                      downloadId = dm.enqueue(request);
+                      Toast.makeText(getApplicationContext(), "📥 নোটিফিকেশন বারে আপডেট ডাউনলোড শুরু হয়েছে...", Toast.LENGTH_LONG).show();
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                      Toast.makeText(getApplicationContext(), "ডাউনলোড শুরু করতে সমস্যা হয়েছে!", Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              private void setupDownloadReceiver() {
+                  downloadReceiver = new BroadcastReceiver() {
+                      @Override
+                      public void onReceive(Context context, Intent intent) {
+                          long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                          if (id == downloadId && downloadId != -1) {
+                              DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                              if (dm != null) {
+                                  DownloadManager.Query query = new DownloadManager.Query();
+                                  query.setFilterById(downloadId);
+                                  Cursor cursor = dm.query(query);
+                                  if (cursor != null) {
+                                      if (cursor.moveToFirst()) {
+                                          int columnIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                                          if (columnIndex != -1 && cursor.getInt(columnIndex) == DownloadManager.STATUS_SUCCESSFUL) {
+                                              Toast.makeText(context, "✅ ডাউনলোড সম্পন্ন! আপডেট ইনস্টল হচ্ছে...", Toast.LENGTH_SHORT).show();
+                                              triggerApkInstallation();
+                                          }
+                                      }
+                                      cursor.close();
+                                  }
+                              }
+                          }
+                      }
+                  };
+
+                  try {
+                      if (Build.VERSION.SDK_INT >= 33) {
+                          registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
+                      } else {
+                          registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+                      }
+                  } catch (Exception e) {
+                      registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+                  }
+              }
+
+              private void triggerApkInstallation() {
+                  try {
+                      File downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                      File apkFile = new File(downloadsDir, "hatkhoroc_update.apk");
+                      if (!apkFile.exists() || apkFile.length() == 0) {
+                          Toast.makeText(this, "ইনস্টল করার ফাইল পাওয়া যায়নি!", Toast.LENGTH_SHORT).show();
+                          return;
+                      }
+
+                      // Check Unknown Sources Permission for Android 8.0+
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          if (!getPackageManager().canRequestPackageInstalls()) {
+                              pendingInstall = true;
+                              Toast.makeText(this, "হাত খরচ অ্যাপ আপডেট করতে পারমিশন অন করুন", Toast.LENGTH_LONG).show();
+                              Intent permIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                              permIntent.setData(Uri.parse("package:" + getPackageName()));
+                              startActivity(permIntent);
+                              return;
+                          }
+                      }
+
+                      Uri apkUri = FileProvider.getUriForFile(
+                          this,
+                          getPackageName() + ".fileprovider",
+                          apkFile
+                      );
+
+                      Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                      installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                      installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                      List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
+                      for (ResolveInfo resolveInfo : resInfoList) {
+                          String pkg = resolveInfo.activityInfo.packageName;
+                          grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      }
+
+                      startActivity(installIntent);
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                      Toast.makeText(this, "ইনস্টলার খুলতে সমস্যা হয়েছে: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  if (pendingInstall) {
+                      pendingInstall = false;
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          if (getPackageManager().canRequestPackageInstalls()) {
+                              triggerApkInstallation();
+                          }
+                      }
+                  }
+              }
+
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  try {
+                      if (downloadReceiver != null) {
+                          unregisterReceiver(downloadReceiver);
+                      }
+                  } catch (Exception ignored) {}
+              }
           }
           EOF
-          echo "Native DownloadManager attached to MainActivity.java!"
+          echo "Native DownloadManager and Auto-Installer configured successfully!"
 
       - name: Generate Custom Android App Icons & Splash Screen
         run: |

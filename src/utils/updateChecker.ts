@@ -8,6 +8,42 @@ export const GITHUB_BRANCH = 'main';
 // any client opening the app detects that a newer commit is available on GitHub!
 export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.1';
 export const APP_VERSION = 'v1.1.1';
+export const APP_BUILD_DATETIME = '2026-11-11 04:35 PM';
+
+export function formatAppUpdateDateTime(dateInput?: string | number | Date | null): string {
+  try {
+    if (!dateInput) return APP_BUILD_DATETIME;
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return APP_BUILD_DATETIME;
+
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    let hours = d.getHours();
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    const strHours = String(hours12).padStart(2, '0');
+
+    return `${y}-${m}-${day} ${strHours}:${mins} ${ampm}`;
+  } catch {
+    return APP_BUILD_DATETIME;
+  }
+}
+
+export function getAppLastUpdateTime(): string {
+  try {
+    const saved = localStorage.getItem('app_last_update_datetime');
+    if (saved) return saved;
+  } catch {}
+  return APP_BUILD_DATETIME;
+}
+
+export function setAppLastUpdateTime(val: string): void {
+  try {
+    localStorage.setItem('app_last_update_datetime', val);
+  } catch {}
+}
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -46,6 +82,8 @@ export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
     const commitMessage = data.commit?.message?.split('\n')?.[0] || 'নতুন কোড আপডেট ও বাগ ফিক্স';
     const commitAuthor = data.commit?.author?.name || 'Developer';
     const commitDate = data.commit?.author?.date || data.commit?.committer?.date || new Date().toISOString();
+    const formattedCommitDate = formatAppUpdateDateTime(commitDate);
+    setAppLastUpdateTime(formattedCommitDate);
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
 
     // Read stored installed / acknowledged / dismissed SHA

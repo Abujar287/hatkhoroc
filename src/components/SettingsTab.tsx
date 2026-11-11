@@ -30,7 +30,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { AppUser, Transaction, TransactionType } from '../types';
-import { APP_VERSION } from '../utils/updateChecker';
+import { APP_VERSION, getAppLastUpdateTime } from '../utils/updateChecker';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import {
@@ -78,6 +78,7 @@ interface SettingsTabProps {
   onSwitchUser?: (user: AppUser) => void;
   onToggleActiveUser?: (user: AppUser) => void;
   onCheckForUpdates?: () => void;
+  appLastUpdateTime?: string;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -114,10 +115,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onRequestDeleteUser,
   onSwitchUser,
   onToggleActiveUser,
-  onCheckForUpdates
+  onCheckForUpdates,
+  appLastUpdateTime
 }) => {
   const isAdmin = ['super_admin', 'super_admin_2', 'admin'].includes(currentUser?.role || '') || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
+  const [currentAppUpdateTime, setCurrentAppUpdateTime] = useState<string>(() => getAppLastUpdateTime());
+
+  useEffect(() => {
+    setCurrentAppUpdateTime(getAppLastUpdateTime());
+  }, [selectedMonth, transactions.length, appLastUpdateTime]);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -847,8 +854,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Small Clean Version Footer */}
       <div className="pt-3 pb-6 text-center select-none space-y-0.5">
-        <p className="text-xs font-bold text-teal-300/80 tracking-wide">
-          হাত খরচ • {APP_VERSION}
+        <p className="text-xs font-bold text-teal-300/80 tracking-wide font-mono">
+          হাত খরচ - {APP_VERSION} {appLastUpdateTime || currentAppUpdateTime}
         </p>
         <p className="text-[10px] text-teal-400/50">
           Smart Personal Expense, Task Reminder & Budget Tracker

@@ -87,7 +87,7 @@ import { usePWAInstall } from './usePWAInstall';
 import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
 
-import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, recordUpdateDismissed, UpdateInfo, APP_VERSION } from './utils/updateChecker';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, recordUpdateDismissed, UpdateInfo, APP_VERSION, getAppLastUpdateTime } from './utils/updateChecker';
 
 
 // Default Admin User
@@ -223,12 +223,15 @@ export default function App() {
     }, 3500);
   }, []);
 
+  const [appLastUpdateTime, setAppLastUpdateTime] = useState<string>(() => getAppLastUpdateTime());
+
   const handleCheckForUpdates = useCallback(async (isManual = false) => {
     try {
       if (isManual) {
         showToast(lang === 'en' ? 'Checking for updates...' : 'আপডেট চেক করা হচ্ছে...', 'info');
       }
       const info = await checkGitHubForUpdates();
+      setAppLastUpdateTime(getAppLastUpdateTime());
       if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
         setShowUpdateModal(true);
@@ -254,6 +257,7 @@ export default function App() {
     const checkUpdate = async () => {
       try {
         const info = await checkGitHubForUpdates();
+        setAppLastUpdateTime(getAppLastUpdateTime());
         if (info && info.hasUpdate && !isUpdateDismissedRecently()) {
           setUpdateInfoModal(info);
           setShowUpdateModal(true);
@@ -2563,6 +2567,7 @@ export default function App() {
                   onSwitchUser={handleSwitchUser}
                   onToggleActiveUser={handleToggleActiveUser}
                   onCheckForUpdates={() => handleCheckForUpdates(true)}
+                  appLastUpdateTime={appLastUpdateTime}
                 />
               )}
             </div>
