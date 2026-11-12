@@ -2,9 +2,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
-import { Capacitor } from '@capacitor/core';
 import { Transaction } from '../types';
 import { cleanCategoryName } from './categoryUtils';
 import { normalizeDate, getMonthKeyFromLabel, cleanMappingLabel } from './dateUtils';
@@ -585,7 +582,7 @@ function toAsciiSafe(str: any): string {
     compressionOptions: { level: 9 }
   });
 
-  // Universal File Dispatcher: Capacitor Native Filesystem + Share -> Web Share API -> Base64 Data URI -> Blob URL fallback
+  // Universal File Dispatcher: Web Share API -> Blob URL -> Base64 Data URI fallback
   const fileName = `${filePrefix}_Package.zip`;
 
   // Helper to convert blob to base64 data URL
@@ -598,34 +595,7 @@ function toAsciiSafe(str: any): string {
     });
   };
 
-  // 1. Try Capacitor Native Filesystem + Share (for Android APK & iOS native apps)
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const dataUrl = await blobToBase64(zipBlob);
-      const base64Data = dataUrl.split(',')[1] || dataUrl;
-      const writeResult = await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.Cache
-      });
-      if (writeResult && writeResult.uri) {
-        await Share.share({
-          title: 'হাত খরচ - ' + fileName,
-          text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)',
-          url: writeResult.uri,
-          dialogTitle: 'Export ZIP Report'
-        });
-        return true;
-      }
-    } catch (nativeErr: any) {
-      if (nativeErr.name === 'AbortError') {
-        return true;
-      }
-      console.warn('Native Capacitor share/filesystem failed, falling back to web download:', nativeErr);
-    }
-  }
-
-  // 2. Try Web Share API (Supported mobile browsers)
+  // 1. Try Web Share API (Supported mobile browsers & WebViews)
   const file = new File([zipBlob], fileName, { type: 'application/zip' });
   if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
@@ -643,27 +613,7 @@ function toAsciiSafe(str: any): string {
     }
   }
 
-  // 3. Base64 Data URI download fallback
-  try {
-    const dataUrl = await blobToBase64(zipBlob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = dataUrl;
-    a.download = fileName;
-    a.setAttribute('download', fileName);
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (document.body.contains(a)) {
-        document.body.removeChild(a);
-      }
-    }, 3000);
-    return true;
-  } catch (base64Err) {
-    console.warn('Base64 download failed, trying ObjectURL:', base64Err);
-  }
-
-  // 4. Standard Blob URL Download fallback
+  // 2. Standard Blob URL Download fallback (Triggers system download manager)
   try {
     const downloadUrl = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -678,10 +628,30 @@ function toAsciiSafe(str: any): string {
         document.body.removeChild(a);
       }
       URL.revokeObjectURL(downloadUrl);
-    }, 4000);
+    }, 5000);
     return true;
   } catch (blobErr: any) {
-    console.error('Blob download failed:', blobErr);
+    console.warn('Blob download failed, trying Base64 data URI:', blobErr);
+  }
+
+  // 3. Base64 Data URI download fallback
+  try {
+    const dataUrl = await blobToBase64(zipBlob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = dataUrl;
+    a.download = fileName;
+    a.setAttribute('download', fileName);
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+    }, 4000);
+    return true;
+  } catch (base64Err: any) {
+    console.error('All download methods failed:', base64Err);
     throw new Error(lang === 'en' ? 'Failed to download file on device' : 'ডিভাইসে ফাইল ডাউনলোড করতে সমস্যা হয়েছে');
   }
 }
