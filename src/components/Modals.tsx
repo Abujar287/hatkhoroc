@@ -2325,39 +2325,9 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
+  const [downloadedBlobUrl, setDownloadedBlobUrl] = useState<string | null>(null);
 
-  const downloadApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
-
-  const triggerSystemDownload = () => {
-    // 1. Android Native Updater Interface if available in APK WebView
-    try {
-      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
-        (window as any).AndroidNativeUpdater.downloadAndInstallApk(downloadApkUrl);
-        return;
-      }
-    } catch (e) {
-      console.warn('AndroidNativeUpdater invocation failed:', e);
-    }
-
-    // 2. Hidden anchor download for web/PWA/browser
-    try {
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = downloadApkUrl;
-      a.download = 'hatkhoroc.apk';
-      a.setAttribute('download', 'hatkhoroc.apk');
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) {
-          document.body.removeChild(a);
-        }
-      }, 2000);
-    } catch {
-      window.open(downloadApkUrl, '_blank');
-    }
-  };
+  const fallbackApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
   const handleLaunchInstaller = () => {
     // Record update acknowledged so popup never reappears
@@ -2369,6 +2339,25 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } catch {}
     }
 
+    // 1. If we have a local blob URL from stream download, open/download it
+    if (downloadedBlobUrl) {
+      try {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadedBlobUrl;
+        a.download = 'hatkhoroc.apk';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+        }, 2000);
+      } catch {
+        window.open(downloadedBlobUrl, '_blank');
+      }
+    }
+
+    // 2. Android native installer interface
     try {
       if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
         (window as any).AndroidNativeUpdater.openInstaller();
@@ -2379,11 +2368,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       console.warn('AndroidNativeUpdater openInstaller failed:', e);
     }
 
-    // Browser fallback
+    // 3. Fallback direct link
     try {
-      window.location.href = downloadApkUrl;
+      window.location.href = fallbackApkUrl;
     } catch {
-      window.open(downloadApkUrl, '_blank');
+      window.open(fallbackApkUrl, '_blank');
     }
     onClose();
   };
@@ -2399,42 +2388,73 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     }
 
     alert(t(
-      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall". Then install the downloaded APK.',
-      'কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন। এরপর ডাউনলোড করা ফাইলটি ইনস্টল করুন।'
+      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall", then install the new APK.',
+      'কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন, এরপর নতুন ফাইলটি ইনস্টল করুন।'
     ));
   };
 
-  const handleUpdateClick = (e: React.MouseEvent) => {
+  const handleUpdateClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (isDownloading) return;
     setIsDownloading(true);
     setIsReadyToInstall(false);
-    setDownloadProgress(10);
+    setDownloadProgress(5);
 
-    // Trigger download in background
-    triggerSystemDownload();
+    try {
+      const response = await fetch('/api/proxy-apk');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
 
-    // In-app progress animation reaching 100%
-    const interval = setInterval(() => {
-      setDownloadProgress(prev => {
-        if (prev >= 98) {
-          clearInterval(interval);
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 15000000; // ~15MB fallback
+      let loaded = 0;
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('ReadableStream not supported');
+      }
+
+      const chunks: BlobPart[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as BlobPart);
+        loaded += value.length;
+        const pct = Math.min(99, Math.round((loaded / total) * 100));
+        setDownloadProgress(Math.max(5, pct));
+      }
+
+      const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
+      const blobUrl = URL.createObjectURL(blob);
+      setDownloadedBlobUrl(blobUrl);
+
+      setDownloadProgress(100);
+      setTimeout(() => {
+        setIsReadyToInstall(true);
+      }, 300);
+
+    } catch (err) {
+      console.warn('Stream download failed, falling back to standard link:', err);
+      // Fallback simulation
+      let current = 10;
+      const timer = setInterval(() => {
+        current += 15;
+        if (current >= 100) {
+          clearInterval(timer);
           setDownloadProgress(100);
-          setTimeout(() => {
-            setIsReadyToInstall(true);
-          }, 350);
-          return 100;
+          setIsReadyToInstall(true);
+        } else {
+          setDownloadProgress(current);
         }
-        const step = Math.floor(Math.random() * 14) + 12;
-        const next = prev + step;
-        return next > 98 ? 98 : next;
-      });
-    }, 320);
+      }, 250);
+    }
   };
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
+      <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
         <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
           
           {/* Close Button */}
@@ -2473,6 +2493,16 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 <span>{t('Update', 'আপডেট করুন')}</span>
               </button>
 
+              <div className="p-2.5 rounded-xl bg-teal-950/60 border border-teal-800/80 text-[10.5px] text-teal-200/90 text-left space-y-1">
+                <p className="font-bold text-emerald-300">💡 {t('Play Protect Note:', 'পরামর্শ:')}</p>
+                <p>
+                  {t(
+                    'If Play Protect shows warning, tap "More details" -> "Install anyway". Your data is 100% safe.',
+                    'যদি প্লে প্রোটেক্ট থেকে কোনো ওয়ার্নিং দেখায়, তবে "More details" এ চাপ দিয়ে "Install anyway" সিলেক্ট করুন। আপনার সকল হিসাব নিরাপদ থাকবে।'
+                  )}
+                </p>
+              </div>
+
               <button
                 type="button"
                 onClick={handleUninstallOldApp}
@@ -2489,7 +2519,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   {t('Downloading Update...', 'ডাউনলোড হচ্ছে...')}
                 </h3>
                 <p className="text-xs text-teal-200/80">
-                  {t('Please wait a moment', 'অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন')}
+                  {t('Please wait while downloading new version', 'নতুন আপডেট ডাউনলোড হচ্ছে, অপেক্ষা করুন')}
                 </p>
               </div>
 
@@ -2503,7 +2533,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
               {/* Progress Bar */}
               <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/60 overflow-hidden shadow-inner">
                 <div
-                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-300 ease-out"
+                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-200 ease-out"
                   style={{ width: `${downloadProgress}%` }}
                 />
               </div>

@@ -401,6 +401,40 @@ async function startServer() {
     }
   });
 
+  // Proxy APK download endpoint to stream binary with Content-Length for in-app percentage tracking
+  app.get('/api/proxy-apk', async (req, res) => {
+    try {
+      const apkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
+      const response = await fetch(apkUrl);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Failed to fetch APK from GitHub release' });
+      }
+
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="hatkhoroc.apk"');
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+        res.end();
+      } else {
+        const buffer = await response.arrayBuffer();
+        res.send(Buffer.from(buffer));
+      }
+    } catch (err: any) {
+      console.error('Proxy APK error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   if (!isProd) {
     const vite = await createViteServer({
       server: { 
