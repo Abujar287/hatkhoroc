@@ -582,11 +582,10 @@ function toAsciiSafe(str: any): string {
     compressionOptions: { level: 9 }
   });
 
-  // Universal File Dispatcher: Web Share API for Mobile/Capacitor + Blob Download Fallback
+  // Universal File Dispatcher: Web Share API -> Base64 Data URI window.open / anchor download fallback
   const fileName = `${filePrefix}_Package.zip`;
 
-  // 1. On Mobile Phones (Android/Capacitor WebView or Mobile Browser):
-  // Use the native Web Share API to directly save or open the file in Downloads/Files/Drive
+  // 1. Try Web Share API (Mobile / Capacitor / Supported Browsers)
   const file = new File([zipBlob], fileName, { type: 'application/zip' });
   if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
@@ -598,14 +597,42 @@ function toAsciiSafe(str: any): string {
       return true;
     } catch (shareErr: any) {
       if (shareErr.name === 'AbortError') {
-        // User closed or dismissed the share sheet - not an error
         return true;
       }
-      console.warn('Web share failed, trying direct blob download:', shareErr);
+      console.warn('Web share failed, trying fallback download:', shareErr);
     }
   }
 
-  // 2. Standard Blob URL Download (Desktop & Web fallback)
+  // 2. Helper to convert blob to base64 data URL for mobile APK WebView reliability
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  try {
+    const dataUrl = await blobToBase64(zipBlob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = dataUrl;
+    a.download = fileName;
+    a.setAttribute('download', fileName);
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+    }, 3000);
+    return true;
+  } catch (base64Err) {
+    console.warn('Base64 download failed, trying ObjectURL:', base64Err);
+  }
+
+  // 3. Standard Blob URL Download fallback
   try {
     const downloadUrl = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -627,3 +654,4 @@ function toAsciiSafe(str: any): string {
     throw new Error(lang === 'en' ? 'Failed to download file on device' : 'ডিভাইসে ফাইল ডাউনলোড করতে সমস্যা হয়েছে');
   }
 }
+
