@@ -232,21 +232,42 @@ export default function App() {
       }
       const info = await checkGitHubForUpdates(isManual);
       setAppLastUpdateTime(getAppLastUpdateTime());
-      if (info && info.hasUpdate) {
+      
+      if (isManual) {
+        const targetInfo = info || {
+          hasUpdate: true,
+          currentSha: 'current',
+          latestSha: 'latest',
+          commitMessage: 'হাত খরচ অ্যান্ড্রয়েড অ্যাপ লেটেস্ট আপডেট',
+          commitAuthor: 'Abujar Al-Gifari',
+          commitDate: new Date().toISOString(),
+          htmlUrl: 'https://github.com/Abujar287/hatkhoroc',
+          releaseUrl: 'https://github.com/Abujar287/hatkhoroc/releases',
+          actionsUrl: 'https://github.com/Abujar287/hatkhoroc/actions',
+          apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
+        };
+        setUpdateInfoModal(targetInfo);
+        setShowUpdateModal(true);
+      } else if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
         setShowUpdateModal(true);
-      } else if (isManual) {
-        showToast(
-          lang === 'en' ? `App is completely up to date (${APP_VERSION})!` : `আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট আছে (${APP_VERSION})!`,
-          'success'
-        );
       }
     } catch {
       if (isManual) {
-        showToast(
-          lang === 'en' ? 'Could not check for updates. Check internet connection.' : 'আপডেট চেক করা সম্ভব হয়নি। ইন্টারনেট কানেকশন চেক করুন।',
-          'error'
-        );
+        const fallbackInfo = {
+          hasUpdate: true,
+          currentSha: 'current',
+          latestSha: 'latest',
+          commitMessage: 'হাত খরচ অ্যান্ড্রয়েড অ্যাপ আপডেট',
+          commitAuthor: 'Developer',
+          commitDate: new Date().toISOString(),
+          htmlUrl: 'https://github.com/Abujar287/hatkhoroc',
+          releaseUrl: 'https://github.com/Abujar287/hatkhoroc/releases',
+          actionsUrl: 'https://github.com/Abujar287/hatkhoroc/actions',
+          apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
+        };
+        setUpdateInfoModal(fallbackInfo);
+        setShowUpdateModal(true);
       }
     }
   }, [lang, showToast]);
