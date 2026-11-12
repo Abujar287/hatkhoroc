@@ -2,6 +2,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { Transaction } from '../types';
 import { cleanCategoryName } from './categoryUtils';
 import { normalizeDate, getMonthKeyFromLabel, cleanMappingLabel } from './dateUtils';
@@ -582,7 +585,7 @@ function toAsciiSafe(str: any): string {
     compressionOptions: { level: 9 }
   });
 
-  // Universal File Dispatcher: Web Share API -> Blob URL -> Base64 Data URI fallback
+  // Universal File Dispatcher: Capacitor Native Filesystem + Share -> Web Share API -> Blob URL -> Base64 Data URI fallback
   const fileName = `${filePrefix}_Package.zip`;
 
   // Helper to convert blob to base64 data URL
@@ -595,7 +598,70 @@ function toAsciiSafe(str: any): string {
     });
   };
 
-  // 1. Try Web Share API (Supported mobile browsers & WebViews)
+  // 0. Try Android Native JavascriptInterface directly if running in Android APK WebView (saves straight to Download folder)
+  if (typeof window !== 'undefined' && (window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.saveZipToDownloads === 'function') {
+    try {
+      const dataUrl = await blobToBase64(zipBlob);
+      (window as any).AndroidNativeUpdater.saveZipToDownloads(dataUrl, fileName);
+      return true;
+    } catch (zipNativeErr) {
+      console.warn('saveZipToDownloads failed, falling back:', zipNativeErr);
+    }
+  }
+
+  // 1. Try Capacitor Native Filesystem & Native Share (Required for Android APK & iOS Native)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const dataUrl = await blobToBase64(zipBlob);
+      const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+
+      // Write file natively to Cache & Documents directory
+      let result;
+      try {
+        result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Cache
+        });
+      } catch {
+        result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+          recursive: true
+        });
+      }
+
+      // Also attempt to save directly in Documents folder for easy file manager access
+      try {
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+          recursive: true
+        });
+      } catch (docErr) {
+        console.warn('Secondary save to Documents folder skipped:', docErr);
+      }
+
+      // Open Android / iOS native Share sheet so user can save to Downloads/Files or share
+      await Share.share({
+        title: 'হাত খরচ - ' + fileName,
+        text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)',
+        url: result.uri,
+        dialogTitle: 'রিপোর্ট সেভ বা শেয়ার করুন'
+      });
+
+      return true;
+    } catch (nativeErr: any) {
+      if (nativeErr.name === 'AbortError') {
+        return true;
+      }
+      console.warn('Capacitor native share/filesystem failed, falling back to Web APIs:', nativeErr);
+    }
+  }
+
+  // 2. Try Web Share API (Supported in modern mobile browsers)
   const file = new File([zipBlob], fileName, { type: 'application/zip' });
   if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {

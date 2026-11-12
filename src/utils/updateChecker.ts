@@ -6,9 +6,9 @@ export const GITHUB_BRANCH = 'main';
 // Current Build Commit SHA & Version
 // This gets stamped with the current commit so when a new commit is pushed to main,
 // any client opening the app detects that a newer commit is available on GitHub!
-export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.2';
-export const APP_VERSION = 'v1.1.2';
-export const APP_BUILD_DATETIME = '2026-11-12 01:50 AM';
+export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.3';
+export const APP_VERSION = 'v1.1.3';
+export const APP_BUILD_DATETIME = '2026-11-12 03:30 AM';
 
 export function formatAppUpdateDateTime(dateInput?: string | number | Date | null): string {
   try {

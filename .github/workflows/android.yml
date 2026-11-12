@@ -157,9 +157,42 @@ jobs:
                               } catch (Exception e) {}
                           }
                       });
+                  @android.webkit.JavascriptInterface
+                  public void saveZipToDownloads(final String base64Data, final String fileName) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              try {
+                                  byte[] decodedBytes = android.util.Base64.decode(base64Data.contains(",") ? base64Data.split(",")[1] : base64Data, android.util.Base64.DEFAULT);
+                                  File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                                  if (!downloadsDir.exists()) downloadsDir.mkdirs();
+                                  File outputFile = new File(downloadsDir, fileName);
+                                  java.io.FileOutputStream fos = new java.io.FileOutputStream(outputFile);
+                                  fos.write(decodedBytes);
+                                  fos.flush();
+                                  fos.close();
+
+                                  DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                                  if (dm != null) {
+                                      dm.addCompletedDownload(
+                                          fileName,
+                                          "হাত খরচ রিপোর্ট প্যাকেজ",
+                                          true,
+                                          "application/zip",
+                                          outputFile.getAbsolutePath(),
+                                          outputFile.length(),
+                                          true
+                                      );
+                                  }
+
+                                  Toast.makeText(getApplicationContext(), "✅ ডাউনলোড ফোল্ডারে সেভ হয়েছে: " + fileName, Toast.LENGTH_LONG).show();
+                              } catch (Exception e) {
+                                  e.printStackTrace();
+                                  Toast.makeText(getApplicationContext(), "সেভ করতে সমস্যা হয়েছে: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                              }
+                          }
+                      });
                   }
-
-
               }
 
               @Override

@@ -2339,40 +2339,38 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } catch {}
     }
 
-    // 1. If we have a local blob URL from stream download, open/download it
-    if (downloadedBlobUrl) {
-      try {
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = downloadedBlobUrl;
-        a.download = 'hatkhoroc.apk';
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          if (document.body.contains(a)) document.body.removeChild(a);
-        }, 2000);
-      } catch {
-        window.open(downloadedBlobUrl, '_blank');
-      }
-    }
-
-    // 2. Android native installer interface
+    // 1. Android native installer interface
     try {
-      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
-        (window as any).AndroidNativeUpdater.openInstaller();
-        onClose();
-        return;
+      if ((window as any).AndroidNativeUpdater) {
+        if (typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
+          (window as any).AndroidNativeUpdater.openInstaller();
+          onClose();
+          return;
+        }
+        if (typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
+          (window as any).AndroidNativeUpdater.downloadAndInstallApk(fallbackApkUrl);
+          onClose();
+          return;
+        }
       }
     } catch (e) {
       console.warn('AndroidNativeUpdater openInstaller failed:', e);
     }
 
-    // 3. Fallback direct link
+    // 2. Direct browser / device APK download trigger
     try {
-      window.location.href = fallbackApkUrl;
+      const a = document.createElement('a');
+      a.href = fallbackApkUrl;
+      a.download = 'hatkhoroc.apk';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 1000);
     } catch {
-      window.open(fallbackApkUrl, '_blank');
+      window.location.href = fallbackApkUrl;
     }
     onClose();
   };
@@ -2393,63 +2391,54 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     ));
   };
 
-  const handleUpdateClick = async (e: React.MouseEvent) => {
+  const handleUpdateClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (isDownloading) return;
     setIsDownloading(true);
     setIsReadyToInstall(false);
-    setDownloadProgress(5);
+    setDownloadProgress(10);
 
+    const targetApkUrl = fallbackApkUrl;
+
+    // 1. If running inside Android Native App via WebView bridge, trigger Android DownloadManager directly
     try {
-      const response = await fetch('/api/proxy-apk');
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
+        (window as any).AndroidNativeUpdater.downloadAndInstallApk(targetApkUrl);
       }
-
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 15000000; // ~15MB fallback
-      let loaded = 0;
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('ReadableStream not supported');
-      }
-
-      const chunks: BlobPart[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value as BlobPart);
-        loaded += value.length;
-        const pct = Math.min(99, Math.round((loaded / total) * 100));
-        setDownloadProgress(Math.max(5, pct));
-      }
-
-      const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
-      const blobUrl = URL.createObjectURL(blob);
-      setDownloadedBlobUrl(blobUrl);
-
-      setDownloadProgress(100);
-      setTimeout(() => {
-        setIsReadyToInstall(true);
-      }, 300);
-
     } catch (err) {
-      console.warn('Stream download failed, falling back to standard link:', err);
-      // Fallback simulation
-      let current = 10;
-      const timer = setInterval(() => {
-        current += 15;
-        if (current >= 100) {
-          clearInterval(timer);
-          setDownloadProgress(100);
-          setIsReadyToInstall(true);
-        } else {
-          setDownloadProgress(current);
-        }
-      }, 250);
+      console.warn('Native downloadAndInstallApk failed:', err);
     }
+
+    // 2. Trigger direct link / browser download
+    try {
+      const a = document.createElement('a');
+      a.href = targetApkUrl;
+      a.download = 'hatkhoroc.apk';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 1000);
+    } catch {
+      window.open(targetApkUrl, '_blank');
+    }
+
+    // Smooth UI progress bar animation
+    let current = 10;
+    const timer = setInterval(() => {
+      current += 15;
+      if (current >= 100) {
+        clearInterval(timer);
+        setDownloadProgress(100);
+        setTimeout(() => {
+          setIsReadyToInstall(true);
+        }, 200);
+      } else {
+        setDownloadProgress(current);
+      }
+    }, 200);
   };
 
   return (
