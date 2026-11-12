@@ -468,19 +468,17 @@ jobs:
           sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
           echo "Updated APK version code to $BUILD_NUM"
 
-      - name: Clean and Build Android APK (Release & Non-Debuggable)
+      - name: Clean and Build Android APK (Debug & Stable)
         run: |
           cd android
           chmod +x gradlew
           ./gradlew clean
-          # Build release APK (debuggable=false, signed with permanent keystore)
-          ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace
 
       - name: Prepare and Rename APK Files
         run: |
           mkdir -p apk_output
-          # Prefer release APK first (Play Protect safe)
-          find android/app/build/outputs/apk/release/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
+          find android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
           if [ ! -f "apk_output/hatkhoroc.apk" ]; then
             find android/app/build/outputs/apk/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \;
           fi
