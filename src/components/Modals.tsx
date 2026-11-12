@@ -2324,7 +2324,6 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadStatus, setDownloadStatus] = useState<string>('');
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
 
   const downloadApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
@@ -2361,21 +2360,32 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   };
 
   const handleLaunchInstaller = () => {
+    // Record update acknowledged so popup never reappears
+    if (updateInfo?.latestSha) {
+      try {
+        localStorage.setItem('app_installed_sha', updateInfo.latestSha);
+        localStorage.setItem('app_dismissed_sha', updateInfo.latestSha);
+        localStorage.removeItem('app_update_dismissed_at');
+      } catch {}
+    }
+
     try {
       if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
         (window as any).AndroidNativeUpdater.openInstaller();
+        onClose();
         return;
       }
     } catch (e) {
       console.warn('AndroidNativeUpdater openInstaller failed:', e);
     }
 
-    // Re-trigger download / open APK
+    // Browser fallback
     try {
       window.location.href = downloadApkUrl;
     } catch {
       window.open(downloadApkUrl, '_blank');
     }
+    onClose();
   };
 
   const handleUninstallOldApp = () => {
@@ -2389,8 +2399,8 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     }
 
     alert(t(
-      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall". Then install the downloaded APK. Your Google Sheet records are 100% safe!',
-      'প্যাকেজ কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন। এরপর ডাউনলোড হওয়া APK টি ওপেন করে ইনস্টল করুন। আপনার গুগল শিটের সকল হিসাব ১০০% নিরাপদ থাকবে!'
+      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall". Then install the downloaded APK.',
+      'কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন। এরপর ডাউনলোড করা ফাইলটি ইনস্টল করুন।'
     ));
   };
 
@@ -2399,238 +2409,137 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     if (isDownloading) return;
     setIsDownloading(true);
     setIsReadyToInstall(false);
-    setDownloadProgress(12);
-    setDownloadStatus(t('Connecting to update server...', 'সার্ভারের সাথে সংযোগ স্থাপন করা হচ্ছে...'));
+    setDownloadProgress(10);
 
-    // Trigger background download via Native Updater / DownloadManager / hidden link
+    // Trigger download in background
     triggerSystemDownload();
 
-    // Visual animated progress tracking
+    // In-app progress animation reaching 100%
     const interval = setInterval(() => {
       setDownloadProgress(prev => {
         if (prev >= 98) {
           clearInterval(interval);
-          setDownloadStatus(t('Download completed! Ready to install.', 'ডাউনলোড সম্পন্ন! ইনস্টলেশন প্রস্তুত।'));
           setDownloadProgress(100);
           setTimeout(() => {
             setIsReadyToInstall(true);
-          }, 400);
+          }, 350);
           return 100;
         }
-
-        const next = prev + Math.floor(Math.random() * 12) + 10;
-        if (next > 25 && next <= 60) {
-          setDownloadStatus(t('Downloading hatkhoroc.apk...', 'নতুন আপডেট প্যাকেজ ডাউনলোড হচ্ছে (hatkhoroc.apk)...'));
-        } else if (next > 60 && next <= 90) {
-          setDownloadStatus(t('Verifying package & preparing installer...', 'প্যাকেজ ফাইল যাচাই ও ইনস্টলার প্রস্তুত হচ্ছে...'));
-        } else if (next > 90) {
-          setDownloadStatus(t('Finalizing update package...', 'ফাইল চূড়ান্তকরণ করা হচ্ছে...'));
-        }
+        const step = Math.floor(Math.random() * 14) + 12;
+        const next = prev + step;
         return next > 98 ? 98 : next;
       });
-    }, 380);
+    }, 320);
   };
 
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
-        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl relative border border-emerald-500/50 space-y-4 animate-modalSpring text-center">
+        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
+          
+          {/* Close Button */}
           {(!isDownloading || isReadyToInstall) && (
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1.5 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer transition-colors"
+              className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {/* 1. READY TO INSTALL PHASE */}
+          {/* 3. DOWNLOAD COMPLETE / READY TO INSTALL */}
           {isReadyToInstall ? (
             <div className="space-y-4 pt-1 animate-fadeIn">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-400/80 text-emerald-300 flex items-center justify-center mx-auto shadow-xl shadow-emerald-950/60">
-                <CheckCircle2 className="w-7 h-7 text-emerald-400 animate-pulse" />
+              <div className="w-14 h-14 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 animate-pulse" />
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-base font-black text-white tracking-tight">
-                  {t('Download Complete!', 'ডাউনলোড সম্পন্ন হয়েছে!')}
+                <h3 className="text-base font-black text-white">
+                  {t('Download Complete!', 'ডাউনলোড সম্পন্ন!')}
                 </h3>
                 <p className="text-xs text-teal-200/90 font-medium">
-                  {t('New version hatkhoroc.apk is ready to install', 'নতুন ভার্সন (hatkhoroc.apk) ইনস্টল করার জন্য প্রস্তুত')}
+                  {t('Tap Update to install the new version.', 'অ্যাপটি আপডেট করতে নিচের বাটনে চাপ দিন।')}
                 </p>
               </div>
 
-              {/* Step by step installation guidance */}
-              <div className="p-3.5 rounded-2xl bg-[#062423]/95 border border-teal-700/80 text-left text-xs text-teal-100 space-y-2 shadow-inner">
-                <p className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                  <PackageCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>{t('How to Update / Install:', 'কীভাবে আপডেট করবেন:')}</span>
-                </p>
-                <div className="space-y-1.5 text-[11px] leading-relaxed text-teal-200/90">
-                  <div className="flex items-start gap-1.5">
-                    <span className="font-bold text-emerald-400 shrink-0">১.</span>
-                    <span>
-                      নিচের <strong>"আপডেট ইনস্টল করুন"</strong> বাটনে চাপুন।
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-1.5">
-                    <span className="font-bold text-emerald-400 shrink-0">২.</span>
-                    <span>
-                      ইনস্টলার ডায়ালগ আসলে <strong>"Update"</strong> এ ট্যাপ করুন (আগের ফাইলটি রিপ্লেস হয়ে যাবে, কোনো হিসাব বা ডেটা মুছবে না)।
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-1.5">
-                    <span className="font-bold text-emerald-400 shrink-0">৩.</span>
-                    <span>
-                      ইনস্টল শেষে সরাসরি <strong>"Open"</strong> এ ট্যাপ করলেই নতুন আপডেট চালু হয়ে যাবে!
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={handleLaunchInstaller}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
+              >
+                <PackageCheck className="w-4 h-4 text-emerald-200" />
+                <span>{t('Update', 'আপডেট করুন')}</span>
+              </button>
 
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleLaunchInstaller}
-                  className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/60"
-                >
-                  <PackageCheck className="w-4 h-4 text-emerald-200 shrink-0" />
-                  <span>{t('Install Update Now', 'আপডেট ইনস্টল করুন (Update)')}</span>
-                </button>
-
-                {/* Package Conflict Fix Box (Exact fix for "package conflicts with an existing package") */}
-                <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-500/60 text-left space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px]">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                    <span>{t('"Package conflicts" Error Fix:', '"Package conflicts" এরর দেখাচ্ছে?')}</span>
-                  </div>
-                  <p className="text-[10px] text-teal-100/90 leading-relaxed">
-                    {t(
-                      'If Android blocks install with "Package conflicts with an existing package": Your current app has an older signature. Solution: Tap below to uninstall old app, then tap Install above. Your Google Sheet records are 100% safe!',
-                      'যদি "Package conflicts with an existing package" দেখায়: আগের অ্যাপটির সাইনিং কি অমিল ছিল। সমাধান: নিচের বাটনে চাপ দিয়ে পুরনো অ্যাপটি আনইনস্টল করুন, এরপর উপরের বাটনে চাপ দিয়ে নতুনটি ইনস্টল করুন। গুগল শিটে আপনার সমস্ত ডাটা ১০০% সুরক্ষিত আছে!'
-                    )}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleUninstallOldApp}
-                    className="w-full py-2 px-3 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/60 rounded-xl font-bold text-[10.5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{t('Uninstall Conflicting Old App', 'পুরনো অ্যাপটি আনইনস্টল করুন')}</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={downloadApkUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-2.5 bg-[#062423] hover:bg-teal-900/60 text-teal-200 border border-teal-700/60 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5 text-teal-300" />
-                    <span>{t('Direct APK Download', 'সরাসরি APK ডাউনলোড')}</span>
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="py-2.5 px-3 bg-[#062423] hover:bg-teal-900/60 text-teal-400 hover:text-white border border-teal-700/60 rounded-xl text-[11px] font-bold transition-colors cursor-pointer"
-                  >
-                    {t('Close', 'পরে করব')}
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={handleUninstallOldApp}
+                className="text-[10px] text-teal-400/70 hover:text-teal-300 underline block mx-auto cursor-pointer"
+              >
+                {t('Conflict error? Tap to uninstall old version', 'ইনস্টল এরর দেখালে পুরনো ভার্সন আনইনস্টল করুন')}
+              </button>
             </div>
           ) : isDownloading ? (
-            /* 2. DOWNLOADING ACTIVE PROGRESS PHASE */
+            /* 2. DOWNLOADING ACTIVE PROGRESS */
             <div className="space-y-4 pt-1 animate-fadeIn">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
-                <RefreshCw className="w-7 h-7 animate-spin text-emerald-300" />
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('Downloading Update...', 'ডাউনলোড হচ্ছে...')}
+                </h3>
+                <p className="text-xs text-teal-200/80">
+                  {t('Please wait a moment', 'অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন')}
+                </p>
               </div>
 
-              <div className="space-y-1">
-                <h3 className="text-base font-black text-white tracking-tight">
-                  {t('Downloading Update...', 'অ্যাপ আপডেট ডাউনলোড হচ্ছে...')}
-                </h3>
-                <p className="text-xs text-teal-200/90 min-h-[1.5rem] flex items-center justify-center">
-                  {downloadStatus}
-                </p>
+              {/* Progress Percentage Display */}
+              <div className="py-2">
+                <span className="text-4xl font-black text-emerald-400 tracking-tight">
+                  {downloadProgress}%
+                </span>
               </div>
 
               {/* Progress Bar */}
-              <div className="space-y-2 pt-1">
-                <div className="flex justify-between text-xs font-bold text-teal-300 px-1">
-                  <span>{t('Progress', 'অগ্রগতি')}</span>
-                  <span className="text-emerald-300 font-extrabold">{downloadProgress}%</span>
-                </div>
-                <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/70 overflow-hidden shadow-inner">
-                  <div
-                    className="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
-                    style={{ width: `${downloadProgress}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#062423]/90 border border-teal-800/80 text-[11px] text-teal-200/90 text-left space-y-1">
-                <p className="font-bold text-emerald-300 flex items-center gap-1.5 text-[11px]">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                  <span>{t('Background Download Active:', 'ডাউনলোড চালু আছে:')}</span>
-                </p>
-                <p className="leading-relaxed text-[10.5px]">
-                  {t(
-                    'Downloading update package. Once completed, you can tap "Update" to replace the old version cleanly without losing any data.',
-                    'ডাউনলোড শেষ হওয়া মাত্র ইনস্টলার উইন্ডো থেকে "Update" চাপলেই আগের ফাইল রিপ্লেস হয়ে নতুন ভার্সন ইনস্টল হবে।'
-                  )}
-                </p>
+              <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/60 overflow-hidden shadow-inner">
+                <div
+                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${downloadProgress}%` }}
+                />
               </div>
             </div>
           ) : (
-            /* 3. INITIAL UPDATE NOTIFICATION PHASE */
+            /* 1. INITIAL MINIMAL PROMPT */
             <div className="space-y-4 pt-1 animate-fadeIn">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
-                <Sparkles className="w-7 h-7 animate-pulse text-emerald-400" />
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 border border-teal-600/50 flex items-center justify-center mx-auto overflow-hidden p-1 shadow-md">
+                <img src="/logo.png" alt="হাত খরচ" className="w-full h-full object-contain rounded-xl" />
               </div>
 
-              <div className="space-y-1.5">
-                <h3 className="text-base font-black text-white tracking-tight">
-                  {t('New App Update Available!', 'নতুন আপডেট পাওয়া গেছে!')}
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('New Update Available!', 'নতুন আপডেট এসেছে')}
                 </h3>
-                <p className="text-xs text-teal-200/90 leading-relaxed">
-                  {updateInfo?.commitMessage || t('Update to latest features, bug fixes and performance improvements.', 'নতুন ফিচার, বাগ ফিক্স ও গতিশীলতা পেতে অ্যাপটি এখনই আপডেট করুন।')}
+                <p className="text-xs text-teal-200/90 leading-relaxed px-1">
+                  {t('Update to get latest features & performance improvements.', 'নতুন সুবিধা ও গতিশীলতা পেতে এখনই অ্যাপটি আপডেট করুন।')}
                 </p>
               </div>
 
-              <div className="bg-[#062423] border border-teal-800/80 rounded-2xl p-3 text-left space-y-1.5 text-[11px]">
-                <div className="flex justify-between text-teal-300/80">
-                  <span>{t('App Package:', 'অ্যাপ প্যাকেজ:')}</span>
-                  <span className="font-mono font-bold text-emerald-400">hatkhoroc.apk</span>
-                </div>
-                <div className="flex justify-between text-teal-300/80">
-                  <span>{t('Last Release Date:', 'রিলিজের সময়:')}</span>
-                  <span className="font-bold text-teal-200">{updateInfo?.commitDate ? updateInfo.commitDate.slice(0, 10) : 'Latest'}</span>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={handleUpdateClick}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
+              >
+                <Download className="w-4 h-4 text-emerald-200" />
+                <span>{t('Update Now', 'এখনই আপডেট করুন')}</span>
+              </button>
 
-              <div className="space-y-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleUpdateClick}
-                  className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/60"
-                >
-                  <Download className="w-4 h-4 text-emerald-200 shrink-0" />
-                  <span>{t('Update Now (Download & Install)', 'এখনই আপডেট করুন')}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-full py-2.5 text-teal-400 hover:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  {t('Dismiss / Remind Later', 'পরে করব')}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-xs text-teal-400/80 hover:text-white transition-colors cursor-pointer block mx-auto pt-0.5"
+              >
+                {t('Later', 'পরে')}
+              </button>
             </div>
           )}
         </div>
@@ -2638,3 +2547,4 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     </ModalPortal>
   );
 };
+

@@ -89,14 +89,17 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
 
     // Read stored installed / acknowledged / dismissed SHA
-    const installedSha = localStorage.getItem('app_installed_sha') || CURRENT_BUILD_SHA;
+    const installedSha = localStorage.getItem('app_installed_sha');
     const dismissedSha = localStorage.getItem('app_dismissed_sha');
 
-    // If forced check or manual check, always compare against CURRENT_BUILD_SHA
-    // An update is available if the remote latestSha does not match the current running build!
-    let hasUpdate = latestSha !== CURRENT_BUILD_SHA;
+    // An update is available ONLY if neither CURRENT_BUILD_SHA nor installedSha matches latestSha
+    const isAlreadyOnLatest = 
+      (CURRENT_BUILD_SHA && CURRENT_BUILD_SHA === latestSha) ||
+      (installedSha && installedSha === latestSha);
 
-    if (!force) {
+    let hasUpdate = !isAlreadyOnLatest;
+
+    if (!force && hasUpdate) {
       // If user recently dismissed this exact SHA, don't auto-nag
       if (dismissedSha === latestSha && isUpdateDismissedRecently()) {
         hasUpdate = false;
@@ -129,7 +132,7 @@ export function isUpdateDismissedRecently(): boolean {
     const dismissedAt = localStorage.getItem('app_update_dismissed_at');
     if (!dismissedAt) return false;
     const diffHours = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60);
-    return diffHours < 4; // reduced from 12h to 4h so updates are timely
+    return diffHours < 4;
   } catch {
     return false;
   }
@@ -151,3 +154,4 @@ export function recordUpdateAcknowledged(sha: string) {
     localStorage.removeItem('app_update_dismissed_at');
   } catch {}
 }
+
