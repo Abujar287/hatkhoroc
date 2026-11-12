@@ -494,6 +494,14 @@ jobs:
           name: hatkhoroc-APK
           path: "apk_output/*"
 
+      - name: Delete Existing Latest Release if exists
+        run: |
+          gh release delete latest --yes || true
+          git push origin :refs/tags/latest || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Publish to GitHub Releases (Direct Download)
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main')
