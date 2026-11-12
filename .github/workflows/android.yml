@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches:
-      - main  # আপনার মূল ব্রাঞ্চের নাম (main বা master)
+      - main
 
 jobs:
   build:
@@ -47,7 +47,6 @@ jobs:
 
       - name: Configure Android Permissions, FileProvider and Auto-Installer
         run: |
-          # 1. Create file_paths.xml for FileProvider
           mkdir -p android/app/src/main/res/xml
           cat << 'EOF' > android/app/src/main/res/xml/file_paths.xml
           <?xml version="1.0" encoding="utf-8"?>
@@ -60,10 +59,8 @@ jobs:
           </paths>
           EOF
 
-          # 2. Update AndroidManifest.xml with required permissions and FileProvider
           python3 - << 'EOF'
           import os
-
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
               with open(manifest_path, 'r', encoding='utf-8') as f:
@@ -77,9 +74,6 @@ jobs:
               """
               if "REQUEST_INSTALL_PACKAGES" not in content:
                   content = content.replace("<application", permissions + "\n    <application", 1)
-
-              if "android:debuggable" not in content:
-                  content = content.replace("<application", '<application android:debuggable="false"', 1)
 
               file_provider = """
                   <provider
@@ -98,11 +92,8 @@ jobs:
               with open(manifest_path, 'w', encoding='utf-8') as f:
                   f.write(content)
               print("Successfully injected permissions and FileProvider into AndroidManifest.xml")
-          else:
-              print(f"Warning: {manifest_path} does not exist yet!")
           EOF
 
-          # 3. Create MainActivity.java with BroadcastReceiver and FileProvider auto-installer
           mkdir -p android/app/src/main/java/com/abujar/hatkhoroc/
           cat << 'EOF' > android/app/src/main/java/com/abujar/hatkhoroc/MainActivity.java
           package com.abujar.hatkhoroc;
@@ -163,13 +154,7 @@ jobs:
                                   Intent intent = new Intent(Intent.ACTION_DELETE);
                                   intent.setData(Uri.parse("package:" + getPackageName()));
                                   startActivity(intent);
-                              } catch (Exception e) {
-                                  try {
-                                      Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
-                                      intent.setData(Uri.parse("package:" + getPackageName()));
-                                      startActivity(intent);
-                                  } catch (Exception ignored) {}
-                              }
+                              } catch (Exception e) {}
                           }
                       });
                   }
@@ -178,7 +163,6 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  
                   setupDownloadReceiver();
                   setupDownloadListener();
               }
@@ -195,25 +179,18 @@ jobs:
                               }
                           });
                       }
-                  } catch (Exception e) {
-                      e.printStackTrace();
-                  }
+                  } catch (Exception e) {}
               }
 
               private void startApkDownload(String url, String userAgent) {
                   try {
                       DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                       if (dm == null) return;
-
-                      // Clean up previous update APK file to ensure forced update with clean package
                       File downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                       if (downloadsDir != null) {
                           File oldApk = new File(downloadsDir, "hatkhoroc_update.apk");
-                          if (oldApk.exists()) {
-                              oldApk.delete();
-                          }
+                          if (oldApk.exists()) oldApk.delete();
                       }
-
                       DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                       request.setMimeType("application/vnd.android.package-archive");
                       request.addRequestHeader("User-Agent", userAgent);
@@ -221,13 +198,9 @@ jobs:
                       request.setTitle("hatkhoroc.apk");
                       request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                       request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "hatkhoroc_update.apk");
-
                       downloadId = dm.enqueue(request);
                       Toast.makeText(getApplicationContext(), "📥 নোটিফিকেশন বারে আপডেট ডাউনলোড শুরু হয়েছে...", Toast.LENGTH_LONG).show();
-                  } catch (Exception e) {
-                      e.printStackTrace();
-                      Toast.makeText(getApplicationContext(), "ডাউনলোড শুরু করতে সমস্যা হয়েছে!", Toast.LENGTH_SHORT).show();
-                  }
+                  } catch (Exception e) {}
               }
 
               private void setupDownloadReceiver() {
@@ -255,28 +228,21 @@ jobs:
                           }
                       }
                   };
-
                   try {
                       if (Build.VERSION.SDK_INT >= 33) {
                           registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
                       } else {
                           registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
                       }
-                  } catch (Exception e) {
-                      registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
-                  }
+                  } catch (Exception e) {}
               }
 
               private void triggerApkInstallation() {
                   try {
                       File downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                       File apkFile = new File(downloadsDir, "hatkhoroc_update.apk");
-                      if (!apkFile.exists() || apkFile.length() == 0) {
-                          Toast.makeText(this, "ইনস্টল করার ফাইল পাওয়া যায়নি!", Toast.LENGTH_SHORT).show();
-                          return;
-                      }
+                      if (!apkFile.exists() || apkFile.length() == 0) return;
 
-                      // Check Unknown Sources Permission for Android 8.0+
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                           if (!getPackageManager().canRequestPackageInstalls()) {
                               pendingInstall = true;
@@ -288,12 +254,7 @@ jobs:
                           }
                       }
 
-                      Uri apkUri = FileProvider.getUriForFile(
-                          this,
-                          getPackageName() + ".fileprovider",
-                          apkFile
-                      );
-
+                      Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apkFile);
                       Intent installIntent = new Intent(Intent.ACTION_VIEW);
                       installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                       installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -302,15 +263,10 @@ jobs:
 
                       List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
                       for (ResolveInfo resolveInfo : resInfoList) {
-                          String pkg = resolveInfo.activityInfo.packageName;
-                          grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                          grantUriPermission(resolveInfo.activityInfo.packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       }
-
                       startActivity(installIntent);
-                  } catch (Exception e) {
-                      e.printStackTrace();
-                      Toast.makeText(this, "ইনস্টলার খুলতে সমস্যা হয়েছে: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                  }
+                  } catch (Exception e) {}
               }
 
               @Override
@@ -330,145 +286,26 @@ jobs:
               public void onDestroy() {
                   super.onDestroy();
                   try {
-                      if (downloadReceiver != null) {
-                          unregisterReceiver(downloadReceiver);
-                      }
+                      if (downloadReceiver != null) unregisterReceiver(downloadReceiver);
                   } catch (Exception ignored) {}
               }
           }
           EOF
-          echo "Native DownloadManager and Auto-Installer configured successfully!"
 
-      - name: Generate Custom Android App Icons & Splash Screen
+      - name: Generate Custom Android App Icons
         run: |
-          # 1. Ensure assets directory has the custom app logo
           mkdir -p assets
           cp public/logo.png assets/icon.png || true
           cp public/logo.png assets/splash.png || true
-          cp public/logo.png assets/logo.png || true
-
-          # 2. Try @capacitor/assets first
           npx @capacitor/assets generate --android || true
-
-          # 3. Direct high-fidelity icon generator into Android res folders
-          python3 -m pip install pillow --quiet || true
-          python3 - << 'EOF'
-          from PIL import Image
-          import os
-
-          logo_path = 'public/logo.png'
-          if not os.path.exists(logo_path):
-              logo_path = 'assets/icon.png'
-
-          print(f"Applying custom app icon from: {logo_path}")
-          img = Image.open(logo_path).convert("RGBA")
-
-          res_dir = "android/app/src/main/res"
-          densities = {
-              "mipmap-mdpi": (48, 108),
-              "mipmap-hdpi": (72, 162),
-              "mipmap-xhdpi": (96, 216),
-              "mipmap-xxhdpi": (144, 324),
-              "mipmap-xxxhdpi": (192, 432)
-          }
-
-          for folder, (sz, fg_sz) in densities.items():
-              target_dir = os.path.join(res_dir, folder)
-              os.makedirs(target_dir, exist_ok=True)
-              
-              # Save standard and round launcher icons
-              icon_img = img.resize((sz, sz), Image.Resampling.LANCZOS)
-              icon_img.save(os.path.join(target_dir, "ic_launcher.png"), "PNG")
-              icon_img.save(os.path.join(target_dir, "ic_launcher_round.png"), "PNG")
-              
-              # Save foreground icon for adaptive launchers
-              fg_img = img.resize((fg_sz, fg_sz), Image.Resampling.LANCZOS)
-              fg_img.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
-              print(f"Updated icons in {folder} -> {sz}x{sz}")
-
-          # Update splash images
-          splash_folders = [
-              "drawable", "drawable-port-mdpi", "drawable-port-hdpi",
-              "drawable-port-xhdpi", "drawable-port-xxhdpi", "drawable-port-xxxhdpi",
-              "drawable-land-mdpi", "drawable-land-hdpi", "drawable-land-xhdpi",
-              "drawable-land-xxhdpi", "drawable-land-xxxhdpi"
-          ]
-          for sf in splash_folders:
-              s_path = os.path.join(res_dir, sf)
-              if os.path.exists(s_path):
-                  img.save(os.path.join(s_path, "splash.png"), "PNG")
-          print("All Android launcher icons and splash screens updated successfully!")
-          EOF
-
-      - name: Force Fix Kotlin Versions in Gradle
-        run: |
-          echo "
-          allprojects {
-              configurations.all {
-                  resolutionStrategy {
-                      force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
-                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
-                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
-                  }
-              }
-          }" >> android/build.gradle
-
-      - name: Ensure Permanent Keystore and Configure Play Protect Safe Release Build
-        run: |
-          mkdir -p ~/.android
-          mkdir -p android/app
-          echo "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" | base64 -d > ~/.android/debug.keystore
-          cp ~/.android/debug.keystore android/app/debug.keystore || true
-          cp ~/.android/debug.keystore android/app/release.keystore || true
-          echo "Restored 100% permanent signature keystore!"
-
-          python3 - << 'EOF'
-          import os
-          gradle_path = "android/app/build.gradle"
-          if os.path.exists(gradle_path):
-              with open(gradle_path, "r", encoding="utf-8") as f:
-                  content = f.read()
-
-              # Configure signing for release using permanent keystore
-              release_signing = """
-                  release {
-                      storeFile file('release.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                      v1SigningEnabled true
-                      v2SigningEnabled true
-                  }
-              """
-              if "storeFile file('release.keystore')" not in content:
-                  content = content.replace("signingConfigs {", "signingConfigs {" + release_signing)
-
-              # Set release buildType to non-debuggable with release signature (Fixes Google Play Protect warning)
-              if "signingConfig signingConfigs.release" not in content:
-                  if "buildTypes {" in content and "release {" in content:
-                      content = content.replace(
-                          "release {",
-                          "release {\n            signingConfig signingConfigs.release\n            debuggable false\n            minifyEnabled false"
-                      )
-                  elif "buildTypes {" in content:
-                      content = content.replace(
-                          "buildTypes {",
-                          "buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            debuggable false\n            minifyEnabled false\n        }"
-                      )
-
-              with open(gradle_path, "w", encoding="utf-8") as f:
-                  f.write(content)
-              print("Injected release signing and debuggable false into android/app/build.gradle")
-          EOF
 
       - name: Auto Increment Android Version Code
         run: |
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
           sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
-          echo "Updated APK version code to $BUILD_NUM"
 
-      - name: Clean and Build Android APK (Debug & Stable)
+      - name: Build Android Debug APK
         run: |
           cd android
           chmod +x gradlew
@@ -479,26 +316,14 @@ jobs:
         run: |
           mkdir -p apk_output
           find android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
-          if [ ! -f "apk_output/hatkhoroc.apk" ]; then
-            find android/app/build/outputs/apk/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \;
-          fi
           cp apk_output/hatkhoroc.apk "apk_output/হাত খরচ.apk"
           ls -la apk_output/
-
 
       - name: Upload APK File (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: hatkhoroc-APK
           path: "apk_output/*"
-
-      - name: Delete Existing Latest Release if exists
-        run: |
-          gh release delete latest --yes || true
-          git push origin :refs/tags/latest || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Publish to GitHub Releases (Direct Download)
         uses: softprops/action-gh-release@v2
