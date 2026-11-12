@@ -153,9 +153,12 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
   doc.setTextColor(203, 213, 225); // slate-300
   doc.text('Monthly Financial Summary & Audit Statement', 14, 23);
 
-function toAsciiSafe(str: string): string {
-  if (!str) return '';
-  return str.replace(/[^\x00-\x7F]/g, '').trim();
+function toAsciiSafe(str: any): string {
+  if (str === null || str === undefined) return '';
+  const s = String(str).trim();
+  // Strip non-printable or unsupported characters for standard jsPDF fonts
+  const ascii = s.replace(/[^\x20-\x7E]/g, '').trim();
+  return ascii || 'Record';
 }
 
   const safeUserName = toAsciiSafe(userName) || 'User';
@@ -260,7 +263,7 @@ function toAsciiSafe(str: string): string {
   const expSorted = Object.entries(expByCat).sort((a, b) => b[1].total - a[1].total);
   const expRows = expSorted.map(([cat, info], idx) => {
     const pct = totalExpense > 0 ? ((info.total / totalExpense) * 100).toFixed(1) + '%' : '0%';
-    return [String(idx + 1), cat, String(info.count), formatAmount(info.total), pct];
+    return [String(idx + 1), toAsciiSafe(cat), String(info.count), formatAmount(info.total), pct];
   });
 
   // Subheading
@@ -312,7 +315,7 @@ function toAsciiSafe(str: string): string {
 
     const incRows = incSorted.map(([cat, info], idx) => {
       const pct = totalIncome > 0 ? ((info.total / totalIncome) * 100).toFixed(1) + '%' : '0%';
-      return [String(idx + 1), cat, String(info.count), formatAmount(info.total), pct];
+      return [String(idx + 1), toAsciiSafe(cat), String(info.count), formatAmount(info.total), pct];
     });
 
     autoTable(doc, {
@@ -418,8 +421,8 @@ function toAsciiSafe(str: string): string {
       String(idx + 1),
       normalizeDate(tx.date),
       tx.type,
-      cleanCategoryName(tx.category, 'en'),
-      tx.note || '—',
+      toAsciiSafe(cleanCategoryName(tx.category, 'en')),
+      toAsciiSafe(tx.note) || '—',
       (tx.type === 'Expense' ? '-' : '+') + formatAmount(Math.abs(evaluateExpression(tx.value)))
     ]);
 
@@ -462,7 +465,7 @@ function toAsciiSafe(str: string): string {
       pageHeight - 8
     );
     doc.text(
-      `Confidential & Personal Report  |  ${userName}`,
+      `Confidential & Personal Report  |  ${safeUserName}`,
       pageWidth - 75,
       pageHeight - 8
     );
@@ -579,35 +582,37 @@ function toAsciiSafe(str: string): string {
     compressionOptions: { level: 9 }
   });
 
-  // Download Trigger using Data URL + Blob URL for universal browser & mobile WebView support
+  // Universal File Dispatcher: Web Share API for Mobile/Capacitor + Blob Download Fallback
   const fileName = `${filePrefix}_Package.zip`;
 
-  try {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      try {
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = fileName;
-        a.setAttribute('target', '_self');
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          if (document.body.contains(a)) {
-            document.body.removeChild(a);
-          }
-        }, 3000);
-      } catch {
-        window.location.href = dataUrl;
+  // 1. On Mobile Phones (Android/Capacitor WebView or Mobile Browser):
+  // Use the native Web Share API to directly save or open the file in Downloads/Files/Drive
+  const file = new File([zipBlob], fileName, { type: 'application/zip' });
+  if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'হাত খরচ - ' + fileName,
+        text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)'
+      });
+      return true;
+    } catch (shareErr: any) {
+      if (shareErr.name === 'AbortError') {
+        // User closed or dismissed the share sheet - not an error
+        return true;
       }
-    };
-    reader.readAsDataURL(zipBlob);
-  } catch {
+      console.warn('Web share failed, trying direct blob download:', shareErr);
+    }
+  }
+
+  // 2. Standard Blob URL Download (Desktop & Web fallback)
+  try {
     const downloadUrl = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = downloadUrl;
     a.download = fileName;
+    a.setAttribute('download', fileName);
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
@@ -615,8 +620,10 @@ function toAsciiSafe(str: string): string {
         document.body.removeChild(a);
       }
       URL.revokeObjectURL(downloadUrl);
-    }, 3000);
+    }, 4000);
+    return true;
+  } catch (blobErr: any) {
+    console.error('Blob download failed:', blobErr);
+    throw new Error(lang === 'en' ? 'Failed to download file on device' : 'ডিভাইসে ফাইল ডাউনলোড করতে সমস্যা হয়েছে');
   }
-
-  return true;
 }

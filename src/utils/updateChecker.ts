@@ -55,13 +55,14 @@ export interface UpdateInfo {
   htmlUrl: string;
   releaseUrl: string;
   actionsUrl: string;
+  apkDownloadUrl: string;
 }
 
 /**
- * Checks GitHub API for the latest commit on main branch.
- * Returns UpdateInfo if a new commit or release is found.
+ * Checks GitHub API for the latest commit on main branch or latest release.
+ * Returns UpdateInfo if a newer version or commit is available.
  */
-export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
+export async function checkGitHubForUpdates(force: boolean = false): Promise<UpdateInfo | null> {
   try {
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}?_t=${Date.now()}`;
     const res = await fetch(url, {
@@ -85,40 +86,34 @@ export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
     const formattedCommitDate = formatAppUpdateDateTime(commitDate);
     setAppLastUpdateTime(formattedCommitDate);
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
+    const apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
 
     // Read stored installed / acknowledged / dismissed SHA
-    const installedSha = localStorage.getItem('app_installed_sha');
+    const installedSha = localStorage.getItem('app_installed_sha') || CURRENT_BUILD_SHA;
     const dismissedSha = localStorage.getItem('app_dismissed_sha');
 
-    // On initial app launch (if no installedSha saved yet), stamp latestSha as current
-    if (!installedSha) {
-      localStorage.setItem('app_installed_sha', latestSha);
-      return {
-        hasUpdate: false,
-        currentSha: latestSha,
-        latestSha,
-        commitMessage,
-        commitAuthor,
-        commitDate,
-        htmlUrl,
-        releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
-        actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`
-      };
-    }
+    // If forced check or manual check, always compare against CURRENT_BUILD_SHA
+    // An update is available if the remote latestSha does not match the current running build!
+    let hasUpdate = latestSha !== CURRENT_BUILD_SHA;
 
-    // Only flag hasUpdate if latestSha is DIFFERENT from installedSha AND dismissedSha
-    const hasUpdate = latestSha !== installedSha && latestSha !== dismissedSha;
+    if (!force) {
+      // If user recently dismissed this exact SHA, don't auto-nag
+      if (dismissedSha === latestSha && isUpdateDismissedRecently()) {
+        hasUpdate = false;
+      }
+    }
 
     return {
       hasUpdate,
-      currentSha: installedSha,
+      currentSha: CURRENT_BUILD_SHA,
       latestSha,
       commitMessage,
       commitAuthor,
       commitDate,
       htmlUrl,
       releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
-      actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`
+      actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`,
+      apkDownloadUrl
     };
   } catch (err) {
     console.warn('Error checking GitHub updates:', err);
@@ -127,14 +122,14 @@ export async function checkGitHubForUpdates(): Promise<UpdateInfo | null> {
 }
 
 /**
- * Checks if the update popup was dismissed
+ * Checks if the update popup was dismissed within the last 4 hours
  */
 export function isUpdateDismissedRecently(): boolean {
   try {
     const dismissedAt = localStorage.getItem('app_update_dismissed_at');
     if (!dismissedAt) return false;
     const diffHours = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60);
-    return diffHours < 12; // Do not nag again for 12 hours once dismissed
+    return diffHours < 4; // reduced from 12h to 4h so updates are timely
   } catch {
     return false;
   }
@@ -153,5 +148,6 @@ export function recordUpdateAcknowledged(sha: string) {
   try {
     localStorage.setItem('app_installed_sha', sha);
     localStorage.setItem('app_dismissed_sha', sha);
+    localStorage.removeItem('app_update_dismissed_at');
   } catch {}
 }

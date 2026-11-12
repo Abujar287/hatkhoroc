@@ -230,7 +230,7 @@ export default function App() {
       if (isManual) {
         showToast(lang === 'en' ? 'Checking for updates...' : 'আপডেট চেক করা হচ্ছে...', 'info');
       }
-      const info = await checkGitHubForUpdates();
+      const info = await checkGitHubForUpdates(isManual);
       setAppLastUpdateTime(getAppLastUpdateTime());
       if (info && info.hasUpdate) {
         setUpdateInfoModal(info);

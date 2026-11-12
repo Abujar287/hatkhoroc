@@ -24,7 +24,10 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  CheckCircle2,
+  PackageCheck,
+  ExternalLink
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -2313,6 +2316,7 @@ interface AppUpdateModalProps {
 export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   isOpen,
   onClose,
+  updateInfo,
   t
 }) => {
   if (!isOpen) return null;
@@ -2320,121 +2324,274 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadStatus, setDownloadStatus] = useState<string>('');
+  const [isReadyToInstall, setIsReadyToInstall] = useState(false);
 
-  const handleUpdateClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (isDownloading) return;
-    setIsDownloading(true);
-    setDownloadProgress(10);
-    setDownloadStatus(t('Starting download...', 'ডাউনলোড শুরু হচ্ছে...'));
+  const downloadApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
-    const downloadApkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
+  const triggerSystemDownload = () => {
+    // 1. Android Native Updater Interface if available in APK WebView
+    try {
+      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
+        (window as any).AndroidNativeUpdater.downloadAndInstallApk(downloadApkUrl);
+        return;
+      }
+    } catch (e) {
+      console.warn('AndroidNativeUpdater invocation failed:', e);
+    }
 
-    // Trigger download in background
+    // 2. Hidden anchor download for web/PWA/browser
+    try {
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadApkUrl;
+      a.download = 'hatkhoroc.apk';
+      a.setAttribute('download', 'hatkhoroc.apk');
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+      }, 2000);
+    } catch {
+      window.open(downloadApkUrl, '_blank');
+    }
+  };
+
+  const handleLaunchInstaller = () => {
+    try {
+      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
+        (window as any).AndroidNativeUpdater.openInstaller();
+        return;
+      }
+    } catch (e) {
+      console.warn('AndroidNativeUpdater openInstaller failed:', e);
+    }
+
+    // Re-trigger download / open APK
     try {
       window.location.href = downloadApkUrl;
     } catch {
       window.open(downloadApkUrl, '_blank');
     }
+  };
 
-    // Smooth visual progress flow inside modal
+  const handleUpdateClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setIsReadyToInstall(false);
+    setDownloadProgress(12);
+    setDownloadStatus(t('Connecting to update server...', 'সার্ভারের সাথে সংযোগ স্থাপন করা হচ্ছে...'));
+
+    // Trigger background download via Native Updater / DownloadManager / hidden link
+    triggerSystemDownload();
+
+    // Visual animated progress tracking
     const interval = setInterval(() => {
       setDownloadProgress(prev => {
-        if (prev >= 95) {
+        if (prev >= 98) {
           clearInterval(interval);
-          setDownloadStatus(t('Download completed! Launching installer...', 'ডাউনলোড সম্পন্ন! ইনস্টলার চালু হচ্ছে...'));
+          setDownloadStatus(t('Download completed! Ready to install.', 'ডাউনলোড সম্পন্ন! ইনস্টলেশন প্রস্তুত।'));
+          setDownloadProgress(100);
           setTimeout(() => {
-            setDownloadProgress(100);
-            setTimeout(() => {
-              onClose();
-            }, 1800);
-          }, 600);
-          return 95;
+            setIsReadyToInstall(true);
+          }, 400);
+          return 100;
         }
-        const next = prev + Math.floor(Math.random() * 15) + 12;
-        if (next > 40 && next <= 75) {
-          setDownloadStatus(t('Downloading package...', 'আপডেট প্যাকেজ ডাউনলোড হচ্ছে...'));
-        } else if (next > 75) {
-          setDownloadStatus(t('Preparing system installer...', 'ইনস্টলার প্রস্তুত হচ্ছে...'));
+
+        const next = prev + Math.floor(Math.random() * 12) + 10;
+        if (next > 25 && next <= 60) {
+          setDownloadStatus(t('Downloading hatkhoroc.apk...', 'নতুন আপডেট প্যাকেজ ডাউনলোড হচ্ছে (hatkhoroc.apk)...'));
+        } else if (next > 60 && next <= 90) {
+          setDownloadStatus(t('Verifying package & preparing installer...', 'প্যাকেজ ফাইল যাচাই ও ইনস্টলার প্রস্তুত হচ্ছে...'));
+        } else if (next > 90) {
+          setDownloadStatus(t('Finalizing update package...', 'ফাইল চূড়ান্তকরণ করা হচ্ছে...'));
         }
-        return next > 95 ? 95 : next;
+        return next > 98 ? 98 : next;
       });
-    }, 350);
+    }, 380);
   };
 
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
-        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-xs rounded-3xl p-5 shadow-2xl relative border border-emerald-500/50 space-y-4 animate-modalSpring text-center">
-          {!isDownloading && (
+        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl relative border border-emerald-500/50 space-y-4 animate-modalSpring text-center">
+          {(!isDownloading || isReadyToInstall) && (
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer"
+              className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1.5 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           )}
 
-          <div className="space-y-2 pt-2">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
-              {isDownloading ? (
-                <RefreshCw className="w-6 h-6 animate-spin text-emerald-300" />
-              ) : (
-                <Sparkles className="w-6 h-6 animate-pulse" />
-              )}
-            </div>
-            <h3 className="text-base font-black text-white tracking-tight">
-              {isDownloading
-                ? t('Updating Application...', 'অ্যাপ আপডেট হচ্ছে...')
-                : t('New Update Available', 'নতুন আপডেট পাওয়া গেছে')}
-            </h3>
-            <p className="text-[11px] text-teal-200/80">
-              {isDownloading
-                ? downloadStatus
-                : t('Update to latest features and improvements', 'নতুন ফিচার ও ফিক্স পেতে এখনই আপডেট করুন')}
-            </p>
-          </div>
+          {/* 1. READY TO INSTALL PHASE */}
+          {isReadyToInstall ? (
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-400/80 text-emerald-300 flex items-center justify-center mx-auto shadow-xl shadow-emerald-950/60">
+                <CheckCircle2 className="w-7 h-7 text-emerald-400 animate-pulse" />
+              </div>
 
-          {/* Progress Bar & Status Display */}
-          {isDownloading ? (
-            <div className="space-y-3 pt-1">
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[11px] font-bold text-teal-300 px-1">
-                  <span>{t('Download Progress', 'ডাউনলোড অগ্রগতি')}</span>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white tracking-tight">
+                  {t('Download Complete!', 'ডাউনলোড সম্পন্ন হয়েছে!')}
+                </h3>
+                <p className="text-xs text-teal-200/90 font-medium">
+                  {t('New version hatkhoroc.apk is ready to install', 'নতুন ভার্সন (hatkhoroc.apk) ইনস্টল করার জন্য প্রস্তুত')}
+                </p>
+              </div>
+
+              {/* Step by step installation guidance */}
+              <div className="p-3.5 rounded-2xl bg-[#062423]/95 border border-teal-700/80 text-left text-xs text-teal-100 space-y-2 shadow-inner">
+                <p className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                  <PackageCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{t('How to Update / Install:', 'কীভাবে আপডেট করবেন:')}</span>
+                </p>
+                <div className="space-y-1.5 text-[11px] leading-relaxed text-teal-200/90">
+                  <div className="flex items-start gap-1.5">
+                    <span className="font-bold text-emerald-400 shrink-0">১.</span>
+                    <span>
+                      নিচের <strong>"আপডেট ইনস্টল করুন"</strong> বাটনে চাপুন।
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="font-bold text-emerald-400 shrink-0">২.</span>
+                    <span>
+                      ইনস্টলার ডায়ালগ আসলে <strong>"Update"</strong> এ ট্যাপ করুন (আগের ফাইলটি রিপ্লেস হয়ে যাবে, কোনো হিসাব বা ডেটা মুছবে না)।
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="font-bold text-emerald-400 shrink-0">৩.</span>
+                    <span>
+                      ইনস্টল শেষে সরাসরি <strong>"Open"</strong> এ ট্যাপ করলেই নতুন আপডেট চালু হয়ে যাবে!
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleLaunchInstaller}
+                  className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/60"
+                >
+                  <PackageCheck className="w-4 h-4 text-emerald-200 shrink-0" />
+                  <span>{t('Install Update Now', 'আপডেট ইনস্টল করুন (Update)')}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={downloadApkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2.5 bg-[#062423] hover:bg-teal-900/60 text-teal-200 border border-teal-700/60 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-teal-300" />
+                    <span>{t('Direct APK Download', 'সরাসরি APK ডাউনলোড')}</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="py-2.5 px-3 bg-[#062423] hover:bg-teal-900/60 text-teal-400 hover:text-white border border-teal-700/60 rounded-xl text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    {t('Close', 'পরে করব')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isDownloading ? (
+            /* 2. DOWNLOADING ACTIVE PROGRESS PHASE */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
+                <RefreshCw className="w-7 h-7 animate-spin text-emerald-300" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white tracking-tight">
+                  {t('Downloading Update...', 'অ্যাপ আপডেট ডাউনলোড হচ্ছে...')}
+                </h3>
+                <p className="text-xs text-teal-200/90 min-h-[1.5rem] flex items-center justify-center">
+                  {downloadStatus}
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-2 pt-1">
+                <div className="flex justify-between text-xs font-bold text-teal-300 px-1">
+                  <span>{t('Progress', 'অগ্রগতি')}</span>
                   <span className="text-emerald-300 font-extrabold">{downloadProgress}%</span>
                 </div>
-                <div className="w-full bg-[#062423] rounded-full h-2.5 p-0.5 border border-teal-700/70 overflow-hidden">
+                <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/70 overflow-hidden shadow-inner">
                   <div
-                    className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
+                    className="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
                     style={{ width: `${downloadProgress}%` }}
                   />
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-[#062423]/90 border border-teal-800/80 text-[10px] text-teal-200/90 text-left space-y-1">
-                <p className="font-semibold text-emerald-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                  {t('In-App Auto Install:', 'ইন-অ্যাপ অটো ইনস্টল:')}
+              <div className="p-3 rounded-xl bg-[#062423]/90 border border-teal-800/80 text-[11px] text-teal-200/90 text-left space-y-1">
+                <p className="font-bold text-emerald-300 flex items-center gap-1.5 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                  <span>{t('Background Download Active:', 'ডাউনলোড চালু আছে:')}</span>
                 </p>
-                <p className="leading-relaxed">
+                <p className="leading-relaxed text-[10.5px]">
                   {t(
-                    'When installer opens, tap "Update". After install, tap "Open" to launch the new version directly.',
-                    'ইনস্টলার উইন্ডো আসলে "Update" চাপুন, এরপর সরাসরি "Open" বাটনে ট্যাপ করলেই নতুন ভার্সন চালু হয়ে যাবে।'
+                    'Downloading update package. Once completed, you can tap "Update" to replace the old version cleanly without losing any data.',
+                    'ডাউনলোড শেষ হওয়া মাত্র ইনস্টলার উইন্ডো থেকে "Update" চাপলেই আগের ফাইল রিপ্লেস হয়ে নতুন ভার্সন ইনস্টল হবে।'
                   )}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleUpdateClick}
-                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center"
-              >
-                <Download className="w-4 h-4 text-emerald-200 shrink-0" />
-                <span>{t('Update Now', 'এখনই আপডেট করুন')}</span>
-              </button>
+            /* 3. INITIAL UPDATE NOTIFICATION PHASE */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950 border border-emerald-500/60 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
+                <Sparkles className="w-7 h-7 animate-pulse text-emerald-400" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-black text-white tracking-tight">
+                  {t('New App Update Available!', 'নতুন আপডেট পাওয়া গেছে!')}
+                </h3>
+                <p className="text-xs text-teal-200/90 leading-relaxed">
+                  {updateInfo?.commitMessage || t('Update to latest features, bug fixes and performance improvements.', 'নতুন ফিচার, বাগ ফিক্স ও গতিশীলতা পেতে অ্যাপটি এখনই আপডেট করুন।')}
+                </p>
+              </div>
+
+              <div className="bg-[#062423] border border-teal-800/80 rounded-2xl p-3 text-left space-y-1.5 text-[11px]">
+                <div className="flex justify-between text-teal-300/80">
+                  <span>{t('App Package:', 'অ্যাপ প্যাকেজ:')}</span>
+                  <span className="font-mono font-bold text-emerald-400">hatkhoroc.apk</span>
+                </div>
+                <div className="flex justify-between text-teal-300/80">
+                  <span>{t('Last Release Date:', 'রিলিজের সময়:')}</span>
+                  <span className="font-bold text-teal-200">{updateInfo?.commitDate ? updateInfo.commitDate.slice(0, 10) : 'Latest'}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleUpdateClick}
+                  className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/60"
+                >
+                  <Download className="w-4 h-4 text-emerald-200 shrink-0" />
+                  <span>{t('Update Now (Download & Install)', 'এখনই আপডেট করুন')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-2.5 text-teal-400 hover:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {t('Dismiss / Remind Later', 'পরে করব')}
+                </button>
+              </div>
             </div>
           )}
         </div>

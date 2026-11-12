@@ -211,8 +211,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   }, [lang, monthMappings]);
 
   // Export Full Month Report ZIP (Summary PDF + Details Excel)
+  const [exportFeedback, setExportFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
   const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
     setIsExportingZip(true);
+    setExportFeedback(null);
     try {
       await exportMonthlyReportZip({
         ...params,
@@ -221,8 +224,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         lang,
         userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari'
       });
+      setExportFeedback({
+        msg: lang === 'en' ? 'ZIP Report downloaded successfully!' : 'ZIP রিপোর্ট প্যাকেজ সফলভাবে ডাউনলোড হয়েছে!',
+        type: 'success'
+      });
+      setTimeout(() => setExportFeedback(null), 4000);
     } catch (err: any) {
-      alert(err.message || 'Export failed');
+      setExportFeedback({
+        msg: err.message || (lang === 'en' ? 'Download failed' : 'ডাউনলোড করতে সমস্যা হয়েছে'),
+        type: 'error'
+      });
+      setTimeout(() => setExportFeedback(null), 5000);
     } finally {
       setIsExportingZip(false);
     }
@@ -819,6 +831,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span className="truncate">{t('Check Update', 'আপডেট চেক')}</span>
           </button>
         </div>
+
+        {exportFeedback && (
+          <div className={`mt-2.5 p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-fadeIn ${
+            exportFeedback.type === 'success'
+              ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60'
+              : 'bg-rose-950/90 text-rose-300 border border-rose-500/60'
+          }`}>
+            {exportFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span className="leading-tight">{exportFeedback.msg}</span>
+          </div>
+        )}
       </div>
 
       {/* 3. ACTIVE PROFILE OVERVIEW */}

@@ -386,6 +386,21 @@ async function startServer() {
     }
   });
 
+  // Direct APK Download endpoint for Android and browser clients
+  app.get('/api/download-apk', async (req, res) => {
+    try {
+      const apkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
+      const redirectRes = await fetch(apkUrl, { redirect: 'manual' });
+      const location = redirectRes.headers.get('location');
+      if (location) {
+        return res.redirect(location);
+      }
+      res.redirect(apkUrl);
+    } catch (err: any) {
+      res.redirect('https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk');
+    }
+  });
+
   if (!isProd) {
     const vite = await createViteServer({
       server: { 
