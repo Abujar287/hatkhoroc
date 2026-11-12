@@ -157,6 +157,8 @@ jobs:
                               } catch (Exception e) {}
                           }
                       });
+                  }
+
                   @android.webkit.JavascriptInterface
                   public void saveZipToDownloads(final String base64Data, final String fileName) {
                       runOnUiThread(new Runnable() {
@@ -334,11 +336,12 @@ jobs:
           cp public/logo.png assets/splash.png || true
           npx @capacitor/assets generate --android || true
 
-      - name: Auto Increment Android Version Code
+      - name: Auto Increment Android Version Code & Fix SigningConfig
         run: |
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
           sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
+          sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' android/app/build.gradle || true
 
       - name: Build Android Debug APK
         run: |
