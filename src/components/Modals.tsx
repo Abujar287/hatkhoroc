@@ -27,7 +27,8 @@ import {
   RefreshCw,
   CheckCircle2,
   PackageCheck,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
 import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
@@ -2377,6 +2378,22 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     }
   };
 
+  const handleUninstallOldApp = () => {
+    try {
+      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.uninstallSelf === 'function') {
+        (window as any).AndroidNativeUpdater.uninstallSelf();
+        return;
+      }
+    } catch (e) {
+      console.warn('AndroidNativeUpdater uninstallSelf failed:', e);
+    }
+
+    alert(t(
+      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall". Then install the downloaded APK. Your Google Sheet records are 100% safe!',
+      'প্যাকেজ কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন। এরপর ডাউনলোড হওয়া APK টি ওপেন করে ইনস্টল করুন। আপনার গুগল শিটের সকল হিসাব ১০০% নিরাপদ থাকবে!'
+    ));
+  };
+
   const handleUpdateClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (isDownloading) return;
@@ -2482,6 +2499,28 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   <PackageCheck className="w-4 h-4 text-emerald-200 shrink-0" />
                   <span>{t('Install Update Now', 'আপডেট ইনস্টল করুন (Update)')}</span>
                 </button>
+
+                {/* Package Conflict Fix Box (Exact fix for "package conflicts with an existing package") */}
+                <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-500/60 text-left space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px]">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>{t('"Package conflicts" Error Fix:', '"Package conflicts" এরর দেখাচ্ছে?')}</span>
+                  </div>
+                  <p className="text-[10px] text-teal-100/90 leading-relaxed">
+                    {t(
+                      'If Android blocks install with "Package conflicts with an existing package": Your current app has an older signature. Solution: Tap below to uninstall old app, then tap Install above. Your Google Sheet records are 100% safe!',
+                      'যদি "Package conflicts with an existing package" দেখায়: আগের অ্যাপটির সাইনিং কি অমিল ছিল। সমাধান: নিচের বাটনে চাপ দিয়ে পুরনো অ্যাপটি আনইনস্টল করুন, এরপর উপরের বাটনে চাপ দিয়ে নতুনটি ইনস্টল করুন। গুগল শিটে আপনার সমস্ত ডাটা ১০০% সুরক্ষিত আছে!'
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleUninstallOldApp}
+                    className="w-full py-2 px-3 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/60 rounded-xl font-bold text-[10.5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{t('Uninstall Conflicting Old App', 'পুরনো অ্যাপটি আনইনস্টল করুন')}</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <a
