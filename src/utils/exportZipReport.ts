@@ -2,6 +2,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { Transaction } from '../types';
 import { cleanCategoryName } from './categoryUtils';
 import { normalizeDate, getMonthKeyFromLabel, cleanMappingLabel } from './dateUtils';
@@ -582,10 +585,47 @@ function toAsciiSafe(str: any): string {
     compressionOptions: { level: 9 }
   });
 
-  // Universal File Dispatcher: Web Share API -> Base64 Data URI window.open / anchor download fallback
+  // Universal File Dispatcher: Capacitor Native Filesystem + Share -> Web Share API -> Base64 Data URI -> Blob URL fallback
   const fileName = `${filePrefix}_Package.zip`;
 
-  // 1. Try Web Share API (Mobile / Capacitor / Supported Browsers)
+  // Helper to convert blob to base64 data URL
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // 1. Try Capacitor Native Filesystem + Share (for Android APK & iOS native apps)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const dataUrl = await blobToBase64(zipBlob);
+      const base64Data = dataUrl.split(',')[1] || dataUrl;
+      const writeResult = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Cache
+      });
+      if (writeResult && writeResult.uri) {
+        await Share.share({
+          title: 'হাত খরচ - ' + fileName,
+          text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)',
+          url: writeResult.uri,
+          dialogTitle: 'Export ZIP Report'
+        });
+        return true;
+      }
+    } catch (nativeErr: any) {
+      if (nativeErr.name === 'AbortError') {
+        return true;
+      }
+      console.warn('Native Capacitor share/filesystem failed, falling back to web download:', nativeErr);
+    }
+  }
+
+  // 2. Try Web Share API (Supported mobile browsers)
   const file = new File([zipBlob], fileName, { type: 'application/zip' });
   if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
@@ -603,16 +643,7 @@ function toAsciiSafe(str: any): string {
     }
   }
 
-  // 2. Helper to convert blob to base64 data URL for mobile APK WebView reliability
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
+  // 3. Base64 Data URI download fallback
   try {
     const dataUrl = await blobToBase64(zipBlob);
     const a = document.createElement('a');
@@ -632,7 +663,7 @@ function toAsciiSafe(str: any): string {
     console.warn('Base64 download failed, trying ObjectURL:', base64Err);
   }
 
-  // 3. Standard Blob URL Download fallback
+  // 4. Standard Blob URL Download fallback
   try {
     const downloadUrl = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');

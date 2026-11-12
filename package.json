@@ -12,6 +12,8 @@
   "dependencies": {
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
     "@google/genai": "^2.25.0",
     "@types/web-push": "^3.6.4",
     "dotenv": "^17.2.3",
