@@ -510,6 +510,7 @@ jobs:
           name: "হাত খরচ - Latest Release"
           body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)।"
           files: "apk_output/*"
+          clobber: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
