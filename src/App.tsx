@@ -188,6 +188,7 @@ export default function App() {
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [updateInfoModal, setUpdateInfoModal] = useState<UpdateInfo | null>(null);
+  const [updateAutoStart, setUpdateAutoStart] = useState<boolean>(false);
 
   // ----------------------------------------------------
   // 2. BACK BUTTON EXIT LOGIC (Robust Interception)
@@ -249,9 +250,11 @@ export default function App() {
           apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
         };
         setUpdateInfoModal(targetInfo);
+        setUpdateAutoStart(true);
         setShowUpdateModal(true);
       } else if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
+        setUpdateAutoStart(false);
         setShowUpdateModal(true);
       }
     } catch {
@@ -269,6 +272,7 @@ export default function App() {
           apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
         };
         setUpdateInfoModal(fallbackInfo);
+        setUpdateAutoStart(true);
         setShowUpdateModal(true);
       }
     }
@@ -283,6 +287,7 @@ export default function App() {
         setAppLastUpdateTime(getAppLastUpdateTime());
         if (info && info.hasUpdate && !isUpdateDismissedRecently()) {
           setUpdateInfoModal(info);
+          setUpdateAutoStart(false);
           setShowUpdateModal(true);
         }
       } catch (err) {
@@ -2465,9 +2470,11 @@ export default function App() {
           if (updateInfoModal?.latestSha) {
             recordUpdateDismissed(updateInfoModal.latestSha);
           }
+          setUpdateAutoStart(false);
           setShowUpdateModal(false);
         }} 
-        updateInfo={updateInfoModal} 
+        updateInfo={updateInfoModal}
+        autoStartDownload={updateAutoStart}
         t={t} 
       />
 

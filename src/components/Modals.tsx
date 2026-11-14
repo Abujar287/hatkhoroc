@@ -2435,6 +2435,7 @@ interface AppUpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
   updateInfo?: import('../utils/updateChecker').UpdateInfo | null;
+  autoStartDownload?: boolean;
   t: (en: string, bn: string) => string;
 }
 
@@ -2442,19 +2443,154 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   isOpen,
   onClose,
   updateInfo,
+  autoStartDownload = false,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
   const [conflictNote, setConflictNote] = useState('');
 
-  const fallbackApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
+  const fallbackApkUrl =
+    updateInfo?.apkDownloadUrl ||
+    'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
-  const handleLaunchInstaller = () => {
-    // Record update acknowledged so popup never reappears
+  const startBackgroundDownload = React.useCallback(() => {
+    setDownloadError('');
+    setConflictNote('');
+    setIsDownloading(true);
+    setIsReadyToInstall(false);
+    setDownloadProgress(3);
+
+    const targetApkUrl = fallbackApkUrl;
+    const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
+
+    // 1. Inside Android Native APK: Download directly via Android DownloadManager (NO browser link opened)
+    if (nativeUpdater && typeof nativeUpdater.downloadAndInstallApk === 'function') {
+      try {
+        nativeUpdater.downloadAndInstallApk(targetApkUrl);
+      } catch (err) {
+        setIsDownloading(false);
+        setDownloadError(
+          t('Could not start Download Manager.', 'ডাউনলোড ম্যানেজার চালু করা যায়নি।')
+        );
+      }
+      return;
+    }
+
+    // 2. Web / Mobile Browser fallback: silent background download trigger (NO new tab / target=_blank)
+    try {
+      const a = document.createElement('a');
+      a.href = targetApkUrl;
+      a.download = 'hatkhoroc.apk';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 1500);
+    } catch {}
+
+    let current = 12;
+    const timer = setInterval(() => {
+      current += 22;
+      if (current >= 100) {
+        clearInterval(timer);
+        setDownloadProgress(100);
+        setIsDownloading(false);
+        setIsReadyToInstall(true);
+      } else {
+        setDownloadProgress(current);
+      }
+    }, 350);
+  }, [fallbackApkUrl, t]);
+
+  // Reset state whenever modal opens; auto-start background DownloadManager when triggered via "Check Update"
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDownloading(false);
+      setIsReadyToInstall(false);
+      setDownloadProgress(0);
+      setDownloadError('');
+      setConflictNote('');
+      return;
+    }
+
+    const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
+    if (nativeUpdater && typeof nativeUpdater.getDownloadState === 'function') {
+      try {
+        const raw = JSON.parse(nativeUpdater.getDownloadState());
+        if (raw?.state === 'completed') {
+          setIsDownloading(false);
+          setDownloadProgress(100);
+          setIsReadyToInstall(true);
+          return;
+        }
+        if (raw?.state === 'downloading') {
+          setIsDownloading(true);
+          setIsReadyToInstall(false);
+          setDownloadProgress(Number(raw.progress) || 5);
+          return;
+        }
+      } catch {}
+    }
+
+    if (autoStartDownload && nativeUpdater) {
+      startBackgroundDownload();
+    }
+  }, [isOpen, autoStartDownload, startBackgroundDownload]);
+
+  // Listen to real progress & completion callbacks from Android DownloadManager
+  useEffect(() => {
+    if (!isOpen) return;
+    const win = window as any;
+
+    const applyState = (state: string, progress: number, error?: string) => {
+      if (state === 'downloading') {
+        setIsDownloading(true);
+        setIsReadyToInstall(false);
+        setDownloadProgress(Math.max(1, Math.min(99, Number(progress) || 0)));
+      } else if (state === 'completed') {
+        setIsDownloading(false);
+        setDownloadProgress(100);
+        setIsReadyToInstall(true);
+        setDownloadError('');
+      } else if (state === 'failed') {
+        setIsDownloading(false);
+        setIsReadyToInstall(false);
+        setDownloadError(
+          error || t('Download failed. Please try again.', 'ডাউনলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।')
+        );
+      }
+    };
+
+    win.__onNativeApkDownloadState = applyState;
+
+    const pollInterval = setInterval(() => {
+      const nativeUpdater = win.AndroidNativeUpdater;
+      if (nativeUpdater && typeof nativeUpdater.getDownloadState === 'function') {
+        try {
+          const parsed = JSON.parse(nativeUpdater.getDownloadState());
+          if (parsed && parsed.state && parsed.state !== 'idle') {
+            applyState(parsed.state, parsed.progress, parsed.error);
+          }
+        } catch {}
+      }
+    }, 500);
+
+    return () => {
+      clearInterval(pollInterval);
+      if (win.__onNativeApkDownloadState === applyState) {
+        delete win.__onNativeApkDownloadState;
+      }
+    };
+  }, [isOpen, t]);
+
+  if (!isOpen) return null;
+
+  const handleLaunchInstaller = (forceUninstallOld = false) => {
+    // Record update acknowledged so popup doesn't auto-reappear for same SHA
     if (updateInfo?.latestSha) {
       try {
         localStorage.setItem('app_installed_sha', updateInfo.latestSha);
@@ -2463,113 +2599,67 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } catch {}
     }
 
-    // 1. Android native installer interface
-    try {
-      if ((window as any).AndroidNativeUpdater) {
-        if (typeof (window as any).AndroidNativeUpdater.openInstaller === 'function') {
-          (window as any).AndroidNativeUpdater.openInstaller();
+    const nativeUpdater = (window as any).AndroidNativeUpdater;
+    if (nativeUpdater) {
+      try {
+        if (forceUninstallOld && typeof nativeUpdater.forceUninstallAndInstall === 'function') {
+          nativeUpdater.forceUninstallAndInstall();
           onClose();
           return;
         }
-        if (typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
-          (window as any).AndroidNativeUpdater.downloadAndInstallApk(fallbackApkUrl);
+        if (typeof nativeUpdater.openInstaller === 'function') {
+          nativeUpdater.openInstaller();
           onClose();
           return;
         }
+      } catch (e) {
+        console.warn('AndroidNativeUpdater openInstaller failed:', e);
       }
-    } catch (e) {
-      console.warn('AndroidNativeUpdater openInstaller failed:', e);
     }
 
-    // 2. Direct browser / device APK download trigger
-    try {
-      const a = document.createElement('a');
-      a.href = fallbackApkUrl;
-      a.download = 'hatkhoroc.apk';
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 1000);
-    } catch {
-      window.location.href = fallbackApkUrl;
-    }
-    onClose();
+    setConflictNote(
+      t(
+        'Open the downloaded "hatkhoroc.apk" from your notification bar or Downloads folder to install. If it shows a conflict error, uninstall the old app first.',
+        'নোটিফিকেশন বার বা Downloads ফোল্ডার থেকে ডাউনলোড হওয়া "hatkhoroc.apk" ওপেন করে ইনস্টল করুন। ইনস্টল এরর দেখালে আগের অ্যাপটি আগে আনইনস্টল করুন।'
+      )
+    );
   };
 
   const handleUninstallOldApp = () => {
+    const nativeUpdater = (window as any).AndroidNativeUpdater;
     try {
-      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.uninstallSelf === 'function') {
-        (window as any).AndroidNativeUpdater.uninstallSelf();
+      if (nativeUpdater && typeof nativeUpdater.forceUninstallAndInstall === 'function') {
+        nativeUpdater.forceUninstallAndInstall();
+        return;
+      }
+      if (nativeUpdater && typeof nativeUpdater.uninstallSelf === 'function') {
+        nativeUpdater.uninstallSelf();
         return;
       }
     } catch (e) {
       console.warn('AndroidNativeUpdater uninstallSelf failed:', e);
     }
 
-    setConflictNote(t(
-      'Long-press the old "হাত খরচ" icon on your phone home screen, tap "Uninstall", then install the new APK.',
-      'ফোনের হোমস্ক্রিন থেকে আগের "হাত খরচ" অ্যাপটি আনইনস্টল করুন, এরপর নতুন ফাইলটি ইনস্টল করুন।'
-    ));
+    setConflictNote(
+      t(
+        'Uninstall the old "হাত খরচ" app from your phone home screen, then open Downloads and install the new APK.',
+        'ফোন থেকে আগের "হাত খরচ" অ্যাপটি আনইনস্টল করে Downloads থেকে নতুন APK ইনস্টল করুন।'
+      )
+    );
   };
 
   const handleUpdateClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (isDownloading) return;
-    setIsDownloading(true);
-    setIsReadyToInstall(false);
-    setDownloadProgress(10);
-
-    const targetApkUrl = fallbackApkUrl;
-
-    // 1. If running inside Android Native App via WebView bridge, trigger Android DownloadManager directly
-    try {
-      if ((window as any).AndroidNativeUpdater && typeof (window as any).AndroidNativeUpdater.downloadAndInstallApk === 'function') {
-        (window as any).AndroidNativeUpdater.downloadAndInstallApk(targetApkUrl);
-      }
-    } catch (err) {
-      console.warn('Native downloadAndInstallApk failed:', err);
-    }
-
-    // 2. Trigger direct link / browser download
-    try {
-      const a = document.createElement('a');
-      a.href = targetApkUrl;
-      a.download = 'hatkhoroc.apk';
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 1000);
-    } catch {}
-
-    // Smooth UI progress bar animation
-    let current = 10;
-    const timer = setInterval(() => {
-      current += 15;
-      if (current >= 100) {
-        clearInterval(timer);
-        setDownloadProgress(100);
-        setTimeout(() => {
-          setIsReadyToInstall(true);
-        }, 200);
-      } else {
-        setDownloadProgress(current);
-      }
-    }, 200);
+    startBackgroundDownload();
   };
 
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
         <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
-          
           {/* Close Button */}
-          {(!isDownloading || isReadyToInstall) && (
+          {(!isDownloading || isReadyToInstall || Boolean(downloadError)) && (
             <button
               type="button"
               onClick={onClose}
@@ -2579,9 +2669,9 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
             </button>
           )}
 
-          {/* 3. DOWNLOAD COMPLETE / READY TO INSTALL */}
+          {/* 3. DOWNLOAD COMPLETE / READY TO UPDATE */}
           {isReadyToInstall ? (
-            <div className="space-y-4 pt-1 animate-fadeIn">
+            <div className="space-y-3.5 pt-1 animate-fadeIn">
               <div className="w-14 h-14 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400 animate-pulse" />
               </div>
@@ -2591,65 +2681,80 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   {t('Download Complete!', 'ডাউনলোড সম্পন্ন!')}
                 </h3>
                 <p className="text-xs text-teal-200/90 font-medium">
-                  {t('Tap Update to install the new version.', 'অ্যাপটি আপডেট করতে নিচের বাটনে চাপ দিন।')}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleLaunchInstaller}
-                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
-              >
-                <PackageCheck className="w-4 h-4 text-emerald-200" />
-                <span>{t('Update', 'আপডেট করুন')}</span>
-              </button>
-
-              <div className="p-2.5 rounded-xl bg-teal-950/60 border border-teal-800/80 text-[10.5px] text-teal-200/90 text-left space-y-1">
-                <p className="font-bold text-emerald-300">💡 {t('Play Protect Note:', 'পরামর্শ:')}</p>
-                <p>
                   {t(
-                    'If Play Protect shows warning, tap "More details" -> "Install anyway". Your data is 100% safe.',
-                    'যদি প্লে প্রোটেক্ট থেকে কোনো ওয়ার্নিং দেখায়, তবে "More details" এ চাপ দিয়ে "Install anyway" সিলেক্ট করুন। আপনার সকল হিসাব নিরাপদ থাকবে।'
+                    'APK is ready in Download Manager. Tap Update to install.',
+                    'ডাউনলোড ম্যানেজারে APK প্রস্তুত। ইনস্টল করতে Update বাটনে চাপ দিন।'
                   )}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={handleUninstallOldApp}
-                className="text-[10px] text-teal-400/70 hover:text-teal-300 underline block mx-auto cursor-pointer"
+                onClick={() => handleLaunchInstaller(false)}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
               >
-                {t('Conflict error? Tap to uninstall old version', 'ইনস্টল এরর দেখালে পুরনো ভার্সন আনইনস্টল করুন')}
+                <PackageCheck className="w-4 h-4 text-emerald-200" />
+                <span>{t('Update', 'আপডেট করুন')}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleUninstallOldApp}
+                className="w-full py-2 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 text-amber-200 border border-amber-700/60 text-[11px] font-bold cursor-pointer transition-all"
+              >
+                {t('Uninstall Old & Install New', 'পুরনো ভার্সন মুছে নতুন ইনস্টল করুন')}
+              </button>
+
               {conflictNote && (
                 <p className="text-[10px] text-amber-200 bg-amber-950/60 border border-amber-800/70 rounded-xl p-2 text-left leading-snug">
                   {conflictNote}
                 </p>
               )}
             </div>
+          ) : downloadError ? (
+            /* DOWNLOAD FAILED STATE */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-12 h-12 rounded-full bg-rose-950 border border-rose-500/60 text-rose-400 flex items-center justify-center mx-auto">
+                <X className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('Download Failed', 'ডাউনলোড ব্যর্থ হয়েছে')}
+                </h3>
+                <p className="text-xs text-rose-200/90 leading-relaxed">{downloadError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={startBackgroundDownload}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold cursor-pointer transition-all"
+              >
+                {t('Retry Download', 'আবার চেষ্টা করুন')}
+              </button>
+            </div>
           ) : isDownloading ? (
-            /* 2. DOWNLOADING ACTIVE PROGRESS */
+            /* 2. DOWNLOADING IN BACKGROUND / DOWNLOAD MANAGER */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="space-y-1">
                 <h3 className="text-base font-black text-white">
                   {t('Downloading Update...', 'ডাউনলোড হচ্ছে...')}
                 </h3>
                 <p className="text-xs text-teal-200/80">
-                  {t('Please wait while downloading new version', 'নতুন আপডেট ডাউনলোড হচ্ছে, অপেক্ষা করুন')}
+                  {t(
+                    'Downloading directly in Download Manager...',
+                    'ব্যাকগ্রাউন্ডে ডাউনলোড ম্যানেজারে ডাউনলোড হচ্ছে...'
+                  )}
                 </p>
               </div>
 
-              {/* Progress Percentage Display */}
               <div className="py-2">
-                <span className="text-4xl font-black text-emerald-400 tracking-tight">
+                <span className="text-4xl font-black text-emerald-400 tracking-tight tabular-nums">
                   {downloadProgress}%
                 </span>
               </div>
 
-              {/* Progress Bar */}
               <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/60 overflow-hidden shadow-inner">
                 <div
-                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-200 ease-out"
+                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${downloadProgress}%` }}
                 />
               </div>
@@ -2666,7 +2771,10 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   {t('New Update Available!', 'নতুন আপডেট এসেছে')}
                 </h3>
                 <p className="text-xs text-teal-200/90 leading-relaxed px-1">
-                  {t('Update to get latest features & performance improvements.', 'নতুন সুবিধা ও গতিশীলতা পেতে এখনই অ্যাপটি আপডেট করুন।')}
+                  {t(
+                    'Download & install the latest version directly.',
+                    'নতুন ভার্সন সরাসরি ডাউনলোড করে আপডেট করুন।'
+                  )}
                 </p>
               </div>
 
