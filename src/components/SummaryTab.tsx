@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-  Calendar,
   Globe,
   ChevronLeft,
   ChevronRight,
@@ -10,7 +9,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   CalendarDays,
-  Filter,
   RotateCcw,
   BarChart2,
   PieChart
@@ -19,21 +17,18 @@ import { Transaction, DaySummary } from '../types';
 import {
   normalizeDate,
   formatNumberLocale,
-  formatDayDisplay,
-  formatDateFull,
-  formatDateShortDemo,
-  formatCleanDateTime,
   findMonthMapping,
-  cleanMappingLabel,
-  getMonthKeyFromLabel
+  getMonthKeyFromLabel,
+  formatDateShortDemo
 } from '../utils/dateUtils';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { CategoryDetailsModal } from './Modals';
 
+const DONUT_PALETTE = ['#FF7A59', '#f97316', '#eab308', '#16A34A', '#06b6d4', '#2DD4BF', '#a855f7', '#ec4899', '#14b8a6'];
+
 interface SummaryTabProps {
   transactions: Transaction[];
-  filteredTransactions: Transaction[];
   selectedMonth: string;
   setSelectedMonth: (month: string) => void;
   globalFilterMode: 'month' | 'all';
@@ -49,7 +44,6 @@ interface SummaryTabProps {
 
 export const SummaryTab: React.FC<SummaryTabProps> = ({
   transactions,
-  filteredTransactions,
   selectedMonth,
   setSelectedMonth,
   globalFilterMode,
@@ -271,11 +265,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     return { inc, exp, net, savingsRate, dailyMap };
   }, [displayTransactions]);
 
-  // Compatibility aliases
-  const activeTotals = stats;
-  const filteredRangeTransactions = displayTransactions;
-  const filteredRangeStats = stats;
-
   const filteredDayWiseList = useMemo(() => {
     // 1. Group transactions by date within the filtered range
     const allDateMap: Record<string, { inc: number; exp: number; count: number }> = {};
@@ -468,14 +457,11 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     );
   };
 
-  // Use global filtered transactions for the main stats
-  const activeTransactions = globalFilterMode === 'all' ? transactions : filteredTransactions;
-
   // Filtered Chart Categories based on active filter, chartType and chartMode (Top 5 normalized to 100% with no dummy slices)
   const filteredChartCategories = useMemo(() => {
     const catMap: Record<string, { val: number; rawCat: string }> = {};
 
-    filteredRangeTransactions.forEach(tx => {
+    displayTransactions.forEach(tx => {
       if (tx.type !== chartType) return;
       const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { val: 0, rawCat: tx.category || c };
@@ -503,23 +489,23 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       percent: ((item.val / baseTotal) * 100).toFixed(1),
       isOthers: false
     }));
-  }, [filteredRangeTransactions, chartType, chartMode, lang]);
+  }, [displayTransactions, chartType, chartMode, lang]);
 
   const chartDisplayedTotal = useMemo(() => {
     return filteredChartCategories.reduce((sum, item) => sum + item.val, 0);
   }, [filteredChartCategories]);
 
   const top5Ratio = useMemo(() => {
-    const overallTotal = (chartType === 'Expense' ? filteredRangeStats.exp : filteredRangeStats.inc) || 0;
+    const overallTotal = (chartType === 'Expense' ? stats.exp : stats.inc) || 0;
     if (overallTotal <= 0) return 0;
     return Math.min(100, Math.round((chartDisplayedTotal / overallTotal) * 100));
-  }, [chartType, filteredRangeStats.exp, filteredRangeStats.inc, chartDisplayedTotal]);
+  }, [chartType, stats.exp, stats.inc, chartDisplayedTotal]);
 
   // All Categories Breakdown (Expense & Income) for filtered range
   const filteredAllCategoryBreakdown = useMemo(() => {
     const catMap: Record<string, { total: number; count: number; rawCat: string }> = {};
 
-    filteredRangeTransactions.forEach(tx => {
+    displayTransactions.forEach(tx => {
       if (tx.type !== categoryBreakdownType) return;
       const c = cleanCategoryName(tx.category || '', lang);
       if (!catMap[c]) catMap[c] = { total: 0, count: 0, rawCat: tx.category || c };
@@ -528,7 +514,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
       catMap[c].count += 1;
     });
 
-    const targetTotal = categoryBreakdownType === 'Expense' ? filteredRangeStats.exp : filteredRangeStats.inc;
+    const targetTotal = categoryBreakdownType === 'Expense' ? stats.exp : stats.inc;
     const baseTotal = targetTotal || 1;
 
     return Object.entries(catMap)
@@ -540,7 +526,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         percent: ((info.total / baseTotal) * 100).toFixed(1)
       }))
       .sort((a, b) => b.total - a.total);
-  }, [filteredRangeTransactions, categoryBreakdownType, filteredRangeStats.exp, filteredRangeStats.inc, lang]);
+  }, [displayTransactions, categoryBreakdownType, stats.exp, stats.inc, lang]);
 
   // Monthly History Comparison
   const monthlyHistory = useMemo(() => {
@@ -613,18 +599,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
         className="rounded-2xl bg-gradient-to-b from-[#0D4441] to-[#0A3734] text-[#F0FDFA] p-3.5 sm:p-5 shadow-lg border border-teal-700/50 relative overflow-hidden backdrop-blur-md"
       >
-        {/* Top Header of Hero Card: Month Filter and Custom Filter directly inline on single row */}
-        <div className="flex items-center justify-between border-b border-teal-800/60 pb-2.5 mb-3 gap-2 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        {/* Top Header of Hero Card: Month Filter, Custom Filter & Reset responsive on mobile */}
+        <div className="flex flex-wrap items-center justify-between border-b border-teal-800/60 pb-2.5 mb-3 gap-1.5 sm:gap-2">
+          <div className="flex items-center flex-wrap gap-1 sm:gap-1.5 min-w-0 flex-1">
             {globalFilterMode === 'month' ? (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(-1)}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
+                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
                   title={t('Previous Month', 'পূর্ববর্তী মাস')}
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
                 <select
                   value={selectedMonth}
@@ -632,7 +618,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setSelectedMonth(e.target.value);
                     setFilterPreset('this_month');
                   }}
-                  className="bg-[#062423]/90 border border-teal-700/70 text-white text-[11px] font-bold rounded-xl px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 cursor-pointer shadow-xs transition-all"
+                  className="bg-[#062423]/90 border border-teal-700/70 text-white text-[10px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl px-1.5 sm:px-2.5 py-1 max-w-[100px] sm:max-w-none truncate focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 cursor-pointer shadow-xs transition-all"
                 >
                   {monthOptions.map(m => (
                     <option key={m.val} value={m.val} className="bg-[#062423] text-white">
@@ -643,20 +629,20 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(1)}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
+                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
                   title={t('Next Month', 'পরবর্তী মাস')}
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-200 shrink-0">
+              <div className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] font-bold text-teal-200 shrink-0">
                 <Globe className="w-3.5 h-3.5 text-teal-300 shrink-0" />
                 <span>{t('All-Time Overview', 'লাইফটাইম সর্বমোট')}</span>
               </div>
             )}
 
-            {/* Custom Filter Button Inline Directly Next to Month Filter */}
+            {/* Custom Filter & Reset Buttons */}
             <div className="flex items-center gap-1 relative shrink-0">
               <button
                 type="button"
@@ -666,7 +652,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setFilterPreset('custom');
                   }
                 }}
-                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer border transition-all whitespace-nowrap ${
+                className={`px-1.5 sm:px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer border transition-all whitespace-nowrap ${
                   filterPreset === 'custom'
                     ? 'bg-emerald-900/80 text-emerald-200 border-emerald-700'
                     : 'bg-[#062423] hover:bg-teal-900/80 text-teal-100 border border-teal-700/70'
@@ -674,7 +660,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               >
                 <CalendarDays className="w-3 h-3 text-emerald-400 shrink-0" />
                 <span>{t('Custom Filter', 'কাস্টম ফিল্টার')}</span>
-                <ChevronDown className="w-3 h-3 shrink-0" />
+                <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
               </button>
 
               <button
@@ -685,10 +671,11 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                   setCustomEndDate('');
                   setShowAdvancedFilterDropdown(false);
                 }}
-                className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-[#FF5252] transition-all cursor-pointer border border-rose-800/80 shadow-xs active:scale-95 shrink-0"
+                className="px-1.5 sm:px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-[#FF5252] text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-rose-800/80 shadow-xs active:scale-95 shrink-0 whitespace-nowrap"
                 title={t('Reset Filter', 'ফিল্টার রিসেট')}
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3 shrink-0" />
+                <span>{t('Reset', 'রিসেট')}</span>
               </button>
 
               {/* Direct Custom Date Range Portal Modal */}
@@ -773,9 +760,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
 
           {/* Savings Badge */}
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] text-emerald-300 font-bold px-1.5 py-0.5 rounded-lg bg-emerald-950/60 border border-emerald-800/80">
-              {activeTotals.savingsRate}%
+          <div className="flex items-center shrink-0">
+            <span className="text-[9px] text-emerald-300 font-bold px-1.5 py-0.5 rounded-lg bg-emerald-950/60 border border-emerald-800/80 tabular-nums">
+              {stats.savingsRate}%
             </span>
           </div>
         </div>
@@ -790,13 +777,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span
               className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums transition-colors duration-200 ${
-                activeTotals.net >= 0
+                stats.net >= 0
                   ? 'text-emerald-400 drop-shadow-[0_2px_8px_rgba(52,211,153,0.3)]'
                   : 'text-[#FF7A59] drop-shadow-[0_2px_10px_rgba(255,122,89,0.35)]'
               }`}
             >
-              {activeTotals.net >= 0 ? '+' : ''}
-              {formatNumberLocale(activeTotals.net, lang)}
+              {stats.net >= 0 ? '+' : ''}
+              {formatNumberLocale(stats.net, lang)}
             </span>
           </div>
         </div>
@@ -816,7 +803,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 {t('Income', 'আয়')}
               </span>
               <span className="text-xs sm:text-sm font-black text-emerald-400 tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(52,211,153,0.3)]">
-                +{formatNumberLocale(activeTotals.inc, lang)}
+                +{formatNumberLocale(stats.inc, lang)}
               </span>
             </div>
           </motion.div>
@@ -834,7 +821,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 {t('Expense', 'খরচ')}
               </span>
               <span className="text-xs sm:text-sm font-black text-[#FF7A59] tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]">
-                -{formatNumberLocale(activeTotals.exp, lang)}
+                -{formatNumberLocale(stats.exp, lang)}
               </span>
             </div>
           </motion.div>
@@ -998,7 +985,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 />
                 {/* Segment Arcs */}
                 {(() => {
-                  const palette = ['#FF7A59', '#f97316', '#eab308', '#16A34A', '#06b6d4', '#2DD4BF', '#a855f7', '#ec4899', '#14b8a6'];
                   const circumference = 326.72; // 2 * pi * 52
                   let offset = 0;
                   return filteredChartCategories.map((item, idx) => {
@@ -1007,7 +993,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     const strokeDasharray = `${arcLength} ${circumference}`;
                     const strokeDashoffset = -offset;
                     offset += arcLength;
-                    const color = palette[idx % palette.length];
+                    const color = DONUT_PALETTE[idx % DONUT_PALETTE.length];
 
                     return (
                       <circle
@@ -1042,8 +1028,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             {/* Right: Category, Ratio, and Amount */}
             <div className="flex-1 min-w-0 space-y-1.5 max-h-56 overflow-y-auto pr-0.5 no-scrollbar">
               {filteredChartCategories.map((item, idx) => {
-                const palette = ['#EF4444', '#f97316', '#eab308', '#16A34A', '#06b6d4', '#2DD4BF', '#a855f7', '#ec4899', '#14b8a6'];
-                const color = palette[idx % palette.length];
+                const color = DONUT_PALETTE[idx % DONUT_PALETTE.length];
 
                 return (
                   <button
@@ -1292,13 +1277,13 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             <tbody>
               <tr className="border-b border-slate-200">
                 <td className="p-2 font-bold bg-slate-100 w-1/4">Total Income</td>
-                <td className="p-2 font-bold text-emerald-700">+{formatNumberLocale(filteredRangeStats.inc, lang)}</td>
+                <td className="p-2 font-bold text-emerald-700">+{formatNumberLocale(stats.inc, lang)}</td>
                 <td className="p-2 font-bold bg-slate-100 w-1/4">Total Expense</td>
-                <td className="p-2 font-bold text-rose-700">-{formatNumberLocale(filteredRangeStats.exp, lang)}</td>
+                <td className="p-2 font-bold text-rose-700">-{formatNumberLocale(stats.exp, lang)}</td>
               </tr>
               <tr>
                 <td className="p-2 font-bold bg-slate-100">Net Balance</td>
-                <td className="p-2 font-bold text-slate-900">{filteredRangeStats.net >= 0 ? '+' : ''}{formatNumberLocale(filteredRangeStats.net, lang)}</td>
+                <td className="p-2 font-bold text-slate-900">{stats.net >= 0 ? '+' : ''}{formatNumberLocale(stats.net, lang)}</td>
                 <td className="p-2 font-bold bg-slate-100">Total Transactions</td>
                 <td className="p-2">{displayTransactions.length} items</td>
               </tr>
@@ -1341,7 +1326,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         transactions={(() => {
           if (!selectedCategoryModal) return [];
           const sNorm = cleanCategoryName(selectedCategoryModal, 'en').toLowerCase();
-          const inRange = filteredRangeTransactions.filter(tx => 
+          const inRange = displayTransactions.filter(tx => 
             cleanCategoryName(tx.category, 'en').toLowerCase() === sNorm
           );
           return inRange.length > 0 ? inRange : transactions;

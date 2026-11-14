@@ -1,35 +1,21 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   User,
-  Download,
-  Upload,
-  FileJson,
-  LogOut,
   FileSpreadsheet,
   Archive,
-  Smartphone,
   Calendar,
   Trash2,
   Plus,
-  Shield,
-  Layers,
-  Settings2,
   Edit3,
   ChevronDown,
   ChevronUp,
-  Eye,
   EyeOff,
-  Landmark,
-  Banknote,
-  ShoppingBag,
-  Zap,
-  Scale,
   RotateCcw,
   CheckCircle2,
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { AppUser, Transaction, TransactionType } from '../types';
+import { AppUser, Transaction } from '../types';
 import { APP_VERSION, getAppLastUpdateTime } from '../utils/updateChecker';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
@@ -46,37 +32,14 @@ import { AppsScriptModal, ExportMonthModal } from './Modals';
 
 interface SettingsTabProps {
   currentUser: AppUser | null;
-  expenseCategories: string[];
-  incomeCategories: string[];
-  onOpenAddCategoryModal: (type: TransactionType) => void;
-  onDeleteCategory: (category: string, type: TransactionType) => void;
   transactions: Transaction[];
   lang: 'en' | 'bn';
-  onOpenEditProfile: () => void;
-  viewMode: 'mobile' | 'desktop';
-  onLogout?: () => void;
-  onImportJson?: (data: any) => boolean | void;
   t: (en: string, bn: string) => string;
-  isSyncing?: boolean;
-  onSync?: () => void;
-  lastSyncTime?: string;
-  toggleLanguage?: () => void;
-  monthlyBudget?: number;
-  onSaveMonthlyBudget?: (budget: number) => void;
-  onOpenInstallModal?: () => void;
-  onUpdateSpreadsheetId?: (id: string) => void;
   selectedMonth: string;
   monthMappings: import('../types').MonthMapping[];
   onAddMonthMapping: (mapping: import('../types').MonthMapping) => void;
   onDeleteMonthMapping: (id: string) => void;
-  onSelectMonth: (month: string) => void;
   onSetDefaultMonth?: (monthLabel: string) => void;
-  users?: AppUser[];
-  onOpenCreateUserModal?: () => void;
-  onOpenEditUserModal?: (user: AppUser) => void;
-  onRequestDeleteUser?: (user: AppUser) => void;
-  onSwitchUser?: (user: AppUser) => void;
-  onToggleActiveUser?: (user: AppUser) => void;
   onCheckForUpdates?: () => void;
   appLastUpdateTime?: string;
 }
@@ -94,39 +57,23 @@ const getRoleLabel = (role?: string) => {
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   currentUser,
-  expenseCategories,
-  incomeCategories,
   transactions,
   lang,
-  onOpenEditProfile,
-  onLogout,
-  onImportJson,
   t,
-  onOpenInstallModal,
   selectedMonth,
   monthMappings,
   onAddMonthMapping,
   onDeleteMonthMapping,
-  onSelectMonth,
   onSetDefaultMonth,
-  users = [],
-  onOpenCreateUserModal,
-  onOpenEditUserModal,
-  onRequestDeleteUser,
-  onSwitchUser,
-  onToggleActiveUser,
   onCheckForUpdates,
   appLastUpdateTime
 }) => {
-  const isAdmin = ['super_admin', 'super_admin_2', 'admin'].includes(currentUser?.role || '') || currentUser?.username === 'abujar287';
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [currentAppUpdateTime, setCurrentAppUpdateTime] = useState<string>(() => getAppLastUpdateTime());
 
   useEffect(() => {
     setCurrentAppUpdateTime(getAppLastUpdateTime());
   }, [selectedMonth, transactions.length, appLastUpdateTime]);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Custom Month Mapping State
   const [isMonthMappingExpanded, setIsMonthMappingExpanded] = useState(false);
@@ -137,8 +84,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [newMappingEnd, setNewMappingEnd] = useState('');
   const [newMappingBudget, setNewMappingBudget] = useState('');
   const [newMappingIsDefault, setNewMappingIsDefault] = useState(false);
+  const [mappingError, setMappingError] = useState('');
 
   const handleStartEditMapping = (m: import('../types').MonthMapping) => {
+    setMappingError('');
     setEditingMappingId(m.id);
     setNewMappingLabel(m.label);
     setNewMappingStart(m.startDate);
@@ -151,9 +100,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const handleSaveOrUpdateMapping = () => {
     if (!newMappingLabel.trim() || !newMappingStart || !newMappingEnd) {
-      alert(t('Please fill all fields for custom month', 'সবগুলো ঘর পূরণ করুন'));
+      setMappingError(t('Please fill all fields for custom month', 'সবগুলো ঘর পূরণ করুন'));
       return;
     }
+    setMappingError('');
     const cleanLabel = cleanMappingLabel(newMappingLabel) || newMappingLabel.trim();
     const budgetNum = parseFloat(newMappingBudget);
     
@@ -177,64 +127,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
-
-  // Month dropdown options with clean labels
-  const monthOptions = React.useMemo(() => {
-    const opts: { val: string; label: string }[] = [];
-    const mappedMonthKeys = new Set<string>();
-    
-    // Add custom mappings
-    monthMappings.forEach(m => {
-      opts.push({
-        val: m.label,
-        label: m.label
-      });
-      const mKey = getMonthKeyFromLabel(m.label);
-      if (mKey) mappedMonthKeys.add(mKey);
-    });
-
-    const now = new Date();
-    for (let i = -12; i <= 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!mappedMonthKeys.has(val)) {
-        const label = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'bn-BD', {
-          month: 'short',
-          year: 'numeric'
-        });
-        if (!opts.find(o => o.val === val)) {
-          opts.push({ val, label });
-        }
-      }
-    }
-    return opts;
-  }, [lang, monthMappings]);
-
-  // Export Full Month Report ZIP (Summary PDF + Details Excel)
-  const [exportFeedback, setExportFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
+    setShowExportModal(false);
     setIsExportingZip(true);
     setExportFeedback(null);
     try {
       await exportMonthlyReportZip({
-        ...params,
+        month: params.month,
+        startDate: params.startDate,
+        endDate: params.endDate,
         transactions,
-        monthMappings,
         lang,
-        userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari'
+        userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari',
+        monthMappings
       });
       setExportFeedback({
-        msg: lang === 'en' ? 'ZIP Report downloaded successfully!' : 'ZIP রিপোর্ট প্যাকেজ সফলভাবে ডাউনলোড হয়েছে!',
-        type: 'success'
+        type: 'success',
+        msg: t('Monthly report ZIP downloaded!', 'মাসিক রিপোর্ট ZIP ডাউনলোড সম্পন্ন!')
       });
-      setTimeout(() => setExportFeedback(null), 4000);
     } catch (err: any) {
       setExportFeedback({
-        msg: err.message || (lang === 'en' ? 'Download failed' : 'ডাউনলোড করতে সমস্যা হয়েছে'),
-        type: 'error'
+        type: 'error',
+        msg: err?.message || t('Failed to export ZIP report', 'ZIP রিপোর্ট এক্সপোর্ট করা যায়নি')
       });
-      setTimeout(() => setExportFeedback(null), 5000);
     } finally {
       setIsExportingZip(false);
     }
@@ -246,50 +163,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const monthInc = monthTransactions.reduce((acc, tx) => tx.type === 'Income' ? acc + evaluateExpression(tx.value) : acc, 0);
   const monthExp = monthTransactions.reduce((acc, tx) => tx.type === 'Expense' ? acc + evaluateExpression(tx.value) : acc, 0);
   const monthNet = monthInc - monthExp;
-
-  // Export full JSON backup
-  const handleExportJson = () => {
-    const backupData = {
-      appName: 'hisab_kitab',
-      exportDate: new Date().toISOString(),
-      user: currentUser?.username || 'abujar287',
-      totalTransactions: transactions.length,
-      transactions,
-      expenseCategories,
-      incomeCategories
-    };
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `hisab_kitab_backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  // Import JSON file handler
-  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-        if (onImportJson) {
-          onImportJson(parsed);
-        }
-      } catch (err) {
-        alert(lang === 'en' ? 'Invalid JSON file format!' : 'ভুল ফরম্যাটের JSON ফাইল!');
-      } finally {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }
-    };
-    reader.readAsText(file);
-  };
 
   // ----------------------------------------------------
   // MATRICS AMOUNT (ASSET RECONCILIATION) STATE & CALCULATION
@@ -693,6 +566,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     />
                   </div>
                 </div>
+
+                {mappingError && (
+                  <p className="text-[11px] font-semibold text-rose-300 bg-rose-950/60 border border-rose-800/60 rounded-lg px-2.5 py-1.5">
+                    {mappingError}
+                  </p>
+                )}
 
                 <div className="flex items-center justify-between pt-1">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-teal-200 cursor-pointer select-none">

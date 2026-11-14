@@ -9,23 +9,14 @@ import {
   Search,
   Check,
   X,
-  Volume2,
-  VolumeX,
   RotateCcw,
   Zap,
   AlertTriangle
 } from 'lucide-react';
 import { CostTask } from '../types';
 import { ModalPortal } from './Modals';
-import {
-  playTaskAlarmSound,
-  stopTaskAlarmSound,
-  sendSystemNotification,
-  vibrateDevice,
-  initAudioUnlock,
-  setupWebPushSubscription
-} from '../utils/taskAlarmManager';
-import { normalizeTime, formatTime12h, formatTaskCreatedAt, formatNumberLocale } from '../utils/dateUtils';
+import { initAudioUnlock } from '../utils/taskAlarmManager';
+import { normalizeTime, formatTime12h, formatNumberLocale } from '../utils/dateUtils';
 
 interface TaskTabProps {
   tasks: CostTask[];
@@ -37,9 +28,6 @@ interface TaskTabProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   currentUser: { username: string; displayName?: string } | null;
   categories?: string[];
-  activeRingingTask?: CostTask | null;
-  onStopRingingAlarm?: () => void;
-  onTestTaskAlarm?: (task?: CostTask) => void;
   lang: 'en' | 'bn';
 }
 
@@ -53,17 +41,14 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   showToast,
   currentUser,
   categories = [],
-  activeRingingTask,
-  onStopRingingAlarm,
   lang
 }) => {
-  const [filterStatus, setFilterStatus] = useState<'pending' | 'due' | 'upcoming' | 'completed' | 'all'>('all');
+  const [filterStatus] = useState<'pending' | 'due' | 'upcoming' | 'completed' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<CostTask | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<CostTask | null>(null);
-  const [isTestingSound, setIsTestingSound] = useState(false);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -78,49 +63,9 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Request Notification permission & auto-set alarm
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      return Notification.permission;
-    }
-    return 'default';
-  });
-
   useEffect(() => {
     initAudioUnlock();
   }, []);
-
-  const requestNotificationPermission = async () => {
-    initAudioUnlock();
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      try {
-        const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
-        if (permission === 'granted') {
-          setupWebPushSubscription().catch(() => {});
-          showToast(t('Notification & Alarm Sound Auto-Enabled!', 'নোটিফিকেশন ও অ্যালার্ম সাউন্ড অটো-সেট হয়েছে!'), 'success');
-          
-          tasks.forEach(taskObj => {
-            if (!taskObj.autoNotify) {
-              onUpdateTask({ ...taskObj, autoNotify: true });
-            }
-          });
-
-          sendSystemNotification('হাত খরচ Task Reminder', {
-            body: t('Notifications & sound alarms are active even when app is closed!', 'নোটিফিকেশন এবং সাউন্ড অ্যালার্ম সক্রিয় হয়েছে (অ্যাপ বন্ধ থাকলেও বাজবে)!')
-          });
-        } else {
-          showToast(t('Notification permission denied', 'নোটিফিকেশন অনুমতি পাওয়া যায়নি'), 'error');
-        }
-      } catch (e) {
-        console.warn('Error requesting notification permission:', e);
-      }
-    }
-  };
-
-  const handleTestAlarmSound = (taskObj?: CostTask) => {
-    showToast(t('Alarm test functionality disabled', 'অ্যালার্ম পরীক্ষা এখন বন্ধ'), 'info');
-  };
 
   const openFormModal = (taskToEdit?: CostTask) => {
     initAudioUnlock();
@@ -690,8 +635,9 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
       {/* ADD / EDIT TASK MODAL */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-modalSpring">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-modalSpring">
             
             {/* Modal Header */}
             <div className="px-5 py-4 bg-teal-900/90 border-b border-teal-800 flex items-center justify-between text-white">
@@ -821,6 +767,19 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
 
 
+              <div>
+                <label className="block text-xs font-bold text-teal-200 mb-1">
+                  Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Optional details..."
+                  className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
+                />
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-teal-800">
                 <button
                   type="button"
@@ -840,6 +799,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* DELETE CONFIRMATION MODAL */}

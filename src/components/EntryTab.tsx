@@ -6,35 +6,13 @@ import {
   Delete,
   Check,
   X,
-  Plus,
-  Wifi,
-  Zap,
-  Pill,
-  ShoppingBag,
-  ShoppingCart,
-  Utensils,
-  Home,
-  User,
-  Users,
-  Heart,
-  Coffee,
-  Flame,
-  Moon,
-  Monitor,
-  Key,
-  Armchair,
-  Navigation,
-  PiggyBank,
-  Handshake,
-  Apple,
-  Wallet,
-  CheckCircle2,
-  Tag
+  Plus
 } from 'lucide-react';
 import { TransactionType } from '../types';
-import { cleanCategoryName, getCategoryEmoji } from '../utils/categoryUtils';
+import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { formatNumberLocale } from '../utils/dateUtils';
+import { CategoryIcon } from './CategoryIcon';
 
 interface EntryTabProps {
   entryType: TransactionType;
@@ -55,12 +33,6 @@ interface EntryTabProps {
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
 }
-
-// Dynamic icon mapper sourced from sheet category or hash
-const CategoryIcon: React.FC<{ category: string }> = ({ category }) => {
-  const emoji = getCategoryEmoji(category);
-  return <span className="text-xl leading-none select-none">{emoji}</span>;
-};
 
 export const EntryTab: React.FC<EntryTabProps> = ({
   entryType,
@@ -269,7 +241,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
                   entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
                 }`}>
-                  <CategoryIcon category={entryCategory} />
+                  <CategoryIcon category={entryCategory} size="md" />
                 </div>
                 <div className="min-w-0">
                   <span className="text-[9.5px] font-bold text-teal-300/80 uppercase tracking-wider block">
@@ -341,7 +313,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                     : 'bg-[#0B3C39] border border-teal-700/70 text-teal-100 group-hover:border-emerald-400/80 group-hover:bg-teal-800/80'
                 }`}
               >
-                <CategoryIcon category={cat} />
+                <CategoryIcon category={cat} size="lg" />
               </div>
 
               {/* Category Name Underneath */}
@@ -388,7 +360,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
                     entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
                   }`}>
-                    <CategoryIcon category={entryCategory} />
+                    <CategoryIcon category={entryCategory} size="md" />
                   </div>
                   <div className="min-w-0">
                     <span className="text-xs sm:text-sm font-extrabold text-[#F0FDFA] truncate block max-w-[140px]">

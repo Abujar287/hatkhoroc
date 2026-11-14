@@ -2,7 +2,16 @@ export type TransactionType = 'Expense' | 'Income';
 
 export type UserRole = 'super_admin' | 'super_admin_2' | 'senior_member' | 'member' | 'admin';
 
-export type AppTab = 'summary' | 'entry' | 'details' | 'budget' | 'upcoming_cost' | 'users' | 'settings';
+export type AppTab =
+  | 'summary'
+  | 'entry'
+  | 'details'
+  | 'budget'
+  | 'upcoming_cost'
+  | 'monthly_summary'
+  | 'upcoming_3_month'
+  | 'users'
+  | 'settings';
 
 export interface CostTask {
   id: string;
@@ -70,4 +79,23 @@ export interface MonthMapping {
   defaultMonth?: string;
   budget?: number;
 }
+
+export interface BouGiftEntry {
+  month: string;
+  budget: number;
+  give: number;
+}
+
+export interface Upcoming3MonthPlan {
+  monthLabels?: [string, string, string];
+  categories: string[];
+  categoryValues: Record<string, [number, number, number]>;
+  salary: [number, number, number];
+  have: [number, number, number];
+  loan: [number, number, number];
+  bkashLoanTotal: number;
+  forceRebuild?: boolean;
+}
+
+
 

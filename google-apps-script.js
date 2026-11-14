@@ -2,7 +2,7 @@
 // হাত খরচ (Hisab Kitab): গুগল শিট Apps Script কোড (Code.gs)
 // ভার্সন: 7.0 (Unified 1-Tab Multi-User Architecture)
 // প্রতিটি ইউজারের (যেমন: abujar287, munni) জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
-// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ]
+// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ]
 // কোনো এন্ট্রি ডিলিট করলে শুধুমাত্র সেই কলাম রেঞ্জ ডিলিট হবে, ডানের কলামের ডেটা অক্ষত থাকবে!
 // ====================================================================
 
@@ -197,6 +197,27 @@ function doPost(e) {
     if (action === 'deletetask') {
       return handleDeleteTaskRange(sheet, data, e ? e.parameter : null);
     }
+
+    // ৫.৯ আগামী ৩ মাসের প্ল্যান সেভ (SAVE UPCOMING 3 MONTH - AS2:AV কলামে ফর্মুলাসহ সেভ)
+    if (action === 'saveupcoming3month' || action === 'upcoming3month') {
+      saveUpcoming3MonthToRange(sheet, data);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        message: 'আগামী ৩ মাসের প্ল্যান AS2:AV কলামে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ৫.১০ বউ গিফট ডেটা সেভ (SAVE BOU GIFT - AX:AZ কলামে সেভ, পুরোনো ডাটা অক্ষত রেখে)
+    if (action === 'savebougift' || action === 'bougift') {
+      var bouRows = Array.isArray(data.bouGift) ? data.bouGift : (Array.isArray(data.rows) ? data.rows : []);
+      saveBouGiftToRange(sheet, bouRows);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        message: 'বউ গিফট ডেটা AX:AZ কলামে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
     
     // ৬. নতুন ট্রানজ্যাকশন যোগ করা (INSERT ENTRY - A-G কলামে অ্যাপেন্ড)
     if (action === 'insert' || action === 'add' || action === 'create') {
@@ -333,7 +354,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks, Users) পড়া
+  // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks, Users, Upcoming 3 Month) পড়া
   ensureUnifiedTemplateHeaders(sheet);
   
   var txData = readEntriesFromRange(sheet);
@@ -342,6 +363,8 @@ function doGet(e) {
   var budgetData = readBudgetsFromRange(sheet, ss);
   var taskData = readTasksFromRange(sheet, ss);
   var userData = readUsersFromRange(ss);
+  var upcoming3MData = readUpcoming3MonthFromRange(sheet);
+  var bouGiftData = readBouGiftFromRange(sheet);
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -352,6 +375,8 @@ function doGet(e) {
     categoryBudgets: budgetData,
     tasks: taskData,
     users: userData,
+    upcoming3Month: upcoming3MData,
+    bouGift: bouGiftData,
     count: txData.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -388,8 +413,8 @@ function getTargetSheet(ss, tabName) {
 }
 
 function createUnifiedTemplate(sheet) {
-  if (sheet.getMaxColumns() < 43) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 43 - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < 52) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 52 - sheet.getMaxColumns());
   }
 
   // Row 1: Merged Section Headers
@@ -399,6 +424,7 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 18, 1, 5).merge().setValue('month mapping').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 24, 1, 13).merge().setValue('Tasks').setFontWeight('bold').setHorizontalAlignment('center');
   sheet.getRange(1, 38, 1, 6).merge().setValue('User Details').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(1, 45, 1, 4).merge().setValue('Upcoming 3 Month').setFontWeight('bold').setHorizontalAlignment('center');
 
   // Row 2: Column Names
   sheet.getRange(2, 1, 1, 7).setValues([['id', 'datetime', 'type', 'category', 'date', 'value', 'note']])
@@ -419,8 +445,13 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(2, 38, 1, 6).setValues([['Full Name', 'username', 'password', 'sheet tab name', 'role', 'access tab']])
     .setFontWeight('bold').setHorizontalAlignment('center');
 
+  sheet.getRange(2, 45, 1, 4).setValues([['Category', '', '', '']])
+    .setFontWeight('bold').setHorizontalAlignment('center');
+
   sheet.setFrozenRows(2);
   sheet.getRange(1, 1, 2, 43).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 45, 2, 4).setBorder(true, true, true, true, true, true);
+  ensureBouGiftHeaders(sheet);
   
   try {
     sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
@@ -447,13 +478,54 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
 }
 
+function ensureBouGiftHeaders(sheet) {
+  if (sheet.getMaxColumns() < 52) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 52 - sheet.getMaxColumns());
+  }
+  var bouHdr = String(sheet.getRange(1, 50).getValue() || '').trim().toLowerCase();
+  var bouSub = String(sheet.getRange(6, 50).getValue() || '').trim().toLowerCase();
+  if (bouHdr !== 'bou gift' || bouSub !== 'month') {
+    try { sheet.getRange(1, 50, 1, 3).breakApart(); } catch (e) {}
+    sheet.getRange(1, 50, 1, 3).merge().setValue('Bou Gift').setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(2, 50, 3, 2).setValues([
+      ['Total Amount', '=SUM(AY7:AY)'],
+      ['Give', '=SUM(AZ7:AZ)'],
+      ['Due', '=AY2-AY3']
+    ]).setFontWeight('bold');
+    sheet.getRange(6, 50, 1, 3).setValues([['Month', 'Budget', 'Give']])
+      .setFontWeight('bold').setHorizontalAlignment('center');
+    try {
+      sheet.getRange(2, 51, 3, 1).setNumberFormat('#,##0');
+      sheet.getRange(1, 50, 4, 3).setBorder(true, true, true, true, true, true);
+      sheet.getRange(6, 50, 1, 3).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
+}
+
 function ensureUnifiedTemplateHeaders(sheet) {
   var row1Val = sheet.getRange(1, 1).getValue();
   var row2Val = sheet.getRange(2, 1).getValue();
   
   if (!row1Val || !row2Val || String(row1Val).toLowerCase() !== 'entry' || String(row2Val).toLowerCase() !== 'id') {
     createUnifiedTemplate(sheet);
+    return;
   }
+
+  if (sheet.getMaxColumns() < 52) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 52 - sheet.getMaxColumns());
+  }
+  var u3Header = sheet.getRange(1, 45).getValue();
+  if (!u3Header || String(u3Header).toLowerCase() !== 'upcoming 3 month') {
+    sheet.getRange(1, 45, 1, 4).merge().setValue('Upcoming 3 Month').setFontWeight('bold').setHorizontalAlignment('center');
+    var u3Col2 = sheet.getRange(2, 45).getValue();
+    if (!u3Col2) {
+      sheet.getRange(2, 45, 1, 4).setValues([['Category', '', '', '']]).setFontWeight('bold').setHorizontalAlignment('center');
+    }
+    try {
+      sheet.getRange(1, 45, 2, 4).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
+  ensureBouGiftHeaders(sheet);
 }
 
 function getNextEmptyRowInRange(sheet, startCol, numCols) {
@@ -1162,6 +1234,426 @@ function readUsersFromRange(ss) {
   }
   return users;
 }
+
+// ----------------------------------------------------
+// ৬. UPCOMING 3 MONTH ফাংশনস (AS2:AV কলাম, Cols 45-48)
+// ----------------------------------------------------
+
+function formatBouMonthLabel(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var d = String(val.getDate()).padStart(2, '0');
+    var m = months[val.getMonth()] || '';
+    var y = String(val.getFullYear()).slice(-2);
+    return d + '-' + m + '-' + y;
+  }
+  var str = String(val).trim();
+  if (str.indexOf('GMT') !== -1 || str.indexOf('Standard Time') !== -1) {
+    var dt = new Date(str);
+    if (!isNaN(dt.getTime())) {
+      var ms = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return String(dt.getDate()).padStart(2, '0') + '-' + (ms[dt.getMonth()] || '') + '-' + String(dt.getFullYear()).slice(-2);
+    }
+  }
+  return str;
+}
+
+function saveUpcoming3MonthToRange(sheet, data) {
+  if (sheet.getMaxColumns() < 48) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 48 - sheet.getMaxColumns());
+  }
+  ensureUnifiedTemplateHeaders(sheet);
+
+  var mLabels = Array.isArray(data.monthLabels) ? data.monthLabels : ['', '', ''];
+  var m1 = mLabels[0] ? String(mLabels[0]).trim() : '';
+  var m2 = mLabels[1] ? String(mLabels[1]).trim() : '';
+  var m3 = mLabels[2] ? String(mLabels[2]).trim() : '';
+
+  var cats = Array.isArray(data.categories) ? data.categories : [];
+  var catValues = (data.categoryValues && typeof data.categoryValues === 'object') ? data.categoryValues : {};
+  var sal = Array.isArray(data.salary) ? data.salary : [0, 0, 0];
+  var have = Array.isArray(data.have) ? data.have : [0, 0, 0];
+  var loan = Array.isArray(data.loan) ? data.loan : [0, 0, 0];
+  var bkashTotal = Number(data.bkashLoanTotal) || 0;
+
+  var targetCats = [];
+  for (var i = 0; i < cats.length; i++) {
+    var cName = String(cats[i] || '').trim();
+    if (!cName) continue;
+    var vals = Array.isArray(catValues[cName]) ? catValues[cName] : [0, 0, 0];
+    targetCats.push({
+      name: cName,
+      v1: Number(vals[0]) || 0,
+      v2: Number(vals[1]) || 0,
+      v3: Number(vals[2]) || 0
+    });
+  }
+  if (targetCats.length === 0) {
+    targetCats.push({ name: 'Room Rent', v1: 0, v2: 0, v3: 0 });
+  }
+
+  // Check if existing AS3:AV structure matches target categories & key rows
+  // If structure matches, update ONLY changed data cells in-place!
+  var forceRebuild = data.forceRebuild === true || String(data.forceRebuild).toLowerCase() === 'true';
+  var lastRow = sheet.getLastRow();
+  var canUpdateInPlace = !forceRebuild && lastRow >= 3;
+  var existingCats = [];
+  var rowMap = {};
+
+  if (canUpdateInPlace) {
+    var existingRangeVals = sheet.getRange(3, 45, lastRow - 2, 4).getValues();
+    var inCatSection = true;
+    for (var r = 0; r < existingRangeVals.length; r++) {
+      var lbl = String(existingRangeVals[r][0] || '').trim();
+      var rNum = r + 3;
+      if (!lbl) continue;
+      var low = lbl.toLowerCase();
+
+      if (low === 'bou gift') {
+        canUpdateInPlace = false;
+        break;
+      } else if (low === 'salary') {
+        inCatSection = false;
+        rowMap.salary = { row: rNum, vals: existingRangeVals[r] };
+      } else if (low === 'have') {
+        inCatSection = false;
+        rowMap.have = { row: rNum, vals: existingRangeVals[r] };
+      } else if (low === 'loan') {
+        inCatSection = false;
+        rowMap.loan = { row: rNum, vals: existingRangeVals[r] };
+      } else if (low === 'bkash loan total') {
+        inCatSection = false;
+        rowMap.bkashTotal = { row: rNum, vals: existingRangeVals[r] };
+      } else if (low === 'total' || low === 'arrear' || low === 'bkash loan payment' || low === 'final due') {
+        inCatSection = false;
+      } else if (inCatSection) {
+        existingCats.push({ name: lbl, nameLower: low, row: rNum, vals: existingRangeVals[r] });
+      }
+    }
+
+    if (
+      canUpdateInPlace &&
+      (existingCats.length !== targetCats.length ||
+      !rowMap.salary || !rowMap.have || !rowMap.loan || !rowMap.bkashTotal)
+    ) {
+      canUpdateInPlace = false;
+    } else if (canUpdateInPlace) {
+      for (var c = 0; c < targetCats.length; c++) {
+        if (existingCats[c].nameLower !== targetCats[c].name.toLowerCase()) {
+          canUpdateInPlace = false;
+          break;
+        }
+      }
+    }
+  }
+
+  if (canUpdateInPlace) {
+    var curHeaders = sheet.getRange(2, 45, 1, 4).getValues()[0];
+    if (
+      String(curHeaders[0] || '').trim() !== 'Category' ||
+      parseLabelString(curHeaders[1]) !== m1 ||
+      parseLabelString(curHeaders[2]) !== m2 ||
+      parseLabelString(curHeaders[3]) !== m3
+    ) {
+      sheet.getRange(2, 45, 1, 4)
+        .setValues([['Category', m1, m2, m3]])
+        .setFontWeight('bold')
+        .setHorizontalAlignment('center');
+    }
+
+    for (var idx = 0; idx < targetCats.length; idx++) {
+      var tc = targetCats[idx];
+      var ec = existingCats[idx];
+      if (
+        (Number(ec.vals[1]) || 0) !== tc.v1 ||
+        (Number(ec.vals[2]) || 0) !== tc.v2 ||
+        (Number(ec.vals[3]) || 0) !== tc.v3
+      ) {
+        sheet.getRange(ec.row, 46, 1, 3).setValues([[tc.v1, tc.v2, tc.v3]]);
+      }
+    }
+
+    var sal1 = Number(sal[0]) || 0, sal2 = Number(sal[1]) || 0, sal3 = Number(sal[2]) || 0;
+    if ((Number(rowMap.salary.vals[1]) || 0) !== sal1 || (Number(rowMap.salary.vals[2]) || 0) !== sal2 || (Number(rowMap.salary.vals[3]) || 0) !== sal3) {
+      sheet.getRange(rowMap.salary.row, 46, 1, 3).setValues([[sal1, sal2, sal3]]);
+    }
+
+    var h1 = Number(have[0]) || 0, h2 = Number(have[1]) || 0, h3 = Number(have[2]) || 0;
+    if ((Number(rowMap.have.vals[1]) || 0) !== h1 || (Number(rowMap.have.vals[2]) || 0) !== h2 || (Number(rowMap.have.vals[3]) || 0) !== h3) {
+      sheet.getRange(rowMap.have.row, 46, 1, 3).setValues([[h1, h2, h3]]);
+    }
+
+    var l1 = Number(loan[0]) || 0, l2 = Number(loan[1]) || 0, l3 = Number(loan[2]) || 0;
+    if ((Number(rowMap.loan.vals[1]) || 0) !== l1 || (Number(rowMap.loan.vals[2]) || 0) !== l2 || (Number(rowMap.loan.vals[3]) || 0) !== l3) {
+      sheet.getRange(rowMap.loan.row, 46, 1, 3).setValues([[l1, l2, l3]]);
+    }
+
+    if ((Number(rowMap.bkashTotal.vals[1]) || 0) !== bkashTotal) {
+      sheet.getRange(rowMap.bkashTotal.row, 46).setValue(bkashTotal);
+    }
+    return;
+  }
+
+  // Full rebuild ONLY inside AS3:AV (only when AS3:AV empty OR categories added/removed)
+  if (lastRow >= 3) {
+    sheet.getRange(3, 45, lastRow - 2, 4).breakApart().clearContent().setBorder(false, false, false, false, false, false);
+  }
+
+  sheet.getRange(2, 45, 1, 4)
+    .setValues([['Category', m1, m2, m3]])
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+
+  var allRows = [];
+  var catStartRow = 3;
+  for (var k = 0; k < targetCats.length; k++) {
+    allRows.push([targetCats[k].name, targetCats[k].v1, targetCats[k].v2, targetCats[k].v3]);
+  }
+  var catEndRow = catStartRow + allRows.length - 1;
+
+  allRows.push(['', '', '', '']);
+  var rSal = catStartRow + allRows.length;
+  allRows.push(['Salary', Number(sal[0]) || 0, Number(sal[1]) || 0, Number(sal[2]) || 0]);
+  var rHave = catStartRow + allRows.length;
+  allRows.push(['Have', Number(have[0]) || 0, Number(have[1]) || 0, Number(have[2]) || 0]);
+  var rLoan = catStartRow + allRows.length;
+  allRows.push(['Loan', Number(loan[0]) || 0, Number(loan[1]) || 0, Number(loan[2]) || 0]);
+
+  var rTotal = catStartRow + allRows.length;
+  allRows.push([
+    'Total',
+    '=SUM(AT' + rSal + ':AT' + rLoan + ')',
+    '=SUM(AU' + rSal + ':AU' + rLoan + ')',
+    '=SUM(AV' + rSal + ':AV' + rLoan + ')'
+  ]);
+
+  var rArrear = catStartRow + allRows.length;
+  allRows.push([
+    'Arrear',
+    '=AT' + rTotal + '-SUM(AT' + catStartRow + ':AT' + catEndRow + ')',
+    '=AU' + rTotal + '-SUM(AU' + catStartRow + ':AU' + catEndRow + ')',
+    '=AV' + rTotal + '-SUM(AV' + catStartRow + ':AV' + catEndRow + ')'
+  ]);
+
+  allRows.push(['', '', '', '']);
+  var rBkashTot = catStartRow + allRows.length;
+  allRows.push(['Bkash Loan Total', bkashTotal, '', '']);
+
+  var rBkashPay = catStartRow + allRows.length;
+  allRows.push([
+    'Bkash Loan Payment',
+    '=SUMIF($AS$' + catStartRow + ':$AS$' + catEndRow + ',"*Bkash*",AT' + catStartRow + ':AT' + catEndRow + ')',
+    '=SUMIF($AS$' + catStartRow + ':$AS$' + catEndRow + ',"*Bkash*",AU' + catStartRow + ':AU' + catEndRow + ')',
+    '=SUMIF($AS$' + catStartRow + ':$AS$' + catEndRow + ',"*Bkash*",AV' + catStartRow + ':AV' + catEndRow + ')'
+  ]);
+
+  var rFinalDue = catStartRow + allRows.length;
+  allRows.push([
+    'Final Due',
+    '=AT' + rBkashTot + '-AT' + rBkashPay,
+    '=AT' + rFinalDue + '-AU' + rBkashPay,
+    '=AU' + rFinalDue + '-AV' + rBkashPay
+  ]);
+
+  var totalWritten = allRows.length;
+  sheet.getRange(3, 45, totalWritten, 4).setValues(allRows);
+
+  try {
+    sheet.getRange(catStartRow, 45, catEndRow - catStartRow + 1, 4).setBorder(true, true, true, true, true, true).setFontWeight('normal');
+    sheet.getRange(catEndRow + 1, 45, 1, 4).setBorder(false, false, false, false, false, false);
+    sheet.getRange(rSal, 45, 5, 4).setBorder(true, true, true, true, true, true).setFontWeight('normal');
+    sheet.getRange(rTotal, 45, 2, 4).setFontWeight('bold');
+    sheet.getRange(rArrear + 1, 45, 1, 4).setBorder(false, false, false, false, false, false);
+    sheet.getRange(rBkashTot, 45, 3, 4).setBorder(true, true, true, true, true, true).setFontWeight('normal');
+    sheet.getRange(rFinalDue, 45, 1, 4).setFontWeight('bold');
+    sheet.getRange(3, 46, totalWritten, 3).setNumberFormat('#,##0');
+  } catch (e) {}
+}
+
+function readUpcoming3MonthFromRange(sheet) {
+  if (sheet.getMaxColumns() < 48) return null;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return null;
+
+  var vals = sheet.getRange(2, 45, lastRow - 1, 4).getValues();
+  if (!vals || vals.length < 2) return null;
+
+  var monthLabels = [
+    parseLabelString(vals[0][1]),
+    parseLabelString(vals[0][2]),
+    parseLabelString(vals[0][3])
+  ];
+
+  var categories = [];
+  var categoryValues = {};
+  var salary = [0, 0, 0];
+  var have = [0, 0, 0];
+  var loan = [0, 0, 0];
+  var bkashLoanTotal = 0;
+  var inCategories = true;
+  var hasFunding = false;
+
+  for (var i = 1; i < vals.length; i++) {
+    var row = vals[i];
+    var label = String(row[0] || '').trim();
+    if (!label) continue;
+
+    var lower = label.toLowerCase();
+    var v1 = Number(row[1]) || 0;
+    var v2 = Number(row[2]) || 0;
+    var v3 = Number(row[3]) || 0;
+
+    if (lower === 'bou gift') {
+      break;
+    } else if (lower === 'salary') {
+      inCategories = false;
+      salary = [v1, v2, v3];
+      if (v1 || v2 || v3) hasFunding = true;
+    } else if (lower === 'have') {
+      inCategories = false;
+      have = [v1, v2, v3];
+      if (v1 || v2 || v3) hasFunding = true;
+    } else if (lower === 'loan') {
+      inCategories = false;
+      loan = [v1, v2, v3];
+      if (v1 || v2 || v3) hasFunding = true;
+    } else if (lower === 'total' || lower === 'arrear' || lower === 'bkash loan payment' || lower === 'final due') {
+      inCategories = false;
+    } else if (lower === 'bkash loan total') {
+      inCategories = false;
+      bkashLoanTotal = v1;
+    } else if (inCategories) {
+      categories.push(label);
+      categoryValues[label] = [v1, v2, v3];
+    }
+  }
+
+  if (categories.length === 0 && !hasFunding && bkashLoanTotal === 0) {
+    return null;
+  }
+
+  return {
+    monthLabels: monthLabels,
+    categories: categories,
+    categoryValues: categoryValues,
+    salary: salary,
+    have: have,
+    loan: loan,
+    bkashLoanTotal: bkashLoanTotal
+  };
+}
+
+// ----------------------------------------------------
+// ৭. BOU GIFT ফাংশনস (AX:AZ কলাম, Cols 50-52)
+//    - পুরোনো ডাটা কখনো মুছবে না
+//    - নতুন মাস আসলে নিচে Append হবে
+//    - কোনো মাসের Give পরিবর্তন হলে শুধু ঐ সেল আপডেট হবে
+// ----------------------------------------------------
+
+function normalizeBouMonthKeySheet(val) {
+  var str = formatBouMonthLabel(val);
+  if (!str) return '';
+  var lower = str.toLowerCase();
+  var months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  var mIdx = -1;
+  for (var i = 0; i < months.length; i++) {
+    if (lower.indexOf(months[i]) !== -1) {
+      mIdx = i + 1;
+      break;
+    }
+  }
+  if (mIdx === -1) return lower;
+  var yr4 = lower.match(/(20\d{2})/);
+  var yr2 = lower.match(/(?:-|\/|\s)(\d{2})$/);
+  var year = yr4 ? Number(yr4[1]) : (yr2 ? (2000 + Number(yr2[1])) : 2026);
+  return year + '-' + String(mIdx).padStart(2, '0');
+}
+
+function saveBouGiftToRange(sheet, bouGiftArray) {
+  ensureBouGiftHeaders(sheet);
+  if (!Array.isArray(bouGiftArray) || bouGiftArray.length === 0) return;
+
+  var lastRow = sheet.getLastRow();
+  var existingByKey = {};
+  var lastBouDataRow = 6;
+
+  if (lastRow >= 7) {
+    var existingVals = sheet.getRange(7, 50, lastRow - 6, 3).getValues();
+    for (var i = 0; i < existingVals.length; i++) {
+      var rawMonth = existingVals[i][0];
+      if (!rawMonth) continue;
+      var formattedLabel = formatBouMonthLabel(rawMonth);
+      var key = normalizeBouMonthKeySheet(formattedLabel);
+      var rowNum = i + 7;
+      if (rowNum > lastBouDataRow) lastBouDataRow = rowNum;
+      if (key) {
+        existingByKey[key] = {
+          row: rowNum,
+          month: formattedLabel,
+          budget: Number(existingVals[i][1]) || 0,
+          give: Number(existingVals[i][2]) || 0
+        };
+      }
+    }
+  }
+
+  var nextAppendRow = lastBouDataRow + 1;
+
+  for (var j = 0; j < bouGiftArray.length; j++) {
+    var item = bouGiftArray[j];
+    if (!item || !item.month) continue;
+    var mLabel = String(item.month).trim();
+    var mKey = normalizeBouMonthKeySheet(mLabel);
+    var budgetVal = Number(item.budget) || 0;
+    var giveVal = Number(item.give) || 0;
+
+    if (mKey && existingByKey[mKey]) {
+      var ex = existingByKey[mKey];
+      // Update ONLY the changed cell(s), leaving all existing rows untouched
+      if (ex.budget !== budgetVal) {
+        sheet.getRange(ex.row, 51).setValue(budgetVal);
+      }
+      if (ex.give !== giveVal) {
+        sheet.getRange(ex.row, 52).setValue(giveVal);
+      }
+    } else {
+      // Append new month strictly at the bottom below existing rows
+      sheet.getRange(nextAppendRow, 50, 1, 3).setValues([[mLabel, budgetVal, giveVal]]);
+      try {
+        sheet.getRange(nextAppendRow, 50).setNumberFormat('@');
+        sheet.getRange(nextAppendRow, 51, 1, 2).setNumberFormat('#,##0');
+        sheet.getRange(nextAppendRow, 50, 1, 3).setBorder(true, true, true, true, true, true).setFontWeight('normal');
+      } catch (e) {}
+      if (mKey) {
+        existingByKey[mKey] = { row: nextAppendRow, month: mLabel, budget: budgetVal, give: giveVal };
+      }
+      nextAppendRow++;
+    }
+  }
+}
+
+function readBouGiftFromRange(sheet) {
+  if (sheet.getMaxColumns() < 52) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 7) return [];
+
+  var vals = sheet.getRange(7, 50, lastRow - 6, 3).getValues();
+  var list = [];
+  for (var i = 0; i < vals.length; i++) {
+    var mRaw = vals[i][0];
+    if (!mRaw) continue;
+    var mLabel = formatBouMonthLabel(mRaw);
+    if (!mLabel) continue;
+    list.push({
+      month: mLabel,
+      budget: Number(vals[i][1]) || 0,
+      give: Number(vals[i][2]) || 0
+    });
+  }
+  return list;
+}
+
 
 // ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)
 function setupSheet() {

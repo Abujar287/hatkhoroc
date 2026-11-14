@@ -1,51 +1,30 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { App as CapApp } from '@capacitor/app';
 import {
-  Wallet,
-  Calendar,
   PlusCircle,
   ListOrdered,
-  Users,
-  Settings,
   Lock,
   Eye,
   EyeOff,
-  Shield,
-  AlertTriangle,
-  CheckCircle2,
-  HelpCircle,
   BarChart3,
-  Plus,
   Sliders,
   CalendarClock,
-  BellRing,
-  VolumeX,
-  Zap,
-  X
+  Settings
 } from 'lucide-react';
 import {
-  playTaskAlarmSound,
-  stopTaskAlarmSound,
-  vibrateDevice,
-  sendSystemNotification,
-  hasTaskBeenNotified,
-  markTaskAsNotified,
   initAudioUnlock,
-  ensureNotificationPermission,
   setupWebPushSubscription,
   syncTasksToPushServer
 } from './utils/taskAlarmManager';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
-  DEFAULT_INCOME_CATEGORIES,
-  GOOGLE_SCRIPT_URL
+  DEFAULT_INCOME_CATEGORIES
 } from './constants';
 import {
   normalizeDate,
   normalizeTime,
-  formatTime12h,
   formatSyncDateTime,
   formatCleanDateTime,
   cleanMappingLabel,
@@ -61,10 +40,12 @@ import { processOfflineQueue, addToOfflineQueue, getOfflineQueue } from './utils
 // Modular Components
 import { Header } from './components/Header';
 import { SummaryTab } from './components/SummaryTab';
+import { MonthlySummaryTab } from './components/MonthlySummaryTab';
 import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
+import { Upcoming3MonthTab } from './components/Upcoming3MonthTab';
 import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
@@ -80,15 +61,37 @@ import {
   ExitConfirmModal,
   SelfSignupModal,
   UserProfileModal,
-  AppUpdateModal,
-  ModalPortal
+  AppUpdateModal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
-import { initAuth, googleSignIn, logout as firebaseLogout } from './lib/firebase';
-import { User as FirebaseUser } from 'firebase/auth';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime } from './utils/updateChecker';
 
-import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateAcknowledged, recordUpdateDismissed, UpdateInfo, APP_VERSION, getAppLastUpdateTime } from './utils/updateChecker';
+function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[]): AppTab[] {
+  const isSuper = role === 'super_admin' || username?.toLowerCase() === 'abujar287';
+  const defaultTabs: AppTab[] =
+    role === 'super_admin_2'
+      ? ['summary', 'monthly_summary', 'details']
+      : isSuper
+        ? ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings']
+        : ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
 
+  let tabs = rawTabs && rawTabs.length > 0 ? [...rawTabs] : [...defaultTabs];
+  if (!tabs.includes('monthly_summary')) tabs.push('monthly_summary');
+  if (role !== 'super_admin_2') {
+    if (!tabs.includes('budget')) tabs.push('budget');
+    if (!tabs.includes('upcoming_cost')) tabs.push('upcoming_cost');
+  }
+  if (isSuper) {
+    if (!tabs.includes('users')) tabs.push('users');
+    if (!tabs.includes('upcoming_3_month')) tabs.push('upcoming_3_month');
+  } else {
+    tabs = tabs.filter(tab => tab !== 'upcoming_3_month');
+    if (role !== 'admin') {
+      tabs = tabs.filter(tab => tab !== 'users');
+    }
+  }
+  return Array.from(new Set(tabs));
+}
 
 // Default Admin User
 const DEFAULT_ADMIN: AppUser = {
@@ -100,7 +103,7 @@ const DEFAULT_ADMIN: AppUser = {
   createdAt: '2026-10-01',
   role: 'super_admin',
   isActive: true,
-  allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings'],
+  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings'],
   isReadOnly: false
 };
 
@@ -134,7 +137,6 @@ function playSound(type: 'success' | 'delete' = 'success') {
 }
 
 export default function App() {
-  const googleAccessToken = null;
 
   // ----------------------------------------------------
   // 1. FUNDAMENTAL STATE
@@ -321,25 +323,14 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((u: AppUser) => {
-            let defaultTabs: AppTab[] = u.username === 'abujar287' || u.role === 'super_admin'
-              ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
-              : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-            let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
-            if (u.username !== 'abujar287' && u.role !== 'super_admin') {
-              tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
-            }
-            if (!tabs.includes('budget') && u.role !== 'super_admin_2') {
-              tabs = [...tabs, 'budget'];
-            }
-            if (u.username === 'abujar287') {
-              return {
-                ...u,
-                role: 'super_admin',
-                allowedTabs: tabs,
-                isReadOnly: false
-              };
-            }
-            return { ...u, allowedTabs: tabs };
+            const isSuper = u.username === 'abujar287' || u.role === 'super_admin';
+            const role: UserRole = u.username === 'abujar287' ? 'super_admin' : (u.role || 'member');
+            return {
+              ...u,
+              role,
+              allowedTabs: normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]),
+              isReadOnly: u.username === 'abujar287' ? false : u.isReadOnly
+            };
           });
         }
       }
@@ -355,25 +346,13 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.username) {
-          let defaultTabs: AppTab[] = parsed.username === 'abujar287' || parsed.role === 'super_admin'
-            ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
-            : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-          let tabs: AppTab[] = (parsed.allowedTabs as AppTab[]) || defaultTabs;
-          if (parsed.username !== 'abujar287' && parsed.role !== 'super_admin') {
-            tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
-          }
-          if (!tabs.includes('budget') && parsed.role !== 'super_admin_2') {
-            tabs = [...tabs, 'budget'];
-          }
-          if (parsed.username === 'abujar287') {
-            return {
-              ...parsed,
-              role: 'super_admin',
-              allowedTabs: tabs,
-              isReadOnly: false
-            };
-          }
-          return { ...parsed, allowedTabs: tabs };
+          const role: UserRole = parsed.username === 'abujar287' ? 'super_admin' : (parsed.role || 'member');
+          return {
+            ...parsed,
+            role,
+            allowedTabs: normalizeUserTabs(role, parsed.username, parsed.allowedTabs as AppTab[]),
+            isReadOnly: parsed.username === 'abujar287' ? false : parsed.isReadOnly
+          };
         }
       }
     } catch {}
@@ -381,23 +360,8 @@ export default function App() {
   });
 
   const mapUserFromSheet = (u: any): AppUser => {
-    const role = u.role || 'member';
-    let defaultTabs: AppTab[] = u.username === 'abujar287' || role === 'super_admin'
-      ? ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']
-      : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-    
-    let tabs: AppTab[] = (u.allowedTabs as AppTab[]) || defaultTabs;
-    
-    // Ensure consistency
-    if (u.username !== 'abujar287' && role !== 'super_admin') {
-      tabs = tabs.filter((tabItem: AppTab) => tabItem !== 'users');
-    }
-    if (!tabs.includes('budget') && role !== 'super_admin_2') {
-      tabs = [...tabs, 'budget'];
-    }
-    if (!tabs.includes('upcoming_cost') && role !== 'super_admin_2') {
-      tabs = [...tabs, 'upcoming_cost'];
-    }
+    const role = (u.username === 'abujar287' ? 'super_admin' : (u.role || 'member')) as UserRole;
+    const tabs = normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]);
     
     const userTab = String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase();
     let recordCount = Number(u.recordCount || u.recordsCount || u.records || u.txCount || 0);
@@ -522,33 +486,12 @@ export default function App() {
     return Boolean(currentUser?.isReadOnly || currentUser?.role === 'super_admin_2');
   }, [currentUser]);
 
+  const isSuperAdmin = useMemo(() => {
+    return currentUser?.role === 'super_admin' || currentUser?.username?.toLowerCase() === 'abujar287';
+  }, [currentUser]);
+
   const allowedTabs: AppTab[] = useMemo(() => {
-    let tabs = currentUser?.allowedTabs;
-    if (!tabs || tabs.length === 0) {
-      if (currentUser?.role === 'super_admin_2') {
-        tabs = ['summary', 'details'];
-      } else if (currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') {
-        tabs = ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings'];
-      } else {
-        tabs = ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-      }
-    }
-
-    // Strictly ensure non-admin users never get access to the 'users' tab
-    if (currentUser?.username !== 'abujar287' && currentUser?.role !== 'super_admin') {
-      tabs = tabs.filter(t => t !== 'users');
-    }
-
-    if (!tabs.includes('budget') && currentUser?.role !== 'super_admin_2') {
-      tabs = [...tabs, 'budget'];
-    }
-    if (!tabs.includes('upcoming_cost') && currentUser?.role !== 'super_admin_2') {
-      tabs = [...tabs, 'upcoming_cost'];
-    }
-    if ((currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') && !tabs.includes('users')) {
-      tabs = [...tabs, 'users'];
-    }
-    return tabs;
+    return normalizeUserTabs(currentUser?.role, currentUser?.username, currentUser?.allowedTabs);
   }, [currentUser]);
 
   // ----------------------------------------------------
@@ -600,15 +543,6 @@ export default function App() {
     return deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]);
   });
 
-  const [monthlyBudget, setMonthlyBudget] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(`app_monthly_budget_${currentTab}`);
-      return saved ? Number(saved) || 0 : 0;
-    } catch {
-      return 0;
-    }
-  });
-
   useEffect(() => {
     try {
       const savedExp = localStorage.getItem(`app_expense_categories_${currentTab}`);
@@ -634,9 +568,6 @@ export default function App() {
       } else {
         setIncomeCategories(deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]));
       }
-
-      const savedBudget = localStorage.getItem(`app_monthly_budget_${currentTab}`);
-      setMonthlyBudget(savedBudget ? Number(savedBudget) || 0 : 0);
     } catch {}
   }, [currentTab]);
 
@@ -694,34 +625,10 @@ export default function App() {
     return [];
   });
 
-  const [hasNotifiedOnEntry, setHasNotifiedOnEntry] = useState<boolean>(false);
-
-  // Compute tasks due today or overdue
-  const dueTodayTasks = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return tasks.filter(t => (t.status === 'pending' || !t.status) && t.dueDate <= todayStr);
-  }, [tasks]);
-
-
-
   useEffect(() => {
     initAudioUnlock();
-    // Register Web Push notification subscription with browser and server
     setupWebPushSubscription().catch(() => {});
-
-    // Listen for broadcast messages from Service Worker when a background Push arrives
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      const handleSwMessage = (e: MessageEvent) => {
-        if (e.data?.type === 'TASK_ALARM_PUSH_RECEIVED' && e.data?.taskId) {
-          // Just let the header banner handle it quietly
-        }
-      };
-      navigator.serviceWorker.addEventListener('message', handleSwMessage);
-      return () => {
-        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
-      };
-    }
-  }, [tasks]);
+  }, []);
 
   // Sync scheduled tasks to server push scheduler so phone wakes up even when app is closed
   useEffect(() => {
@@ -729,57 +636,6 @@ export default function App() {
       syncTasksToPushServer(tasks).catch(() => {});
     }
   }, [tasks]);
-
-  // Check if opened via notification click (?ringTask=...)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const ringTaskId = urlParams.get('ringTask');
-      if (ringTaskId && tasks && tasks.length > 0) {
-        // Just let the header banner handle it quietly
-      }
-    } catch {}
-  }, [tasks]);
-
-  // When entering the app: auto-sync web push subscription
-  useEffect(() => {
-    if (dueTodayTasks.length > 0 && !hasNotifiedOnEntry) {
-      setHasNotifiedOnEntry(true);
-      setupWebPushSubscription().catch(() => {});
-    }
-  }, [dueTodayTasks, hasNotifiedOnEntry]);
-
-  // Background Task Alarm Engine (Active while app is running in foreground/background tab)
-  useEffect(() => {
-    const checkTaskAlarms = () => {
-      if (!tasks || tasks.length === 0) return;
-
-      const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
-      const currentHours = String(now.getHours()).padStart(2, '0');
-      const currentMins = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeStr = `${currentHours}:${currentMins}`;
-
-      tasks.forEach(task => {
-        if (task.status !== 'pending' || task.autoNotify === false) return;
-
-        const isDueTodayOrOverdue = task.dueDate <= todayStr;
-        const remDays = task.reminderDaysBefore ?? 1;
-        const targetDate = new Date(task.dueDate);
-        targetDate.setDate(targetDate.getDate() - remDays);
-        const targetDateStr = targetDate.toISOString().split('T')[0];
-        const targetTime = task.dueTime || '09:00';
-
-        if (isDueTodayOrOverdue || (todayStr >= targetDateStr && currentTimeStr >= targetTime)) {
-          // Check quietly for banner display in header
-        }
-      });
-    };
-
-    const timer = setInterval(checkTaskAlarms, 30000);
-    return () => clearInterval(timer);
-  }, [tasks, t]);
 
   useEffect(() => {
     try {
@@ -818,51 +674,14 @@ export default function App() {
     const payload = { action: 'insertTask', sheetTab: currentTab, ...newTask };
 
     try {
-      let isSaved = false;
-      try {
-        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (proxyRes.ok) {
-          const resJson = await proxyRes.json();
-          if (resJson && (resJson.result === 'success' || resJson.message)) {
-            isSaved = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Proxy insert task error:', err);
-      }
-
-      if (!isSaved) {
-        await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      const qParams = new URLSearchParams({
-        action: 'insertTask',
-        sheetTab: currentTab,
-        id: newTask.id,
-        title: newTask.title,
-        dueDate: newTask.dueDate,
-        dueTime: newTask.dueTime || '09:00',
-        amount: String(newTask.amount),
-        category: newTask.category,
-        priority: newTask.priority,
-        notes: newTask.notes || '',
-        status: newTask.status,
-        reminderDaysBefore: String(newTask.reminderDaysBefore),
-        autoNotify: newTask.autoNotify ? 'true' : 'false'
-      }).toString();
-
-      fetchSheetApi(`?${qParams}`).catch(() => {});
-
+      const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!proxyRes.ok) throw new Error('Task sync failed');
       showToast(lang === 'en' ? 'Task saved & synced to Google Sheet!' : 'টাস্ক সেভ এবং গুগল শিটে যুক্ত হয়েছে!', 'success');
-    } catch (err) {
+    } catch {
       addToOfflineQueue({ action: 'insertTask', sheetTab: currentTab, payload });
       showToast(lang === 'en' ? 'Task saved offline! Will sync when online.' : 'টাস্ক অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
     }
@@ -875,41 +694,12 @@ export default function App() {
     const payload = { action: 'updateTask', sheetTab: currentTab, ...updatedTask };
 
     try {
-      let isSaved = false;
-      try {
-        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (proxyRes.ok) isSaved = true;
-      } catch {}
-
-      if (!isSaved) {
-        await fetchSheetApi(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      const qParams = new URLSearchParams({
-        action: 'updateTask',
-        sheetTab: currentTab,
-        id: updatedTask.id,
-        title: updatedTask.title,
-        dueDate: updatedTask.dueDate,
-        dueTime: updatedTask.dueTime || '09:00',
-        amount: String(updatedTask.amount),
-        category: updatedTask.category,
-        priority: updatedTask.priority,
-        notes: updatedTask.notes || '',
-        status: updatedTask.status,
-        reminderDaysBefore: String(updatedTask.reminderDaysBefore),
-        autoNotify: updatedTask.autoNotify ? 'true' : 'false'
-      }).toString();
-
-      fetchSheetApi(`?${qParams}`, {  }).catch(() => {});
+      const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!proxyRes.ok) throw new Error('Task update failed');
     } catch {
       addToOfflineQueue({ action: 'updateTask', sheetTab: currentTab, payload });
     }
@@ -930,26 +720,12 @@ export default function App() {
     };
 
     try {
-      let isSaved = false;
-      try {
-        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (proxyRes.ok) isSaved = true;
-      } catch {}
-
-      if (!isSaved) {
-        await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      fetchSheetApi(`?action=deleteTask&sheetTab=${encodeURIComponent(currentTab)}&id=${encodeURIComponent(taskId)}&title=${encodeURIComponent(taskToDeleteObj?.title || '')}&amount=${taskToDeleteObj?.amount || 0}`).catch(() => {});
-
+      const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!proxyRes.ok) throw new Error('Task delete failed');
       showToast(lang === 'en' ? 'Task deleted from Google Sheet' : 'টাস্ক গুগল শিট থেকে ডিলিট হয়েছে', 'info');
     } catch {
       addToOfflineQueue({ action: 'deleteTask', sheetTab: currentTab, payload });
@@ -966,6 +742,12 @@ export default function App() {
   // ----------------------------------------------------
   const [activeTab, setActiveTab] = useState<AppTab>('summary');
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
+
+  useEffect(() => {
+    if (activeTab === 'upcoming_3_month' && !isSuperAdmin) {
+      setActiveTab('summary');
+    }
+  }, [activeTab, isSuperAdmin]);
 
   // ----------------------------------------------------
   // ROBUST BACK BUTTON & APP EXIT LOGIC (Android APK / Capacitor / PWA / Web)
@@ -1382,32 +1164,12 @@ export default function App() {
     };
 
     try {
-      let isSaved = false;
-      try {
-        const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (proxyRes.ok) {
-          isSaved = true;
-        }
-      } catch (proxyErr) {
-        console.warn('Proxy save error, trying direct POST:', proxyErr);
-      }
-
-      if (!isSaved) {
-        await fetchSheetApi(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      fetchSheetApi(`?action=savebudget&month=${encodeURIComponent(cleanLabel)}&budget=${totalBudget}&sheetTab=${encodeURIComponent(currentTab)}`, {
-        
-      }).catch(() => {});
-
+      const proxyRes = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!proxyRes.ok) throw new Error('Budget sync failed');
       showToast(lang === 'en' ? `Budget updated in Google Sheet for ${cleanLabel}` : `${cleanLabel} এর বাজেট গুগল শিটে আপডেট হয়েছে`, 'success');
     } catch (err) {
       console.error('Save budget error:', err);
@@ -1513,6 +1275,67 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncDate, setLastSyncDate] = useState<Date>(() => new Date());
   const [lastSyncTime, setLastSyncTime] = useState<string>(() => formatSyncDateTime(new Date(), lang));
+  const [upcoming3MonthRemotePlan, setUpcoming3MonthRemotePlan] = useState<Upcoming3MonthPlan | null>(null);
+  const [upcoming3MonthVersion, setUpcoming3MonthVersion] = useState<number>(0);
+  const [bouGiftRemote, setBouGiftRemote] = useState<BouGiftEntry[]>([]);
+  const [bouGiftVersion, setBouGiftVersion] = useState<number>(0);
+
+  useEffect(() => {
+    setUpcoming3MonthRemotePlan(null);
+    setBouGiftRemote([]);
+  }, [currentTab]);
+
+  const handleSaveUpcoming3Month = useCallback(async (planPayload: Upcoming3MonthPlan): Promise<boolean> => {
+    const payload = {
+      action: 'saveupcoming3month',
+      sheetTab: currentTab,
+      ...planPayload
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'saveupcoming3month', sheetTab: currentTab, payload });
+      return false;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Upcoming 3M sync failed');
+      return true;
+    } catch {
+      addToOfflineQueue({ action: 'saveupcoming3month', sheetTab: currentTab, payload });
+      return false;
+    }
+  }, [currentTab]);
+
+  const handleSaveBouGift = useCallback(async (rows: BouGiftEntry[]): Promise<boolean> => {
+    const payload = {
+      action: 'savebougift',
+      sheetTab: currentTab,
+      bouGift: rows
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'savebougift', sheetTab: currentTab, payload });
+      return false;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Bou Gift sync failed');
+      return true;
+    } catch {
+      addToOfflineQueue({ action: 'savebougift', sheetTab: currentTab, payload });
+      return false;
+    }
+  }, [currentTab]);
 
   useEffect(() => {
     setLastSyncTime(formatSyncDateTime(lastSyncDate, lang));
@@ -1702,6 +1525,22 @@ export default function App() {
               }
             } catch {}
           });
+        }
+
+        if (data.upcoming3Month && typeof data.upcoming3Month === 'object' && Array.isArray(data.upcoming3Month.categories)) {
+          try {
+            localStorage.setItem(`app_upcoming_3m_plan_v2_${tabToSync}`, JSON.stringify(data.upcoming3Month));
+          } catch {}
+          setUpcoming3MonthRemotePlan(data.upcoming3Month as Upcoming3MonthPlan);
+          setUpcoming3MonthVersion(v => v + 1);
+        }
+
+        if (Array.isArray(data.bouGift)) {
+          try {
+            localStorage.setItem(`app_bou_gift_v1_${tabToSync}`, JSON.stringify(data.bouGift));
+          } catch {}
+          setBouGiftRemote(data.bouGift as BouGiftEntry[]);
+          setBouGiftVersion(v => v + 1);
         }
 
         // Load categories EXCLUSIVELY from Google Sheet (100% dynamic, zero hardcoding in codebase)
@@ -2052,73 +1891,25 @@ export default function App() {
 
     showToast(lang === 'en' ? `Category '${cleanCat}' added!` : `'${cleanCat}' ক্যাটাগরি গুগল শিটে যুক্ত হয়েছে!`, 'success');
 
-    // Cloud Save: Write new category to Google Sheet (Cols 15-16 / O-P range in currentTab sheet)
-    const payload = {
-      action: 'addcategory',
-      sheetTab: currentTab,
-      category: cleanCat,
-      type
-    };
-
+    // Cloud Save: Write new category to Google Sheet
     try {
       await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'addcategory',
+          sheetTab: currentTab,
+          category: cleanCat,
+          type
+        })
       });
     } catch {}
-
-    const qParams = new URLSearchParams({
-      action: 'addcategory',
-      sheetTab: currentTab,
-      category: cleanCat,
-      type
-    }).toString();
-    fetch(`${GOOGLE_SCRIPT_URL}?${qParams}`, {  }).catch(() => {});
   };
 
   const handleUpdateCategories = (newCats: string[], type: TransactionType) => {
     if (type === 'Expense') setExpenseCategories(newCats);
     else setIncomeCategories(newCats);
     localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(newCats));
-  };
-
-  const handleDeleteCategory = async (cat: string, type: TransactionType) => {
-    const updated = (type === 'Expense' ? expenseCategories : incomeCategories).filter(c => c !== cat);
-    if (type === 'Expense') setExpenseCategories(updated);
-    else setIncomeCategories(updated);
-    localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(updated));
-
-    // Also remove from category budgets in local storage
-    try {
-      const budgetKey = `app_category_budgets_${currentTab}_${selectedMonth}`;
-      const savedBudgets = localStorage.getItem(budgetKey);
-      if (savedBudgets) {
-        const parsed = JSON.parse(savedBudgets);
-        delete parsed[cat];
-        const clean = cleanCategoryName(cat, 'en');
-        if (clean) delete parsed[clean];
-        localStorage.setItem(budgetKey, JSON.stringify(parsed));
-      }
-    } catch {}
-
-    // Cloud Delete: delete category row from Google Sheet
-    try {
-      await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'deletecategory',
-          sheetTab: currentTab,
-          category: cat,
-          type
-        })
-      });
-    } catch {}
-
-    fetchSheetApi(`?action=deletecategory&sheetTab=${encodeURIComponent(currentTab)}&category=${encodeURIComponent(cat)}`).catch(() => {});
-
-    showToast(lang === 'en' ? `Category '${cat}' deleted from Google Sheet` : `'${cat}' ক্যাটাগরি গুগল শিট থেকে ডিলিট হয়েছে`, 'info');
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -2140,16 +1931,20 @@ export default function App() {
     }
 
     if (target && target.password === cleanP) {
-      setCurrentUser(target);
+      const normalizedTarget: AppUser = {
+        ...target,
+        allowedTabs: normalizeUserTabs(target.role, target.username, target.allowedTabs)
+      };
+      setCurrentUser(normalizedTarget);
       setIsAuthenticated(true);
       if (rememberLogin) {
         localStorage.setItem('app_remember_login', 'true');
-        localStorage.setItem('active_user_v2', JSON.stringify(target));
+        localStorage.setItem('active_user_v2', JSON.stringify(normalizedTarget));
       } else {
         localStorage.removeItem('app_remember_login');
         localStorage.removeItem('active_user_v2');
       }
-      showToast(lang === 'en' ? `Welcome, ${target.displayName}!` : `স্বাগতম, ${target.displayName}!`, 'success');
+      showToast(lang === 'en' ? `Welcome, ${normalizedTarget.displayName}!` : `স্বাগতম, ${normalizedTarget.displayName}!`, 'success');
       setLoginError('');
     } else {
       setLoginError(lang === 'en' ? 'Invalid username or password' : 'ইউজারনেম অথবা পাসওয়ার্ড ভুল হয়েছে');
@@ -2163,6 +1958,27 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('active_user_v2');
     localStorage.removeItem('app_remember_login');
+  };
+
+  const syncUserToSheet = (user: AppUser) => {
+    try {
+      const payload = {
+        action: 'saveuser',
+        sheetTab: 'abujar287',
+        fullName: user.displayName,
+        username: user.username,
+        password: user.password,
+        userSheetTab: user.sheetTab || user.username,
+        role: user.role,
+        accessTab: (user.allowedTabs || ['summary', 'monthly_summary', 'entry', 'details', 'settings']).join(', ')
+      };
+
+      fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    } catch {}
   };
 
   const handleSelfSignupSubmit = (fullName: string, uname: string, pass: string) => {
@@ -2180,16 +1996,13 @@ export default function App() {
       role: 'member',
       sheetTab: cleanUname,
       isActive: true,
-      allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'],
+      allowedTabs: normalizeUserTabs('member', cleanUname),
       createdAt: new Date().toISOString().split('T')[0]
     };
 
-    // Purge any old local storage keys for this tab so it starts 100% clean
     try {
       Object.keys(localStorage).forEach(k => {
-        if (k.includes(`_${cleanUname}`)) {
-          localStorage.removeItem(k);
-        }
+        if (k.includes(`_${cleanUname}`)) localStorage.removeItem(k);
       });
     } catch {}
 
@@ -2199,16 +2012,12 @@ export default function App() {
       localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
     } catch {}
 
-    // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
-    try {
-      syncUserToSheet(newUser);
-      fetchSheetApi(`/api/sheet-proxy?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`).catch(() => {});
-      fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
-      }).catch(() => {});
-    } catch {}
+    syncUserToSheet(newUser);
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
+    }).catch(() => {});
 
     setLoginUsername(cleanUname);
     setLoginPassword(pass);
@@ -2221,59 +2030,64 @@ export default function App() {
     return true;
   };
 
-  const syncUserToSheet = (user: AppUser) => {
-    try {
-      const payload = {
-        action: 'saveuser',
-        sheetTab: 'abujar287',
-        fullName: user.displayName,
-        username: user.username,
-        password: user.password,
-        userSheetTab: user.sheetTab || user.username,
-        role: user.role,
-        accessTab: (user.allowedTabs || ['summary', 'entry', 'details', 'settings']).join(', ')
-      };
+  const handleSaveProfile = (
+    name: string,
+    pass?: string,
+    role?: UserRole,
+    userAllowedTabs?: AppTab[],
+    userIsReadOnly?: boolean
+  ) => {
+    const targetUser = editingUser || currentUser;
+    if (!targetUser) return;
 
-      fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {});
-    } catch {}
-  };
+    const nextRole = role || targetUser.role;
+    const updated: AppUser = {
+      ...targetUser,
+      displayName: name,
+      password: pass || targetUser.password,
+      role: nextRole,
+      allowedTabs: normalizeUserTabs(nextRole, targetUser.username, userAllowedTabs || targetUser.allowedTabs),
+      isReadOnly: userIsReadOnly !== undefined ? userIsReadOnly : targetUser.isReadOnly
+    };
 
-  const handleSaveProfile = (name: string, pass?: string) => {
-    if (!currentUser) return;
-    const updated = { ...currentUser, displayName: name, password: pass || currentUser.password };
-    setCurrentUser(updated);
+    if (currentUser && updated.username === currentUser.username) {
+      setCurrentUser(updated);
+      localStorage.setItem('active_user_v2', JSON.stringify(updated));
+    }
     const newUsersList = users.map(u => u.username === updated.username ? updated : u);
     setUsers(newUsersList);
-    localStorage.setItem('active_user_v2', JSON.stringify(updated));
     localStorage.setItem('app_registered_users_v2', JSON.stringify(newUsersList));
     syncUserToSheet(updated);
     setEditingUser(null);
   };
 
-  const handleCreateUser = (name: string, uname: string, pass: string, role: UserRole) => {
+  const handleCreateUser = (
+    name: string,
+    uname: string,
+    pass: string,
+    role: UserRole,
+    userAllowedTabs?: AppTab[],
+    userIsReadOnly?: boolean,
+    viewTargetTab?: string
+  ) => {
     const cleanUname = uname.trim().toLowerCase();
-    const newUser: AppUser = { 
-      username: cleanUname, 
-      password: pass, 
-      displayName: name, 
-      initialUsername: cleanUname, 
-      role, 
-      sheetTab: cleanUname, 
-      isActive: true, 
-      allowedTabs: ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'],
+    const newUser: AppUser = {
+      username: cleanUname,
+      password: pass,
+      displayName: name,
+      initialUsername: cleanUname,
+      role,
+      sheetTab: cleanUname,
+      isActive: true,
+      allowedTabs: normalizeUserTabs(role, cleanUname, userAllowedTabs),
+      isReadOnly: userIsReadOnly,
+      viewTargetTab,
       createdAt: new Date().toISOString().split('T')[0]
     };
 
-    // Purge any old local storage keys for this tab so it starts 100% clean with 0 budgets
     try {
       Object.keys(localStorage).forEach(k => {
-        if (k.includes(`_${cleanUname}`)) {
-          localStorage.removeItem(k);
-        }
+        if (k.includes(`_${cleanUname}`)) localStorage.removeItem(k);
       });
     } catch {}
 
@@ -2283,23 +2097,14 @@ export default function App() {
       localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
     } catch {}
 
-    // Auto-create unified Google Sheet tab for this user and sync user details to abujar287 tab
-    try {
-      syncUserToSheet(newUser);
-      fetchSheetApi(`/api/sheet-proxy?action=createtab&sheetTab=${encodeURIComponent(cleanUname)}`).catch(() => {});
-      fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
-      }).catch(() => {});
-    } catch {}
+    syncUserToSheet(newUser);
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'createtab', sheetTab: cleanUname })
+    }).catch(() => {});
 
     showToast(lang === 'en' ? `User @${cleanUname} created with sheet tab "${cleanUname}"!` : `ইউজার @${cleanUname} ও গুগল শিট ট্যাব "${cleanUname}" তৈরি হয়েছে!`, 'success');
-  };
-
-  const handleSwitchUser = (user: AppUser) => {
-    setCurrentUser(user);
-    localStorage.setItem('active_user_v2', JSON.stringify(user));
   };
 
   const handleToggleActiveUser = (user: AppUser) => {
@@ -2308,8 +2113,6 @@ export default function App() {
 
   const handleConfirmDeleteUser = async (user: AppUser) => {
     setUsers(users.filter(u => u.username !== user.username));
-    
-    // Cloud Delete: delete user from Google Sheet
     try {
       await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
@@ -2320,19 +2123,6 @@ export default function App() {
 
     setUserToDelete(null);
     showToast(lang === 'en' ? `User ${user.username} deleted` : `ইউজার ${user.username} ডিলিট হয়েছে`, 'info');
-  };
-
-  const handleImportJson = (data: any) => {
-    if (data && data.transactions) {
-      saveTransactionsLocally(data.transactions);
-      showToast('Imported!', 'success');
-      return true;
-    }
-    return false;
-  };
-
-  const handleUpdateSpreadsheetId = (id: string) => {
-    if (currentUser) setCurrentUser({ ...currentUser, spreadsheetId: id });
   };
 
   // ----------------------------------------------------
@@ -2458,7 +2248,6 @@ export default function App() {
               {activeTab === 'summary' && (
                 <SummaryTab
                   transactions={transactions}
-                  filteredTransactions={filteredTransactions}
                   selectedMonth={selectedMonth}
                   setSelectedMonth={setSelectedMonth}
                   globalFilterMode={globalFilterMode}
@@ -2470,6 +2259,20 @@ export default function App() {
                   lang={lang}
                   t={t}
                   monthMappings={monthMappings}
+                />
+              )}
+
+              {activeTab === 'monthly_summary' && (
+                <MonthlySummaryTab
+                  transactions={transactions}
+                  monthMappings={monthMappings}
+                  onSelectMonth={(monthLabel) => {
+                    setSelectedMonth(monthLabel);
+                    setGlobalFilterMode('month');
+                    setActiveTab('summary');
+                  }}
+                  lang={lang}
+                  t={t}
                 />
               )}
 
@@ -2518,6 +2321,23 @@ export default function App() {
                   currentUser={currentUser}
                   categories={expenseCategories}
                   lang={lang}
+                />
+              )}
+
+              {activeTab === 'upcoming_3_month' && isSuperAdmin && (
+                <Upcoming3MonthTab
+                  expenseCategories={expenseCategories}
+                  monthMappings={monthMappings}
+                  selectedMonth={selectedMonth}
+                  currentTab={currentTab}
+                  remotePlan={upcoming3MonthRemotePlan}
+                  remotePlanVersion={upcoming3MonthVersion}
+                  onSyncPlan={handleSaveUpcoming3Month}
+                  remoteBouGift={bouGiftRemote}
+                  remoteBouGiftVersion={bouGiftVersion}
+                  onSaveBouGift={handleSaveBouGift}
+                  lang={lang}
+                  t={t}
                 />
               )}
 
@@ -2571,23 +2391,15 @@ export default function App() {
 
               {activeTab === 'settings' && (
                 <SettingsTab
-                  currentUser={currentUser} expenseCategories={expenseCategories} incomeCategories={incomeCategories}
-                  onOpenAddCategoryModal={type => { setCatModalType(type); setShowAddCatModal(true); }}
-                  onDeleteCategory={handleDeleteCategory} transactions={transactions}
-                  lang={lang} onOpenEditProfile={() => setEditingUser(currentUser)}
-                  viewMode={viewMode} onLogout={handleLogout} onImportJson={handleImportJson} t={t}
-                  onUpdateSpreadsheetId={handleUpdateSpreadsheetId} onOpenInstallModal={() => setShowMobileModal(true)}
-                  selectedMonth={selectedMonth} monthMappings={monthMappings}
+                  currentUser={currentUser}
+                  transactions={transactions}
+                  lang={lang}
+                  t={t}
+                  selectedMonth={selectedMonth}
+                  monthMappings={monthMappings}
                   onAddMonthMapping={m => saveMonthMappings([...monthMappings, m])}
                   onDeleteMonthMapping={id => saveMonthMappings(monthMappings.filter(x => x.id !== id))}
-                  onSelectMonth={setSelectedMonth}
                   onSetDefaultMonth={handleSetDefaultMonth}
-                  users={users}
-                  onOpenCreateUserModal={() => setShowCreateUserModal(true)}
-                  onOpenEditUserModal={setEditingUser}
-                  onRequestDeleteUser={setUserToDelete}
-                  onSwitchUser={handleSwitchUser}
-                  onToggleActiveUser={handleToggleActiveUser}
                   onCheckForUpdates={() => handleCheckForUpdates(true)}
                   appLastUpdateTime={appLastUpdateTime}
                 />

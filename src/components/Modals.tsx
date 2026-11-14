@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
-  Calendar,
   Trash2,
   Edit3,
   UserPlus,
@@ -12,7 +11,6 @@ import {
   CheckCheck,
   Tag,
   FileSpreadsheet,
-  ArrowDownLeft,
   ArrowUpRight,
   Plus,
   GripVertical,
@@ -23,19 +21,22 @@ import {
   Check,
   Eye,
   EyeOff,
-  Sparkles,
-  RefreshCw,
   CheckCircle2,
-  PackageCheck,
-  ExternalLink,
-  AlertTriangle
+  PackageCheck
 } from 'lucide-react';
 import { Transaction, AppUser, TransactionType, AppTab, UserRole } from '../types';
-import { formatNumberLocale, formatCleanDateTime, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
-import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { formatNumberLocale, formatDateShortDemo, normalizeDate, formatDayHeader, getMonthKeyFromLabel } from '../utils/dateUtils';
+import {
+  cleanCategoryName,
+  DAILY_LIFE_ICON_PACK,
+  DailyIconId,
+  resolveCategoryIconId,
+  saveCategoryIcon
+} from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
 import { APP_VERSION } from '../utils/updateChecker';
+import { CategoryIcon } from './CategoryIcon';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
 export const ModalPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,13 +82,6 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
   t,
   isReadOnly
 }) => {
-  React.useEffect(() => {
-    if (dateStr) {
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = 'unset'; };
-    }
-  }, [dateStr]);
-
   const formattedHeaderDate = useMemo(() => {
     if (!dateStr) return '';
     return formatDayHeader(dateStr, lang);
@@ -130,17 +124,13 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
           <div className="space-y-0.5 max-h-[50vh] overflow-y-auto pr-0.5">
             {dayTransactions.map((tx, idx) => {
               const isExpense = tx.type === 'Expense';
-              const emoji = getCategoryEmoji(tx.category);
-              const circleColor = getCategoryColor(tx.category);
               return (
                 <div
                   key={tx.id ? `day_tx_${tx.id}_${idx}` : `day_tx_idx_${idx}`}
                   className="flex items-center justify-between py-2 px-1.5 hover:bg-[#062423] rounded-xl transition-all group border border-transparent hover:border-teal-700/60"
                 >
                   <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-base shrink-0 shadow-sm ${circleColor} text-slate-900`}>
-                      {emoji}
-                    </div>
+                    <CategoryIcon category={tx.category} withBadge size="sm" />
                     <span className="font-medium text-[#F0FDFA] text-[11px] truncate">
                       {cleanCategoryName(tx.category, lang)}
                     </span>
@@ -798,8 +788,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             <div className="grid grid-cols-2 gap-1 p-1.5 bg-[#062423] rounded-lg border border-teal-700/70">
               {[
                 { id: 'summary' as AppTab, label: t('Summary', 'সারাংশ') },
-                { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
+                { id: 'monthly_summary' as AppTab, label: t('Monthly Summary', 'মাসিক সারসংক্ষেপ') },
                 { id: 'entry' as AppTab, label: t('Add Entry', 'হিসাব যোগ') },
+                { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
+                { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
+                { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
                 { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                 { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
               ].map(tabItem => {
@@ -938,11 +931,21 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   if (!isOpen) return null;
 
   const [name, setName] = useState('');
+  const [selectedIconId, setSelectedIconId] = useState<DailyIconId>('wallet_cash');
+  const [hasManualIcon, setHasManualIcon] = useState(false);
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!hasManualIcon && val.trim()) {
+      setSelectedIconId(resolveCategoryIconId(val));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     const cleanName = cleanCategoryName(name.trim(), lang) || name.trim();
+    saveCategoryIcon(cleanName, selectedIconId);
     onAdd(cleanName, type);
     onClose();
   };
@@ -954,7 +957,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         onClick={onClose}
       >
         <div
-          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-sm rounded-2xl p-4 sm:p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain my-auto"
+          className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl relative border border-teal-800/90 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain my-auto"
           onClick={e => e.stopPropagation()}
         >
         <div className="flex items-center justify-between border-b border-teal-800/60 pb-2.5 mb-3">
@@ -974,19 +977,59 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="text-[11px] font-semibold text-teal-300/80 block mb-1.5">
-              {t('Category Name', 'ক্যাটাগরির নাম')}
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder={t('e.g., Gym, Bajar, Electricity', 'যেমন: বাজার, বিদ্যুৎ, যাতায়াত')}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2.5 text-xs text-[#F0FDFA] placeholder:text-teal-500 focus:outline-none focus:border-teal-400"
-              required
-              autoFocus
-            />
+          <div className="flex items-center gap-3">
+            <CategoryIcon iconId={selectedIconId} withBadge size="md" />
+            <div className="flex-1 min-w-0">
+              <label className="text-[11px] font-semibold text-teal-300/80 block mb-1">
+                {t('Category Name', 'ক্যাটাগরির নাম')}
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => handleNameChange(e.target.value)}
+                placeholder={t('e.g., Room Rent, Bajar, Electricity', 'যেমন: রুম ভাড়া, বাজার, বিদ্যুৎ')}
+                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-[#F0FDFA] placeholder:text-teal-500 focus:outline-none focus:border-teal-400"
+                required
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[10.5px] font-bold text-teal-300/80 uppercase tracking-wider">
+                {t('Select Realistic Daily Icon', 'বাস্তবসম্মত আইকন বাছুন')}
+              </label>
+              <span className="text-[10px] font-semibold text-emerald-300">
+                {DAILY_LIFE_ICON_PACK.find(i => i.id === selectedIconId)?.label}
+              </span>
+            </div>
+            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto p-2 rounded-xl bg-[#062423] border border-teal-800/80">
+              {DAILY_LIFE_ICON_PACK.map(item => {
+                const isSelected = selectedIconId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    title={item.label}
+                    onClick={() => {
+                      setSelectedIconId(item.id);
+                      setHasManualIcon(true);
+                    }}
+                    className={`flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? 'bg-emerald-600/30 border-emerald-400 text-white shadow-xs ring-1 ring-emerald-400'
+                        : 'bg-[#0B3C39]/70 border-teal-800/60 hover:border-teal-500/70 text-teal-200'
+                    }`}
+                  >
+                    <CategoryIcon iconId={item.id} size="sm" className={isSelected ? 'text-emerald-300' : item.textClass} />
+                    <span className="text-[8px] font-semibold truncate max-w-full mt-1 text-teal-200/80">
+                      {item.label.split('/')[0].trim()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <button
@@ -1025,6 +1068,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
   if (!isOpen) return null;
 
   const [copied, setCopied] = useState(false);
+  const [showManualGuide, setShowManualGuide] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(window.location.origin);
@@ -1095,15 +1139,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
                 return;
               }
             }
-            if (window.self !== window.top) {
-              window.open(window.location.href, '_blank');
-              return;
-            }
-            alert(
-              lang === 'en'
-                ? 'To install হাত খরচ:\n1. Open in Chrome or Safari\n2. Tap Browser Menu (⋮ or Share)\n3. Tap "Install App" or "Add to Home Screen"'
-                : 'হাত খরচ ইনস্টল করতে:\n১. ক্রোম বা সাফারি ব্রাউজারে সাইটটি ওপেন করুন\n২. থ্রি-ডট (⋮) বা শেয়ার আইকন চাপুন\n৩. "Install App" বা "Add to Home Screen" অপশনে ট্যাপ করুন'
-            );
+            setShowManualGuide(true);
           }}
           className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95 text-sm transition-all"
         >
@@ -1120,12 +1156,14 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
           <span>{copied ? t('Copied Link!', 'লিংক কপি হয়েছে!') : t('Copy হাত খরচ Link', ' হাত খরচ লিংক কপি করুন')}</span>
         </button>
 
-        <div className="p-2 bg-[#062423] rounded-xl border border-teal-700/70 text-[10px] text-teal-300/80 space-y-0.5">
+        <div className={`p-2.5 rounded-xl border text-[10px] space-y-0.5 ${
+          showManualGuide ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-200' : 'bg-[#062423] border-teal-700/70 text-teal-300/80'
+        }`}>
           <b className="text-[#F0FDFA] block">{t('Instructions:', 'ইন্সটল পদ্ধতি:')}</b>
           <p>
             {t(
-              '1. Open link in Chrome.\n2. Tap menu (⋮) > "Install App" or "Add to Home screen".',
-              '১. Chrome এ খুলুন।\n২. মেনু (⋮) > "Install App" বা "Add to Home screen" দিন।'
+              '1. Open link in Chrome or Safari. 2. Tap Menu (⋮ or Share) > "Install App" or "Add to Home screen".',
+              '১. Chrome বা Safari এ খুলুন। ২. মেনু (⋮) > "Install App" বা "Add to Home screen" দিন।'
             )}
           </p>
         </div>
@@ -1298,8 +1336,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <div className="grid grid-cols-2 gap-1 p-1.5 bg-[#062423] rounded-lg border border-teal-700/70">
                   {[
                     { id: 'summary' as AppTab, label: t('Summary', 'সারাংশ') },
-                    { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
+                    { id: 'monthly_summary' as AppTab, label: t('Monthly Summary', 'মাসিক সারসংক্ষেপ') },
                     { id: 'entry' as AppTab, label: t('Add Entry', 'হিসাব যোগ') },
+                    { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
+                    { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
+                    { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
                     { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                     { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
                   ].map(tabItem => {
@@ -1361,13 +1402,6 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
   t,
   isReadOnly
 }) => {
-  React.useEffect(() => {
-    if (categoryName) {
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = 'unset'; };
-    }
-  }, [categoryName]);
-
   if (!categoryName) return null;
 
   const catTxs = transactions.filter(tx => {
@@ -1443,17 +1477,13 @@ export const CategoryDetailsModal: React.FC<CategoryDetailsModalProps> = ({
           <div className="space-y-1.5 max-h-[55vh] overflow-y-auto pr-0.5">
             {catTxs.map((tx, idx) => {
               const isExpense = tx.type === 'Expense';
-              const emoji = getCategoryEmoji(tx.category);
-              const circleColor = getCategoryColor(tx.category);
               return (
                 <div
                   key={tx.id ? `cat_tx_${tx.id}_${idx}` : `cat_tx_idx_${idx}`}
                   className="flex items-center justify-between p-2 bg-[#062423] hover:bg-teal-900/60 border border-teal-700/70 rounded-xl transition-all group shadow-2xs"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-teal-600/60`}>
-                      {emoji}
-                    </div>
+                    <CategoryIcon category={tx.category} withBadge size="sm" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-[#F0FDFA] text-[11px] truncate">
@@ -1632,6 +1662,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   if (!isOpen) return null;
 
   const [activeType, setActiveType] = useState<TransactionType>('Expense');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editIconId, setEditIconId] = useState<DailyIconId>('wallet_cash');
+  const [warningMsg, setWarningMsg] = useState('');
+
   const categories = activeType === 'Expense' ? expenseCategories : incomeCategories;
 
   const handleMove = (index: number, direction: 'up' | 'down') => {
@@ -1641,22 +1676,38 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
     const temp = cats[index];
     cats[index] = cats[target];
     cats[target] = temp;
+    setEditingIndex(null);
     onUpdateCategories(cats, activeType);
   };
 
-  const handleEdit = (cat: string, index: number) => {
-    const newName = prompt(t('Edit category name:', 'নতুন ক্যাটাগরির নাম দিন:'), cat);
-    if (!newName || !newName.trim()) return;
+  const handleStartEdit = (cat: string, index: number) => {
+    setWarningMsg('');
+    setEditingIndex(index);
+    setEditValue(cat);
+    setEditIconId(resolveCategoryIconId(cat));
+  };
+
+  const handleSaveEdit = (index: number) => {
+    const trimmed = editValue.trim();
+    if (!trimmed) {
+      setWarningMsg(t('Category name cannot be empty.', 'ক্যাটাগরির নাম খালি রাখা যাবে না।'));
+      return;
+    }
     const cats = [...categories];
-    cats[index] = newName.trim();
+    cats[index] = trimmed;
+    saveCategoryIcon(trimmed, editIconId);
     onUpdateCategories(cats, activeType);
+    setEditingIndex(null);
+    setWarningMsg('');
   };
 
   const handleDelete = (cat: string) => {
     if (categories.length <= 1) {
-      alert(t('At least one category is required.', 'কমপক্ষে একটি ক্যাটাগরি থাকা আবশ্যক।'));
+      setWarningMsg(t('At least one category is required.', 'কমপক্ষে একটি ক্যাটাগরি থাকা আবশ্যক।'));
       return;
     }
+    setWarningMsg('');
+    setEditingIndex(null);
     const cats = categories.filter(c => c !== cat);
     onUpdateCategories(cats, activeType);
   };
@@ -1691,7 +1742,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
           <div className="flex items-center bg-[#062423] p-1 rounded-xl mb-3 shrink-0 border border-teal-800/80">
             <button
               type="button"
-              onClick={() => setActiveType('Expense')}
+              onClick={() => {
+                setActiveType('Expense');
+                setEditingIndex(null);
+                setWarningMsg('');
+              }}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeType === 'Expense' ? 'bg-[#FF5252] text-white shadow-sm' : 'text-teal-300 hover:text-white'
               }`}
@@ -1700,7 +1755,11 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setActiveType('Income')}
+              onClick={() => {
+                setActiveType('Income');
+                setEditingIndex(null);
+                setWarningMsg('');
+              }}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeType === 'Income' ? 'bg-emerald-600 text-white shadow-sm' : 'text-teal-300 hover:text-white'
               }`}
@@ -1709,60 +1768,125 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
             </button>
           </div>
 
-          {/* List of Categories with Move Up, Move Down, Edit, Delete */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 mb-3">
-            {categories.map((cat, idx) => (
-              <div
-                key={cat}
-                className="flex items-center justify-between p-2 rounded-xl bg-[#062423] border border-teal-700/70 text-xs shadow-sm"
-              >
-                <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <div className="text-teal-300 hover:text-white cursor-grab active:cursor-grabbing p-0.5 rounded border border-teal-800/80 bg-[#042F2E]" title="Move / Drag">
-                    <GripVertical className="w-4 h-4" />
-                  </div>
-                  <span className="font-semibold text-[#F0FDFA] truncate">
-                    {cleanCategoryName(cat, lang)}
-                  </span>
-                </div>
+          {warningMsg && (
+            <div className="mb-2 px-3 py-1.5 rounded-lg bg-rose-950/70 border border-rose-700/70 text-[11px] font-semibold text-rose-200 shrink-0">
+              {warningMsg}
+            </div>
+          )}
 
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleMove(idx, 'up')}
-                    disabled={idx === 0}
-                    className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
-                    title="Move Up"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMove(idx, 'down')}
-                    disabled={idx === categories.length - 1}
-                    className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
-                    title="Move Down"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(cat, idx)}
-                    className="p-1 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white hover:bg-teal-900/60 cursor-pointer shadow-sm"
-                    title="Edit"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(cat)}
-                    className="p-1 rounded border border-rose-800/80 bg-rose-950/60 text-[#FF5252] hover:bg-rose-900/80 cursor-pointer shadow-sm"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+          {/* List of Categories with Move Up, Move Down, Inline Edit + Icon Pick, Delete */}
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 mb-3">
+            {categories.map((cat, idx) => {
+              const isEditing = editingIndex === idx;
+              return (
+                <div
+                  key={`${cat}_${idx}`}
+                  className="p-2 rounded-xl bg-[#062423] border border-teal-700/70 text-xs shadow-sm space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="text-teal-300 p-0.5 rounded border border-teal-800/80 bg-[#042F2E] shrink-0" title="Order">
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
+                      <CategoryIcon category={cat} iconId={isEditing ? editIconId : undefined} withBadge size="sm" />
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          className="flex-1 min-w-0 bg-[#0B3C39] border border-emerald-500/70 rounded-lg px-2 py-1 text-xs font-bold text-[#F0FDFA] focus:outline-none"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="font-semibold text-[#F0FDFA] truncate">
+                          {cleanCategoryName(cat, lang)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(idx)}
+                            className="p-1.5 rounded border border-emerald-500/60 bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer shadow-sm"
+                            title={t('Save', 'সেভ')}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingIndex(null)}
+                            className="p-1.5 rounded border border-teal-700 bg-[#042F2E] text-teal-300 hover:text-white cursor-pointer shadow-sm"
+                            title={t('Cancel', 'বাতিল')}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleMove(idx, 'up')}
+                            disabled={idx === 0}
+                            className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
+                            title="Move Up"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMove(idx, 'down')}
+                            disabled={idx === categories.length - 1}
+                            className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
+                            title="Move Down"
+                          >
+                            ▼
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(cat, idx)}
+                            className="p-1 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white hover:bg-teal-900/60 cursor-pointer shadow-sm"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(cat)}
+                            className="p-1 rounded border border-rose-800/80 bg-rose-950/60 text-[#FF5252] hover:bg-rose-900/80 cursor-pointer shadow-sm"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="grid grid-cols-8 gap-1 pt-1.5 border-t border-teal-800/60">
+                      {DAILY_LIFE_ICON_PACK.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          title={item.label}
+                          onClick={() => setEditIconId(item.id)}
+                          className={`p-1 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${
+                            editIconId === item.id
+                              ? 'bg-emerald-600/30 border-emerald-400 text-white'
+                              : 'bg-[#0B3C39] border-teal-800/60 text-teal-300 hover:border-teal-500'
+                          }`}
+                        >
+                          <CategoryIcon iconId={item.id} size="xs" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Add Category Button at Bottom */}
@@ -2325,7 +2449,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
-  const [downloadedBlobUrl, setDownloadedBlobUrl] = useState<string | null>(null);
+  const [conflictNote, setConflictNote] = useState('');
 
   const fallbackApkUrl = updateInfo?.apkDownloadUrl || 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
@@ -2385,9 +2509,9 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       console.warn('AndroidNativeUpdater uninstallSelf failed:', e);
     }
 
-    alert(t(
-      'To fix signature conflict: Please long-press the old "হাত খরচ" app on your phone home screen and tap "Uninstall", then install the new APK.',
-      'কনফ্লিক্ট সমাধান করতে: আপনার ফোনের হোমস্ক্রিন থেকে আগের পুরনো "হাত খরচ" অ্যাপটি আনইনস্টল (Uninstall) করুন, এরপর নতুন ফাইলটি ইনস্টল করুন।'
+    setConflictNote(t(
+      'Long-press the old "হাত খরচ" icon on your phone home screen, tap "Uninstall", then install the new APK.',
+      'ফোনের হোমস্ক্রিন থেকে আগের "হাত খরচ" অ্যাপটি আনইনস্টল করুন, এরপর নতুন ফাইলটি ইনস্টল করুন।'
     ));
   };
 
@@ -2421,9 +2545,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setTimeout(() => {
         if (document.body.contains(a)) document.body.removeChild(a);
       }, 1000);
-    } catch {
-      window.open(targetApkUrl, '_blank');
-    }
+    } catch {}
 
     // Smooth UI progress bar animation
     let current = 10;
@@ -2499,6 +2621,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
               >
                 {t('Conflict error? Tap to uninstall old version', 'ইনস্টল এরর দেখালে পুরনো ভার্সন আনইনস্টল করুন')}
               </button>
+              {conflictNote && (
+                <p className="text-[10px] text-amber-200 bg-amber-950/60 border border-amber-800/70 rounded-xl p-2 text-left leading-snug">
+                  {conflictNote}
+                </p>
+              )}
             </div>
           ) : isDownloading ? (
             /* 2. DOWNLOADING ACTIVE PROGRESS */

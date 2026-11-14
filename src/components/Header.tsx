@@ -8,6 +8,8 @@ import {
   ListFilter,
   PieChart,
   Clock,
+  CalendarRange,
+  CalendarClock,
   Settings,
   Check,
   LogOut
@@ -44,7 +46,6 @@ export const Header: React.FC<HeaderProps> = ({
   monthMappings,
   dueTodayTask,
   onPayTask,
-  onProfileClick,
   onLogout,
   activeTab,
   setActiveTab
@@ -95,27 +96,45 @@ export const Header: React.FC<HeaderProps> = ({
   }, [selectedMonth, lang, monthMappings]);
 
   const userDisplayName = currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari';
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.username?.toLowerCase() === 'abujar287';
 
   const userAllowedTabs: AppTab[] = React.useMemo(() => {
-    if (!currentUser) return ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-    const tabs = currentUser.allowedTabs || ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
-    if (['super_admin', 'super_admin_2', 'admin'].includes(currentUser.role || '') || currentUser.username === 'abujar287') {
-      if (!tabs.includes('users')) return [...tabs, 'users'];
-    }
-    return tabs;
-  }, [currentUser]);
+    const baseTabs: AppTab[] = currentUser?.allowedTabs
+      ? [...currentUser.allowedTabs]
+      : ['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
 
-  const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+    if (!baseTabs.includes('monthly_summary')) {
+      baseTabs.push('monthly_summary');
+    }
+
+    if (isSuperAdmin) {
+      if (!baseTabs.includes('users')) baseTabs.push('users');
+      if (!baseTabs.includes('upcoming_3_month')) baseTabs.push('upcoming_3_month');
+      return baseTabs;
+    }
+
+    if (currentUser?.role === 'admin' && !baseTabs.includes('users')) {
+      baseTabs.push('users');
+    }
+
+    return baseTabs.filter(tab => tab !== 'upcoming_3_month');
+  }, [currentUser, isSuperAdmin]);
+
+  const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }>; superAdminOnly?: boolean }[] = [
     { id: 'summary', label: t('Summary', 'হিসাব'), icon: LayoutDashboard },
+    { id: 'monthly_summary', label: t('Monthly Summary', 'মাসিক সারসংক্ষেপ'), icon: CalendarRange },
     { id: 'entry', label: t('Add Entry', 'এন্ট্রি'), icon: PlusCircle },
     { id: 'details', label: t('Details', 'ডিটেইলস'), icon: ListFilter },
     { id: 'budget', label: t('Budget', 'বাজেট'), icon: PieChart },
     { id: 'upcoming_cost', label: t('Upcoming Cost', 'আপকামিং'), icon: Clock },
+    { id: 'upcoming_3_month', label: t('Upcoming 3 Month', 'আগামী ৩ মাস'), icon: CalendarClock, superAdminOnly: true },
     { id: 'settings', label: t('Settings', 'সেটিং'), icon: Settings },
     { id: 'users', label: t('Users', 'ইউজার'), icon: Users },
   ];
 
-  const visibleMenuItems = menuItems.filter(item => userAllowedTabs.includes(item.id));
+  const visibleMenuItems = menuItems.filter(
+    item => userAllowedTabs.includes(item.id) && (!item.superAdminOnly || isSuperAdmin)
+  );
 
   return (
     <header className="shrink-0 z-40 bg-[#042F2E]/95 backdrop-blur-xl text-[#F0FDFA] w-full shadow-sm pt-safe border-b border-teal-800/50 sticky top-0 transition-colors">

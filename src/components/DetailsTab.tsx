@@ -2,18 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search,
-  X,
-  Edit3,
   Trash2,
-  RotateCcw,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Archive
+  RotateCcw
 } from 'lucide-react';
 import { Transaction, AppUser } from '../types';
-import { normalizeDate, formatNumberLocale, formatCleanDateTime, formatDateShortDemo, formatDayHeader } from '../utils/dateUtils';
-import { cleanCategoryName, getCategoryEmoji, getCategoryColor, isOthersCategory } from '../utils/categoryUtils';
+import { normalizeDate, formatNumberLocale, formatDayHeader } from '../utils/dateUtils';
+import { cleanCategoryName, isOthersCategory } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
+import { CategoryIcon } from './CategoryIcon';
 
 
 interface DetailsTabProps {
@@ -233,8 +229,6 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
             <div className="space-y-1.5">
               {group.transactions.map((tx, idx) => {
                 const isExpense = tx.type === 'Expense';
-                const emoji = getCategoryEmoji(tx.category);
-                const circleColor = getCategoryColor(tx.category);
                 return (
                   <motion.div
                     key={tx.id ? `dt_tx_${tx.id}_${group.dateStr}_${idx}` : `dt_tx_idx_${group.dateStr}_${idx}`}
@@ -247,10 +241,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                     className="flex items-center justify-between py-2.5 px-3 bg-[#0B3C39] border border-teal-800/80 hover:border-teal-600/80 hover:bg-[#0E4945] rounded-xl transition-colors duration-200 cursor-pointer group shadow-2xs"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      {/* Icon Circle */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 shadow-xs ${circleColor} text-slate-900 border border-slate-200/50 group-hover:scale-105 transition-transform`}>
-                        {emoji}
-                      </div>
+                      <CategoryIcon category={tx.category} withBadge size="md" className="group-hover:scale-105 transition-transform" />
                       <div className="min-w-0">
                         <span className="font-bold text-[#F0FDFA] text-xs block truncate transition-colors">
                           {cleanCategoryName(tx.category, lang)}

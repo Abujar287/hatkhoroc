@@ -10,7 +10,6 @@ import {
   Search,
   Check,
   X,
-  Layers,
   CheckSquare,
   Square
 } from 'lucide-react';
@@ -21,8 +20,9 @@ import {
   findMonthMapping,
   getMonthKeyFromLabel
 } from '../utils/dateUtils';
-import { cleanCategoryName, getCategoryEmoji, getCategoryColor } from '../utils/categoryUtils';
+import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
+import { CategoryIcon } from './CategoryIcon';
 
 export interface CategoryBudgetRow {
   category: string;
@@ -676,8 +676,6 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               const spentVal = getSpendVal(catClean);
               const pct = budgetVal > 0 ? Math.min(100, (spentVal / budgetVal) * 100) : 0;
               const isOver = budgetVal > 0 && spentVal > budgetVal;
-              const emoji = getCategoryEmoji(catClean);
-              const circleColor = getCategoryColor(catClean);
 
               return (
                 <motion.div
@@ -688,9 +686,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                   {/* ROW 1: CATEGORY NAME & REMOVE BUTTON */}
                   <div className="flex items-center justify-between gap-2 border-b border-teal-800/60 pb-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm sm:text-base shrink-0 shadow-2xs ${circleColor} text-slate-900 border border-teal-600/60`}>
-                        {emoji}
-                      </div>
+                      <CategoryIcon category={catClean} withBadge size="sm" />
                       <span className="font-extrabold text-[#F0FDFA] text-xs sm:text-sm truncate">
                         {cleanCategoryName(catClean, lang)}
                       </span>
