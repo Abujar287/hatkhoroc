@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   NotebookPen,
   Plus,
@@ -196,6 +197,14 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     setSelectedNoteIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0) {
+      setSelectedNoteIds([]);
+    } else {
+      setSelectedNoteIds(filteredNotes.map(n => n.id));
+    }
   };
 
   // Long press handlers to enter select mode - scroll-proof!
@@ -434,6 +443,59 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       </div>
 
+      {/* STICKY TOP MULTI-SELECT ACTION BAR (Stays pinned to top of the scroll container while scrolling) */}
+      {isSelectMode && (
+        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border-2 border-emerald-500/80 rounded-2xl px-3 py-2.5 shadow-2xl flex flex-wrap items-center justify-between gap-2 animate-fadeIn mb-2">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="px-2.5 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-xs cursor-pointer active:scale-95 transition-all"
+            >
+              {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
+                ? 'Deselect All'
+                : 'Select All'}
+            </button>
+            <span className="text-xs font-black text-emerald-300 tabular-nums">
+              ({selectedNoteIds.length})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              disabled={selectedNoteIds.length === 0}
+              onClick={() => setShowBulkCategoryModal(true)}
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md text-xs transition-all active:scale-95"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Assign Category</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={selectedNoteIds.length === 0}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md text-xs transition-all active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(false);
+                setSelectedNoteIds([]);
+              }}
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-xs transition-all active:scale-95"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ALL NOTES LIST */}
       {filteredNotes.length === 0 ? (
         <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-10 text-center space-y-3">
@@ -452,7 +514,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
         </div>
       ) : (
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all ${isSelectMode ? 'pb-28' : 'pb-16'}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all ${isSelectMode ? 'pb-36' : 'pb-20'}`}>
           {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
             return (
@@ -550,78 +612,82 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       )}
 
-      {/* PERSISTENT FLOATING MULTI-SELECT ACTION BAR (Always visible while scrolling) */}
-      {isSelectMode ? (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[96%] max-w-lg bg-[#062423]/95 backdrop-blur-md border border-emerald-500/70 rounded-2xl px-2.5 sm:px-3.5 py-2 sm:py-2.5 shadow-2xl flex items-center justify-between gap-1.5 sm:gap-2 animate-modalSpring">
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedNoteIds.length === filteredNotes.length) {
+      {/* VIEWPORT-ANCHORED FLOATING BOTTOM ACTION BAR (Portal to document.body, totally immune to container scrolling) */}
+      {typeof document !== 'undefined' &&
+        isSelectMode &&
+        createPortal(
+          <div className="fixed bottom-[74px] sm:bottom-20 left-1/2 -translate-x-1/2 z-[99999] w-[95%] max-w-lg bg-[#062423]/95 backdrop-blur-md border-2 border-emerald-500/80 rounded-2xl px-2.5 sm:px-3.5 py-2.5 shadow-2xl flex items-center justify-between gap-1.5 sm:gap-2 animate-fadeIn pointer-events-auto">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="px-2.5 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-[11px] sm:text-xs cursor-pointer active:scale-95 transition-all"
+              >
+                {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </button>
+              <span className="text-xs font-black text-emerald-300 tabular-nums">
+                ({selectedNoteIds.length})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                disabled={selectedNoteIds.length === 0}
+                onClick={() => setShowBulkCategoryModal(true)}
+                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span className="truncate">Assign Category</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={selectedNoteIds.length === 0}
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelectMode(false);
                   setSelectedNoteIds([]);
-                } else {
-                  setSelectedNoteIds(filteredNotes.map(n => n.id));
-                }
-              }}
-              className="px-2 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-[10px] sm:text-xs cursor-pointer active:scale-95 transition-all"
-            >
-              {selectedNoteIds.length === filteredNotes.length ? 'Deselect All' : 'Select All'}
-            </button>
-            <span className="text-[11px] font-black text-emerald-300 tabular-nums">
-              ({selectedNoteIds.length})
-            </span>
-          </div>
+                }}
+                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-[11px] sm:text-xs transition-all active:scale-95"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <button
-              type="button"
-              disabled={selectedNoteIds.length === 0}
-              onClick={() => setShowBulkCategoryModal(true)}
-              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span className="truncate">Assign Category</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={selectedNoteIds.length === 0}
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsSelectMode(false);
-                setSelectedNoteIds([]);
-              }}
-              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-[11px] sm:text-xs transition-all active:scale-95"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */
-        <button
-          type="button"
-          onClick={() => {
-            setFormName('');
-            setFormCategory(categories[0] || 'Uncategorized');
-            setFormCustomCat('');
-            setFormBody('');
-            setShowCreateModal(true);
-          }}
-          className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20"
-          title="Add New Note"
-        >
-          <Plus className="w-7 h-7 stroke-[3]" />
-        </button>
-      )}
+      {/* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */}
+      {typeof document !== 'undefined' &&
+        !isSelectMode &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => {
+              setFormName('');
+              setFormCategory(categories[0] || 'Uncategorized');
+              setFormCustomCat('');
+              setFormBody('');
+              setShowCreateModal(true);
+            }}
+            className="fixed bottom-[74px] sm:bottom-20 right-5 z-[9999] w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20 pointer-events-auto"
+            title="Add New Note"
+          >
+            <Plus className="w-7 h-7 stroke-[3]" />
+          </button>,
+          document.body
+        )}
 
       {/* ======================================================== */}
       {/* BULK CATEGORY ASSIGN MODAL                              */}
