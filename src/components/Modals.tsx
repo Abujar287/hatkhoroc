@@ -2466,7 +2466,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     const targetApkUrl = fallbackApkUrl;
     const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
 
-    // 1. Inside Android Native APK: Download directly via Android DownloadManager (NO browser link opened)
+    // 1. Inside Android Native APK: Download directly via Android DownloadManager
     if (nativeUpdater && typeof nativeUpdater.downloadAndInstallApk === 'function') {
       try {
         nativeUpdater.downloadAndInstallApk(targetApkUrl);
@@ -2479,7 +2479,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       return;
     }
 
-    // 2. Web / Mobile Browser fallback: silent background download trigger (NO new tab / target=_blank)
+    // 2. Web / Mobile Browser fallback: silent background download trigger
     try {
       const a = document.createElement('a');
       a.href = targetApkUrl;
@@ -2494,7 +2494,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
     let current = 12;
     const timer = setInterval(() => {
-      current += 22;
+      current += 20;
       if (current >= 100) {
         clearInterval(timer);
         setDownloadProgress(100);
@@ -2503,10 +2503,9 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } else {
         setDownloadProgress(current);
       }
-    }, 350);
+    }, 300);
   }, [fallbackApkUrl, t]);
 
-  // Reset state whenever modal opens; auto-start background DownloadManager when triggered via "Check Update"
   useEffect(() => {
     if (!isOpen) {
       setIsDownloading(false);
@@ -2536,12 +2535,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } catch {}
     }
 
-    if (autoStartDownload && nativeUpdater) {
+    if (autoStartDownload) {
       startBackgroundDownload();
     }
   }, [isOpen, autoStartDownload, startBackgroundDownload]);
 
-  // Listen to real progress & completion callbacks from Android DownloadManager
   useEffect(() => {
     if (!isOpen) return;
     const win = window as any;
@@ -2589,8 +2587,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLaunchInstaller = (forceUninstallOld = false) => {
-    // Record update acknowledged so popup doesn't auto-reappear for same SHA
+  const handleLaunchInstaller = () => {
     if (updateInfo?.latestSha) {
       try {
         localStorage.setItem('app_installed_sha', updateInfo.latestSha);
@@ -2602,11 +2599,6 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     const nativeUpdater = (window as any).AndroidNativeUpdater;
     if (nativeUpdater) {
       try {
-        if (forceUninstallOld && typeof nativeUpdater.forceUninstallAndInstall === 'function') {
-          nativeUpdater.forceUninstallAndInstall();
-          onClose();
-          return;
-        }
         if (typeof nativeUpdater.openInstaller === 'function') {
           nativeUpdater.openInstaller();
           onClose();
@@ -2617,15 +2609,19 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       }
     }
 
+    try {
+      window.location.href = fallbackApkUrl;
+    } catch {}
+
     setConflictNote(
       t(
-        'Open the downloaded "hatkhoroc.apk" from your notification bar or Downloads folder to install. If it shows a conflict error, uninstall the old app first.',
-        'নোটিফিকেশন বার বা Downloads ফোল্ডার থেকে ডাউনলোড হওয়া "hatkhoroc.apk" ওপেন করে ইনস্টল করুন। ইনস্টল এরর দেখালে আগের অ্যাপটি আগে আনইনস্টল করুন।'
+        'If "App not installed" appears: Please uninstall the old version of হাত খরচ first, then open Downloads and install the new APK.',
+        'যদি "App not installed" দেখায়: আগের হাত খরচ অ্যাপটি আনইনস্টল করে নতুন APK ইনস্টল করুন।'
       )
     );
   };
 
-  const handleUninstallOldApp = () => {
+  const handleCleanUninstallAndInstall = () => {
     const nativeUpdater = (window as any).AndroidNativeUpdater;
     try {
       if (nativeUpdater && typeof nativeUpdater.forceUninstallAndInstall === 'function') {
@@ -2636,14 +2632,12 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
         nativeUpdater.uninstallSelf();
         return;
       }
-    } catch (e) {
-      console.warn('AndroidNativeUpdater uninstallSelf failed:', e);
-    }
+    } catch {}
 
     setConflictNote(
       t(
-        'Uninstall the old "হাত খরচ" app from your phone home screen, then open Downloads and install the new APK.',
-        'ফোন থেকে আগের "হাত খরচ" অ্যাপটি আনইনস্টল করে Downloads থেকে নতুন APK ইনস্টল করুন।'
+        'Please delete/uninstall the previous "হাত খরচ" app from your phone first, then open the downloaded APK to install successfully.',
+        'দয়া করে আপনার ফোন থেকে আগের "হাত খরচ" অ্যাপটি আনইনস্টল করে নিন, এরপর ডাউনলোড করা নতুন APK ইনস্টল করুন।'
       )
     );
   };
@@ -2657,8 +2651,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
-        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
-          {/* Close Button */}
+        <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[325px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
           {(!isDownloading || isReadyToInstall || Boolean(downloadError)) && (
             <button
               type="button"
@@ -2669,9 +2662,8 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
             </button>
           )}
 
-          {/* 3. DOWNLOAD COMPLETE / READY TO UPDATE */}
           {isReadyToInstall ? (
-            <div className="space-y-3.5 pt-1 animate-fadeIn">
+            <div className="space-y-3 pt-1 animate-fadeIn">
               <div className="w-14 h-14 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400 animate-pulse" />
               </div>
@@ -2682,45 +2674,44 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 </h3>
                 <p className="text-xs text-teal-200/90 font-medium">
                   {t(
-                    'APK is ready in Download Manager. Tap Update to install.',
-                    'ডাউনলোড ম্যানেজারে APK প্রস্তুত। ইনস্টল করতে Update বাটনে চাপ দিন।'
+                    'Tap Update below to install the new version.',
+                    'নতুন ভার্সন ইনস্টল করতে নিচের Update বাটনে চাপ দিন।'
                   )}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => handleLaunchInstaller(false)}
+                onClick={handleLaunchInstaller}
                 className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
               >
                 <PackageCheck className="w-4 h-4 text-emerald-200" />
-                <span>{t('Update', 'আপডেট করুন')}</span>
+                <span>{t('Install Update Now', 'এখনই ইনস্টল করুন')}</span>
               </button>
 
               <button
                 type="button"
-                onClick={handleUninstallOldApp}
-                className="w-full py-2 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 text-amber-200 border border-amber-700/60 text-[11px] font-bold cursor-pointer transition-all"
+                onClick={handleCleanUninstallAndInstall}
+                className="w-full py-2.5 rounded-xl bg-amber-950/80 hover:bg-amber-900/90 text-amber-200 border border-amber-700/70 text-[11px] font-bold cursor-pointer transition-all shadow-sm"
               >
-                {t('Uninstall Old & Install New', 'পুরনো ভার্সন মুছে নতুন ইনস্টল করুন')}
+                {t('Fix "App Not Installed" (Clean Update)', '"App not installed" সমস্যা সমাধান করুন')}
               </button>
 
               <button
                 type="button"
                 onClick={() => forceAppUpdateRefresh()}
-                className="w-full py-2.5 rounded-xl bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600 text-xs font-bold cursor-pointer transition-all"
+                className="w-full py-2 rounded-xl bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600 text-xs font-bold cursor-pointer transition-all"
               >
-                {t('Force Refresh Web App (Clear Cache)', 'ওয়েব অ্যাপ রিফ্রেশ করুন (ক্যাশ মুছুন)')}
+                {t('Force Refresh Web App', 'ওয়েব অ্যাপ রিফ্রেশ করুন')}
               </button>
 
               {conflictNote && (
-                <p className="text-[10px] text-amber-200 bg-amber-950/60 border border-amber-800/70 rounded-xl p-2 text-left leading-snug">
+                <p className="text-[10px] text-amber-200 bg-amber-950/80 border border-amber-700/80 rounded-xl p-2.5 text-left leading-relaxed">
                   {conflictNote}
                 </p>
               )}
             </div>
           ) : downloadError ? (
-            /* DOWNLOAD FAILED STATE */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="w-12 h-12 rounded-full bg-rose-950 border border-rose-500/60 text-rose-400 flex items-center justify-center mx-auto">
                 <X className="w-6 h-6" />
@@ -2740,7 +2731,6 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
               </button>
             </div>
           ) : isDownloading ? (
-            /* 2. DOWNLOADING IN BACKGROUND / DOWNLOAD MANAGER */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="space-y-1">
                 <h3 className="text-base font-black text-white">
@@ -2748,8 +2738,8 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 </h3>
                 <p className="text-xs text-teal-200/80">
                   {t(
-                    'Downloading directly in Download Manager...',
-                    'ব্যাকগ্রাউন্ডে ডাউনলোড ম্যানেজারে ডাউনলোড হচ্ছে...'
+                    'Downloading APK in background...',
+                    'ব্যাকগ্রাউন্ডে APK ডাউনলোড হচ্ছে...'
                   )}
                 </p>
               </div>
@@ -2771,7 +2761,6 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
               </div>
             </div>
           ) : (
-            /* 1. INITIAL MINIMAL PROMPT */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 border border-teal-600/50 flex items-center justify-center mx-auto overflow-hidden p-1 shadow-md">
                 <img src="/logo.png" alt="হাত খরচ" className="w-full h-full object-contain rounded-xl" />
@@ -2783,8 +2772,8 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 </h3>
                 <p className="text-xs text-teal-200/90 leading-relaxed px-1">
                   {t(
-                    'Download & install the latest version directly.',
-                    'নতুন ভার্সন সরাসরি ডাউনলোড করে আপডেট করুন।'
+                    'Tap Update Now to download & install automatically.',
+                    'স্বয়ংক্রিয়ভাবে ডাউনলোড ও ইনস্টল করতে এখনই আপডেট করুন এ চাপ দিন।'
                   )}
                 </p>
               </div>
