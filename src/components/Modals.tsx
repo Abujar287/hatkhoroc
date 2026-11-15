@@ -2448,39 +2448,44 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [isReadyToInstall, setIsReadyToInstall] = useState(false);
   const [downloadError, setDownloadError] = useState('');
 
   const apkUrl =
     updateInfo?.apkDownloadUrl ||
     'https://github.com/Abujar287/hatkhoroc/releases/latest/download/hatkhoroc.apk';
 
-  const releasesUrl = 'https://github.com/Abujar287/hatkhoroc/releases';
+  const currentVersionStr = updateInfo?.currentVersion || APP_VERSION || 'v1.1.4';
+  const currentDateTimeStr = updateInfo?.currentDateTime || '2026-11-15 12:22 PM';
+  const newVersionStr = updateInfo?.newVersion || APP_VERSION || 'v1.1.4';
+  const newDateTimeStr = updateInfo?.newDateTime || '2026-11-15 12:30 PM';
 
-  const handleStartDownload = () => {
-    setDownloadError('');
-    setIsDownloading(true);
-    setDownloadProgress(10);
+  const totalApkMb = 3.98;
+
+  const autoTriggerInstall = React.useCallback(() => {
+    if (updateInfo?.latestSha) {
+      try {
+        localStorage.setItem('app_installed_sha', updateInfo.latestSha);
+        localStorage.setItem('app_dismissed_sha', updateInfo.latestSha);
+        localStorage.removeItem('app_update_dismissed_at');
+      } catch {}
+    }
 
     const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
-
-    if (nativeUpdater && typeof nativeUpdater.downloadAndInstallApk === 'function') {
+    if (nativeUpdater && typeof nativeUpdater.openInstaller === 'function') {
       try {
-        nativeUpdater.downloadAndInstallApk(apkUrl);
-        setIsDownloading(false);
-        setIsReadyToInstall(true);
+        nativeUpdater.openInstaller();
+        onClose();
         return;
-      } catch (err) {
-        console.warn('Native download failed:', err);
+      } catch (e) {
+        console.warn('Native openInstaller error:', e);
       }
     }
 
-    // Trigger direct download / open release page
+    // Web / mobile browser fallback: open downloaded APK directly
     try {
       const a = document.createElement('a');
       a.href = apkUrl;
       a.download = 'hatkhoroc.apk';
-      a.target = '_blank';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -2488,15 +2493,56 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       }, 1000);
     } catch {}
 
-    setDownloadProgress(100);
-    setIsDownloading(false);
-    setIsReadyToInstall(true);
-  };
+    onClose();
+  }, [apkUrl, onClose, updateInfo]);
+
+  const handleStartDownload = React.useCallback(() => {
+    setDownloadError('');
+    setIsDownloading(true);
+    setDownloadProgress(2);
+
+    const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
+
+    if (nativeUpdater && typeof nativeUpdater.downloadAndInstallApk === 'function') {
+      try {
+        nativeUpdater.downloadAndInstallApk(apkUrl);
+        return;
+      } catch (err) {
+        console.warn('Native download failed:', err);
+      }
+    }
+
+    // Web / Browser smooth background download simulation & trigger
+    try {
+      const a = document.createElement('a');
+      a.href = apkUrl;
+      a.download = 'hatkhoroc.apk';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 1500);
+    } catch {}
+
+    let current = 2;
+    const interval = setInterval(() => {
+      current += 14;
+      if (current >= 100) {
+        clearInterval(interval);
+        setDownloadProgress(100);
+        setTimeout(() => {
+          autoTriggerInstall();
+        }, 400);
+      } else {
+        setDownloadProgress(current);
+      }
+    }, 280);
+  }, [apkUrl, autoTriggerInstall]);
 
   useEffect(() => {
     if (!isOpen) {
       setIsDownloading(false);
-      setIsReadyToInstall(false);
       setDownloadProgress(0);
       setDownloadError('');
       return;
@@ -2504,84 +2550,168 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     if (autoStartDownload) {
       handleStartDownload();
     }
-  }, [isOpen, autoStartDownload]);
+  }, [isOpen, autoStartDownload, handleStartDownload]);
+
+  // Listen to native DownloadManager callbacks from Android
+  useEffect(() => {
+    if (!isOpen) return;
+    const win = window as any;
+
+    const applyState = (state: string, progress: number, error?: string) => {
+      if (state === 'downloading') {
+        setIsDownloading(true);
+        setDownloadProgress(Math.max(2, Math.min(99, Number(progress) || 2)));
+      } else if (state === 'completed') {
+        setDownloadProgress(100);
+        setTimeout(() => {
+          autoTriggerInstall();
+        }, 300);
+      } else if (state === 'failed') {
+        setIsDownloading(false);
+        setDownloadError(error || t('Download failed. Please try again.', 'ডাউনলোড ব্যর্থ হয়েছে।'));
+      }
+    };
+
+    win.__onNativeApkDownloadState = applyState;
+
+    const pollInterval = setInterval(() => {
+      const nativeUpdater = win.AndroidNativeUpdater;
+      if (nativeUpdater && typeof nativeUpdater.getDownloadState === 'function') {
+        try {
+          const parsed = JSON.parse(nativeUpdater.getDownloadState());
+          if (parsed && parsed.state && parsed.state !== 'idle') {
+            applyState(parsed.state, parsed.progress, parsed.error);
+          }
+        } catch {}
+      }
+    }, 400);
+
+    return () => {
+      clearInterval(pollInterval);
+      if (win.__onNativeApkDownloadState === applyState) {
+        delete win.__onNativeApkDownloadState;
+      }
+    };
+  }, [isOpen, autoTriggerInstall, t]);
 
   if (!isOpen) return null;
+
+  const currentMbDownloaded = ((downloadProgress / 100) * totalApkMb).toFixed(1);
 
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
         <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[340px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 border border-teal-600/50 flex items-center justify-center mx-auto overflow-hidden p-1 shadow-md">
-            <img src="/logo.png" alt="হাত খরচ" className="w-full h-full object-contain rounded-xl" />
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="text-base font-black text-white">
-              {t('New App Update Available!', 'নতুন অ্যাপ আপডেট এসেছে!')}
-            </h3>
-            <p className="text-xs text-teal-200/90 leading-relaxed px-1">
-              {t(
-                'Download the latest version (v1.1.4) from GitHub Releases below:',
-                'নিচের লিংকে ক্লিক করে সর্বশেষ ভার্সন (v1.1.4) ডাউনলোড করুন:'
-              )}
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-1">
-            <a
-              href={apkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                if (updateInfo?.latestSha) {
-                  try {
-                    localStorage.setItem('app_installed_sha', updateInfo.latestSha);
-                    localStorage.setItem('app_dismissed_sha', updateInfo.latestSha);
-                  } catch {}
-                }
-              }}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50 block"
+          {!isDownloading && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-3.5 right-3.5 text-teal-400 hover:text-white p-1 rounded-full bg-[#062423] border border-teal-700/60 cursor-pointer transition-colors"
             >
-              <Download className="w-4 h-4 text-emerald-200" />
-              <span>{t('Download APK (19.2 MB)', 'APK ডাউনলোড করুন (১৯.২ মেগাবাইট)')}</span>
-            </a>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
 
-            <a
-              href={releasesUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 bg-[#062423] hover:bg-teal-900/80 text-teal-200 rounded-xl text-xs font-bold border border-teal-700/70 flex items-center justify-center gap-1.5 transition-all block"
-            >
-              <span>{t('Open GitHub Releases Page', 'গিটহব রিলিজ পেজ খুলুন')}</span>
-            </a>
-          </div>
+          {isDownloading ? (
+            /* ======================================================== */
+            /* 2. DOWNLOADING STATE (Download, 2% 1.2MB/3.98MB, Bar)    */
+            /* ======================================================== */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('Download', 'Download')}
+                </h3>
+                <p className="text-xs text-teal-200/80">
+                  {downloadProgress >= 100
+                    ? t('Installing update automatically...', 'স্বয়ংক্রিয়ভাবে ইনস্টল হচ্ছে...')
+                    : t('Downloading update in background...', 'ব্যাকগ্রাউন্ডে আপডেট ফাইল ডাউনলোড হচ্ছে...')}
+                </p>
+              </div>
 
-          <div className="p-2.5 rounded-xl bg-amber-950/70 border border-amber-700/60 text-[10px] text-amber-200 text-left space-y-1">
-            <b className="block text-amber-300">{t('Important Note:', 'গুরুত্বপূর্ণ নির্দেশিকা:')}</b>
-            <p>
-              {t(
-                '1. Tap Download APK. 2. Open downloaded file from notification bar. 3. If "App not installed" appears, uninstall the old app first and install again.',
-                '১. Download APK এ চাপ দিন। ২. নোটিফিকেশন বার থেকে ডাউনলোড হওয়া ফাইলটি ওপেন করুন। ৩. "App not installed" দেখালে পুরনো অ্যাপটি আনইনস্টল করে নতুনটি ইনস্টল করুন।'
+              {/* Exact format: 2%  1.2MB/3.98MB */}
+              <div className="py-2 space-y-1">
+                <div className="flex items-center justify-center gap-2 text-emerald-400 font-black tabular-nums">
+                  <span className="text-3xl">{downloadProgress}%</span>
+                  <span className="text-xs text-teal-200 font-bold">
+                    {currentMbDownloaded}MB/{totalApkMb}MB
+                  </span>
+                </div>
+              </div>
+
+              <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/60 overflow-hidden shadow-inner">
+                <div
+                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full rounded-full transition-all duration-250 ease-out"
+                  style={{ width: `${downloadProgress}%` }}
+                />
+              </div>
+
+              {downloadError && (
+                <div className="p-2 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
+                  {downloadError}
+                </div>
               )}
-            </p>
-          </div>
+            </div>
+          ) : (
+            /* ======================================================== */
+            /* 1. INITIAL VERSION DIFF PROMPT                          */
+            /* ======================================================== */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 border border-teal-600/50 flex items-center justify-center mx-auto overflow-hidden p-1 shadow-md">
+                <img src="/logo.png" alt="হাত খরচ" className="w-full h-full object-contain rounded-xl" />
+              </div>
 
-          <button
-            type="button"
-            onClick={() => forceAppUpdateRefresh()}
-            className="w-full py-2 rounded-xl bg-teal-800/80 hover:bg-teal-700 text-teal-100 border border-teal-600 text-xs font-bold cursor-pointer transition-all"
-          >
-            {t('Force Refresh Web App (Clear Cache)', 'ওয়েব অ্যাপ রিফ্রেশ করুন')}
-          </button>
+              {/* Version Comparison Box */}
+              <div className="space-y-2.5 text-left bg-[#062423] p-3 rounded-2xl border border-teal-700/70">
+                {/* Current Version */}
+                <div className="flex items-start gap-2">
+                  <span className="w-2 h-2 rounded-full bg-teal-400 mt-1 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-teal-100 truncate">
+                      হাত খরচ - {currentVersionStr} {currentDateTimeStr}
+                    </p>
+                    <span className="text-[10px] text-teal-300/80 font-medium uppercase tracking-wider block">
+                      Current Version
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-[1px] bg-teal-800/80" />
+
+                {/* New Version */}
+                <div className="flex items-start gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1 shrink-0 animate-ping" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-emerald-300 truncate">
+                      হাত খরচ - {newVersionStr} {newDateTimeStr}
+                    </p>
+                    <span className="text-[10px] text-emerald-400/90 font-medium uppercase tracking-wider block">
+                      New Version
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons: Update Button & Force Refresh Web App Button */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleStartDownload}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
+                >
+                  <Download className="w-4 h-4 text-emerald-200" />
+                  <span>Update</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => forceAppUpdateRefresh()}
+                  className="w-full py-2.5 rounded-xl bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 text-xs font-bold cursor-pointer transition-all"
+                >
+                  Force Refresh Web App (Clear Cache)
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </ModalPortal>

@@ -68,8 +68,10 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   // Delete confirmation
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteEntry | null>(null);
 
-  // Long press timer ref
+  // Long press timer ref and touch movement tracking to prevent selection while scrolling
   const pressTimerRef = useRef<any>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const isScrollingRef = useRef<boolean>(false);
 
   // Extract unique categories directly from Google Sheet notes (BD column)
   const categories = useMemo(() => {
@@ -196,13 +198,46 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     );
   };
 
-  // Long press handlers to enter select mode
-  const handleTouchStart = (noteId: string) => {
+  // Long press handlers to enter select mode - scroll-proof!
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent, noteId: string) => {
+    if (isSelectMode) return; // In select mode, tap toggles immediately
+
+    if ('touches' in e && e.touches.length > 0) {
+      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else if ('clientX' in e) {
+      touchStartPos.current = { x: e.clientX, y: e.clientY };
+    }
+    isScrollingRef.current = false;
+
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+    }
+
     pressTimerRef.current = setTimeout(() => {
-      setIsSelectMode(true);
-      setSelectedNoteIds(prev => (prev.includes(noteId) ? prev : [...prev, noteId]));
-      showToast('Selection mode activated', 'info');
-    }, 600);
+      if (!isScrollingRef.current) {
+        setIsSelectMode(true);
+        setSelectedNoteIds(prev => (prev.includes(noteId) ? prev : [...prev, noteId]));
+        showToast('Selection mode activated', 'info');
+      }
+      touchStartPos.current = null;
+    }, 700);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current || !pressTimerRef.current) return;
+    if (e.touches.length > 0) {
+      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+      const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+      // If user moved more than 6px in any direction, they are scrolling! Cancel long press!
+      if (dx > 6 || dy > 6) {
+        isScrollingRef.current = true;
+        if (pressTimerRef.current) {
+          clearTimeout(pressTimerRef.current);
+          pressTimerRef.current = null;
+        }
+        touchStartPos.current = null;
+      }
+    }
   };
 
   const handleTouchEnd = () => {
@@ -210,6 +245,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
+    touchStartPos.current = null;
   };
 
   const handleBulkApplyCategory = async () => {
@@ -483,10 +519,13 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                     handleOpenNoteModal(note);
                   }
                 }}
-                onMouseDown={() => handleTouchStart(note.id)}
+                onMouseDown={e => handleTouchStart(e, note.id)}
                 onMouseUp={handleTouchEnd}
-                onTouchStart={() => handleTouchStart(note.id)}
+                onMouseLeave={handleTouchEnd}
+                onTouchStart={e => handleTouchStart(e, note.id)}
+                onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
                 className={`border rounded-2xl p-4 transition-colors cursor-pointer flex flex-col justify-between gap-3 group select-none ${
                   isSelected
                     ? 'bg-teal-900/60 border-emerald-400'

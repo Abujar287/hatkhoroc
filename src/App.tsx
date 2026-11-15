@@ -65,7 +65,7 @@ import {
   AppUpdateModal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
-import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime } from './utils/updateChecker';
+import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime, APP_VERSION } from './utils/updateChecker';
 
 function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[]): AppTab[] {
   const isSuper = role === 'super_admin' || username?.toLowerCase() === 'abujar287';
@@ -237,22 +237,22 @@ export default function App() {
       }
       const info = await checkGitHubForUpdates(isManual);
       setAppLastUpdateTime(getAppLastUpdateTime());
-      
+
       if (isManual) {
-        const targetInfo = info || {
-          hasUpdate: true,
-          currentSha: 'current',
-          latestSha: 'latest',
-          commitMessage: 'হাত খরচ অ্যান্ড্রয়েড অ্যাপ লেটেস্ট আপডেট',
-          commitAuthor: 'Abujar Al-Gifari',
-          commitDate: new Date().toISOString(),
-          htmlUrl: 'https://github.com/Abujar287/hatkhoroc',
-          releaseUrl: 'https://github.com/Abujar287/hatkhoroc/releases',
-          actionsUrl: 'https://github.com/Abujar287/hatkhoroc/actions',
-          apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
-        };
-        setUpdateInfoModal(targetInfo);
-        setUpdateAutoStart(true);
+        if (!info || !info.hasUpdate) {
+          // Versions match! Notify user cleanly that they are already on the latest version!
+          showToast(
+            lang === 'en'
+              ? `Already installed latest version (হাত খরচ ${APP_VERSION})`
+              : `অলরেডি লেটেস্ট ভার্সন ইনস্টল করা আছে (হাত খরচ ${APP_VERSION})`,
+            'success'
+          );
+          return;
+        }
+
+        // New version exists on GitHub! Show update popup with versions comparison
+        setUpdateInfoModal(info);
+        setUpdateAutoStart(false);
         setShowUpdateModal(true);
       } else if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
@@ -261,21 +261,12 @@ export default function App() {
       }
     } catch {
       if (isManual) {
-        const fallbackInfo = {
-          hasUpdate: true,
-          currentSha: 'current',
-          latestSha: 'latest',
-          commitMessage: 'হাত খরচ অ্যান্ড্রয়েড অ্যাপ আপডেট',
-          commitAuthor: 'Developer',
-          commitDate: new Date().toISOString(),
-          htmlUrl: 'https://github.com/Abujar287/hatkhoroc',
-          releaseUrl: 'https://github.com/Abujar287/hatkhoroc/releases',
-          actionsUrl: 'https://github.com/Abujar287/hatkhoroc/actions',
-          apkDownloadUrl: 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk'
-        };
-        setUpdateInfoModal(fallbackInfo);
-        setUpdateAutoStart(true);
-        setShowUpdateModal(true);
+        showToast(
+          lang === 'en'
+            ? `Already installed latest version (হাত খরচ ${APP_VERSION})`
+            : `অলরেডি লেটেস্ট ভার্সন ইনস্টল করা আছে (হাত খরচ ${APP_VERSION})`,
+          'success'
+        );
       }
     }
   }, [lang, showToast]);

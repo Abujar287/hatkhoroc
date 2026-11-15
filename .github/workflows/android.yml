@@ -364,7 +364,7 @@ jobs:
                               int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
                               int status = statusIdx != -1 ? cursor.getInt(statusIdx) : -1;
 
-                              if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                               if (status == DownloadManager.STATUS_SUCCESSFUL) {
                                   int uriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
                                   if (uriIdx != -1) {
                                       String localUriStr = cursor.getString(uriIdx);
@@ -374,6 +374,7 @@ jobs:
                                   }
                                   stopProgressPolling();
                                   notifyWebDownloadState("completed", 100, "");
+                                  installOrForceUpdateApk(false);
                               } else if (status == DownloadManager.STATUS_FAILED) {
                                   int reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
                                   int reason = reasonIdx != -1 ? cursor.getInt(reasonIdx) : -1;
@@ -406,7 +407,8 @@ jobs:
                           if (id == downloadId && downloadId != -1) {
                               pollDownloadStatusOnce();
                               if ("completed".equals(downloadState)) {
-                                  Toast.makeText(context, "✅ ডাউনলোড সম্পন্ন! আপডেট বাটনে চাপ দিন।", Toast.LENGTH_SHORT).show();
+                                  Toast.makeText(context, "✅ ডাউনলোড সম্পন্ন! ইনস্টলার চালু হচ্ছে...", Toast.LENGTH_SHORT).show();
+                                  installOrForceUpdateApk(false);
                               }
                           }
                       }

@@ -47,6 +47,10 @@ export interface UpdateInfo {
   hasUpdate: boolean;
   currentSha: string;
   latestSha: string;
+  currentVersion: string;
+  currentDateTime: string;
+  newVersion: string;
+  newDateTime: string;
   commitMessage: string;
   commitAuthor: string;
   commitDate: string;
@@ -104,6 +108,10 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       hasUpdate,
       currentSha: CURRENT_BUILD_SHA,
       latestSha,
+      currentVersion: APP_VERSION,
+      currentDateTime: APP_BUILD_DATETIME,
+      newVersion: APP_VERSION,
+      newDateTime: formattedCommitDate,
       commitMessage,
       commitAuthor,
       commitDate,
