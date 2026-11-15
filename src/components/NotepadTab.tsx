@@ -432,60 +432,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             <option value="custom">Custom Range...</option>
           </select>
         </div>
-
-        {/* Multi-Select Bar when active */}
-        {isSelectMode && (
-          <div className="flex items-center justify-between pt-1 text-xs bg-[#062423] p-2 rounded-xl border border-teal-700/60 flex-wrap gap-2">
-            <span className="font-bold text-emerald-300">
-              {selectedNoteIds.length} notes selected
-            </span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedNoteIds.length === filteredNotes.length) {
-                    setSelectedNoteIds([]);
-                  } else {
-                    setSelectedNoteIds(filteredNotes.map(n => n.id));
-                  }
-                }}
-                className="px-2.5 py-1 rounded-lg bg-teal-900 text-teal-200 border border-teal-700 font-semibold cursor-pointer text-[11px]"
-              >
-                {selectedNoteIds.length === filteredNotes.length ? 'Deselect All' : 'Select All'}
-              </button>
-              {selectedNoteIds.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowBulkCategoryModal(true)}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold flex items-center gap-1 cursor-pointer shadow-xs text-[11px]"
-                  >
-                    <Tag className="w-3 h-3" />
-                    <span>Assign Category</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowBulkDeleteConfirm(true)}
-                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold flex items-center gap-1 cursor-pointer shadow-xs text-[11px]"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Delete</span>
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSelectMode(false);
-                  setSelectedNoteIds([]);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 text-teal-300 font-bold cursor-pointer text-[11px]"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ALL NOTES LIST */}
@@ -506,7 +452,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all ${isSelectMode ? 'pb-28' : 'pb-16'}`}>
           {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
             return (
@@ -604,21 +550,78 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       )}
 
-      {/* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */}
-      <button
-        type="button"
-        onClick={() => {
-          setFormName('');
-          setFormCategory(categories[0] || 'Uncategorized');
-          setFormCustomCat('');
-          setFormBody('');
-          setShowCreateModal(true);
-        }}
-        className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20"
-        title="Add New Note"
-      >
-        <Plus className="w-7 h-7 stroke-[3]" />
-      </button>
+      {/* PERSISTENT FLOATING MULTI-SELECT ACTION BAR (Always visible while scrolling) */}
+      {isSelectMode ? (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[96%] max-w-lg bg-[#062423]/95 backdrop-blur-md border border-emerald-500/70 rounded-2xl px-2.5 sm:px-3.5 py-2 sm:py-2.5 shadow-2xl flex items-center justify-between gap-1.5 sm:gap-2 animate-modalSpring">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedNoteIds.length === filteredNotes.length) {
+                  setSelectedNoteIds([]);
+                } else {
+                  setSelectedNoteIds(filteredNotes.map(n => n.id));
+                }
+              }}
+              className="px-2 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-[10px] sm:text-xs cursor-pointer active:scale-95 transition-all"
+            >
+              {selectedNoteIds.length === filteredNotes.length ? 'Deselect All' : 'Select All'}
+            </button>
+            <span className="text-[11px] font-black text-emerald-300 tabular-nums">
+              ({selectedNoteIds.length})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <button
+              type="button"
+              disabled={selectedNoteIds.length === 0}
+              onClick={() => setShowBulkCategoryModal(true)}
+              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span className="truncate">Assign Category</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={selectedNoteIds.length === 0}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(false);
+                setSelectedNoteIds([]);
+              }}
+              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-[11px] sm:text-xs transition-all active:scale-95"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */
+        <button
+          type="button"
+          onClick={() => {
+            setFormName('');
+            setFormCategory(categories[0] || 'Uncategorized');
+            setFormCustomCat('');
+            setFormBody('');
+            setShowCreateModal(true);
+          }}
+          className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20"
+          title="Add New Note"
+        >
+          <Plus className="w-7 h-7 stroke-[3]" />
+        </button>
+      )}
 
       {/* ======================================================== */}
       {/* BULK CATEGORY ASSIGN MODAL                              */}

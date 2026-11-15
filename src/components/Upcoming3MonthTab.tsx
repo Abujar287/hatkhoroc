@@ -700,18 +700,29 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 ))}
               </tr>
 
+              <tr className="hover:bg-teal-900/20">
+                <td className="py-1.5 px-2 sm:px-3.5 font-bold text-teal-200 border-r border-teal-800/60 leading-tight">
+                  {t('Bkash Paid', 'বিকাশ পেইড')}
+                </td>
+                {calc.bkashPayments.map((paid, idx) => (
+                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-right font-extrabold text-emerald-400 tabular-nums">
+                    {formatNumberLocale(paid, lang)}
+                  </td>
+                ))}
+              </tr>
+
               <tr className="bg-[#082C2A]/70 hover:bg-teal-900/25">
                 <td className="py-1.5 px-2 sm:px-3.5 font-bold text-amber-200 border-r border-teal-800/60 leading-tight">
-                  {t('Bkash Paid / Due', 'বিকাশ / বাকি')}
+                  {t('Bkash Lon Due', 'বিকাশ লোন বাকি')}
                 </td>
-                {upcomingMonths.map((slot, idx) => (
-                  <td key={slot.key} className="py-1.5 px-1 sm:px-3 text-right font-bold text-amber-300 tabular-nums leading-tight">
-                    <span>{formatNumberLocale(calc.bkashPayments[idx], lang)}</span>
-                    <span className="hidden sm:inline"> / </span>
-                    <span className="block sm:inline text-[9px] sm:text-xs text-amber-200/85">
-                      <span className="sm:hidden">/ </span>
-                      {formatNumberLocale(calc.bkashFinalDue[idx], lang)}
-                    </span>
+                {calc.bkashFinalDue.map((due, idx) => (
+                  <td
+                    key={idx}
+                    className={`py-1.5 px-1 sm:px-3 text-right font-extrabold tabular-nums ${
+                      due <= 0 ? 'text-emerald-300' : 'text-amber-300'
+                    }`}
+                  >
+                    {formatNumberLocale(due, lang)}
                   </td>
                 ))}
               </tr>
