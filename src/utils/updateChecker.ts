@@ -4,11 +4,9 @@ export const GITHUB_REPO = 'hatkhoroc';
 export const GITHUB_BRANCH = 'main';
 
 // Current Build Commit SHA & Version
-// This gets stamped with the current commit so when a new commit is pushed to main,
-// any client opening the app detects that a newer commit is available on GitHub!
-export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.3';
-export const APP_VERSION = 'v1.1.3';
-export const APP_BUILD_DATETIME = '2026-11-12 03:30 AM';
+export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.4';
+export const APP_VERSION = 'v1.1.4';
+export const APP_BUILD_DATETIME = '2026-11-14 09:30 PM';
 
 export function formatAppUpdateDateTime(dateInput?: string | number | Date | null): string {
   try {
@@ -60,7 +58,6 @@ export interface UpdateInfo {
 
 /**
  * Checks GitHub API for the latest commit on main branch or latest release.
- * Returns UpdateInfo if a newer version or commit is available.
  */
 export async function checkGitHubForUpdates(force: boolean = false): Promise<UpdateInfo | null> {
   try {
@@ -88,11 +85,9 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
     const apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
 
-    // Read stored installed / acknowledged / dismissed SHA
     const installedSha = localStorage.getItem('app_installed_sha');
     const dismissedSha = localStorage.getItem('app_dismissed_sha');
 
-    // An update is available ONLY if neither CURRENT_BUILD_SHA nor installedSha matches latestSha
     const isAlreadyOnLatest = 
       (CURRENT_BUILD_SHA && CURRENT_BUILD_SHA === latestSha) ||
       (installedSha && installedSha === latestSha);
@@ -100,7 +95,6 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     let hasUpdate = !isAlreadyOnLatest;
 
     if (!force && hasUpdate) {
-      // If user recently dismissed this exact SHA, don't auto-nag
       if (dismissedSha === latestSha && isUpdateDismissedRecently()) {
         hasUpdate = false;
       }
@@ -124,9 +118,6 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
   }
 }
 
-/**
- * Checks if the update popup was dismissed within the last 4 hours
- */
 export function isUpdateDismissedRecently(): boolean {
   try {
     const dismissedAt = localStorage.getItem('app_update_dismissed_at');
@@ -155,3 +146,24 @@ export function recordUpdateAcknowledged(sha: string) {
   } catch {}
 }
 
+export async function forceAppUpdateRefresh() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    }
+    if ('caches' in window) {
+      const names = await caches.keys();
+      for (const name of names) {
+        await caches.delete(name);
+      }
+    }
+    localStorage.removeItem('app_installed_sha');
+    localStorage.removeItem('app_dismissed_sha');
+  } catch (err) {
+    console.warn('Error clearing caches/SW:', err);
+  }
+  window.location.reload();
+}

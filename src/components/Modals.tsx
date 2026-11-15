@@ -35,7 +35,7 @@ import {
 } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
-import { APP_VERSION } from '../utils/updateChecker';
+import { APP_VERSION, forceAppUpdateRefresh } from '../utils/updateChecker';
 import { CategoryIcon } from './CategoryIcon';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
@@ -2703,6 +2703,14 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 className="w-full py-2 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 text-amber-200 border border-amber-700/60 text-[11px] font-bold cursor-pointer transition-all"
               >
                 {t('Uninstall Old & Install New', 'পুরনো ভার্সন মুছে নতুন ইনস্টল করুন')}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => forceAppUpdateRefresh()}
+                className="w-full py-2.5 rounded-xl bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600 text-xs font-bold cursor-pointer transition-all"
+              >
+                {t('Force Refresh Web App (Clear Cache)', 'ওয়েব অ্যাপ রিফ্রেশ করুন (ক্যাশ মুছুন)')}
               </button>
 
               {conflictNote && (
