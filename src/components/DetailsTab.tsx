@@ -146,41 +146,41 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
       {/* Search & Filter Header (Always Hidden in Print) */}
       <div className="print:hidden space-y-2">
         <div className="bg-[#0B3C39] p-2.5 rounded-xl border border-teal-800/80 shadow-sm space-y-2">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-teal-400 absolute left-2.5 top-2.5" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder={t('Search...', 'খুঁজুন...')}
-                className="w-full h-8.5 bg-[#062423] border border-teal-700/70 rounded-lg pl-8 pr-2.5 text-xs text-[#F0FDFA] placeholder:text-teal-400/60 focus:outline-none focus:border-emerald-400 transition-colors"
+                className="w-full min-h-[38px] bg-white border border-teal-700/60 rounded-xl pl-8.5 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 transition-colors font-medium"
               />
             </div>
             {isFilterActive && (
-              <button onClick={handleClearFilters} className="h-8.5 px-2.5 rounded-lg bg-rose-950/60 text-rose-300 border border-rose-800/60 hover:bg-rose-900/60 transition-colors cursor-pointer">
+              <button onClick={handleClearFilters} className="min-h-[38px] px-3 rounded-xl bg-rose-950/60 text-rose-300 border border-rose-800/60 hover:bg-rose-900/60 transition-colors cursor-pointer">
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             <select
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value as any)}
-              className="h-8 bg-[#062423] border border-teal-700/70 rounded-lg px-2 text-[11px] font-semibold text-[#F0FDFA] focus:outline-none focus:border-emerald-400 cursor-pointer"
+              className="min-h-[36px] bg-white border border-teal-700/60 rounded-xl px-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-400 cursor-pointer"
             >
-              <option value="All" className="bg-[#042F2E] text-[#F0FDFA]">{t('All Types', 'সব ধরন')}</option>
-              <option value="Expense" className="bg-[#042F2E] text-[#F0FDFA]">{t('Expense', 'খরচ')}</option>
-              <option value="Income" className="bg-[#042F2E] text-[#F0FDFA]">{t('Income', 'আয়')}</option>
+              <option value="All">{t('All Types', 'সব ধরন')}</option>
+              <option value="Expense">{t('Expense', 'খরচ')}</option>
+              <option value="Income">{t('Income', 'আয়')}</option>
             </select>
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="h-8 bg-[#062423] border border-teal-700/70 rounded-lg px-2 text-[11px] font-semibold text-[#F0FDFA] focus:outline-none focus:border-emerald-400 cursor-pointer"
+              className="min-h-[36px] bg-white border border-teal-700/60 rounded-xl px-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-400 cursor-pointer"
             >
-              <option value="All" className="bg-[#042F2E] text-[#F0FDFA]">{t('All Categories', 'সব ক্যাটাগরি')}</option>
+              <option value="All">{t('All Categories', 'সব ক্যাটাগরি')}</option>
               {uniqueCategories.map(cat => (
-                <option key={cat} value={cat} className="bg-[#042F2E] text-[#F0FDFA]">
+                <option key={cat} value={cat}>
                   {cleanCategoryName(cat, lang)}
                 </option>
               ))}
@@ -190,7 +190,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
 
         {/* Global Summary Row */}
         <div className="flex items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2 text-[9px] text-teal-200 font-bold uppercase tracking-tight">
+          <div className="flex items-center gap-3 text-xs text-teal-200 font-bold tracking-tight tabular-nums">
             <span>{t('Inc:', 'আয়:')} <span className="text-emerald-400 font-black">+{formatNumberLocale(filteredTotals.inc, lang)}</span></span>
             <span>{t('Exp:', 'ব্যয়:')} <span className="text-[#FF7A59] font-black">-{formatNumberLocale(filteredTotals.exp, lang)}</span></span>
           </div>
@@ -254,13 +254,13 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`font-black text-xs sm:text-sm tracking-tight tabular-nums ${isExpense ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400 drop-shadow-[0_1px_3px_rgba(52,211,153,0.3)]'}`}>
+                      <span className={`font-black text-xs sm:text-sm tracking-tight tabular-nums ${isExpense ? 'text-[#FF7A59]' : 'text-emerald-400'}`}>
                         {isExpense ? '-' : '+'}{formatNumberLocale(tx.value, lang)}
                       </span>
                       {!isReadOnly && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onDelete(tx); }}
-                          className="w-8 h-8 flex items-center justify-center text-teal-400/60 hover:text-[#FF7A59] opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="w-8 h-8 flex items-center justify-center text-teal-300/75 hover:text-[#FF7A59] opacity-90 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

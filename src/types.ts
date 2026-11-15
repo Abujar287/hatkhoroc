@@ -10,8 +10,19 @@ export type AppTab =
   | 'upcoming_cost'
   | 'monthly_summary'
   | 'upcoming_3_month'
+  | 'notepad'
   | 'users'
   | 'settings';
+
+export interface NoteEntry {
+  id: string;
+  rowNumber?: number;
+  datetime: string;
+  notename: string;
+  category: string;
+  note: string;
+  action: string;
+}
 
 export interface CostTask {
   id: string;

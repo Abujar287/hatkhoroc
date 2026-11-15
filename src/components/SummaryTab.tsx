@@ -422,31 +422,31 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         key={dateStr}
         type="button"
         onClick={() => onSelectDate(dateStr)}
-        className={`relative min-h-[58px] sm:min-h-[64px] p-1 rounded-xl border transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-95 hover:scale-[1.03] text-center ${
+        className={`relative min-h-[58px] sm:min-h-[64px] p-1 rounded-xl border transition-colors duration-150 cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-95 text-center ${
           isToday
-            ? 'border-2 border-emerald-400 bg-[#062423] text-[#F0FDFA] shadow-md shadow-emerald-950/40'
+            ? 'border-2 border-emerald-400 bg-[#062423] text-[#F0FDFA] shadow-sm'
             : isWithinRange
-            ? 'border-teal-800/80 bg-[#062423]/90 hover:bg-teal-900/90 hover:border-teal-600 text-[#F0FDFA]'
+            ? 'border-teal-800/80 bg-[#062423]/90 hover:bg-teal-900/90 hover:border-teal-500 text-[#F0FDFA]'
             : 'border-teal-900/40 bg-[#042F2E]/40 text-teal-400/40'
         }`}
       >
         {isToday && (
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
         )}
 
         <span className={`text-[10px] sm:text-[11px] font-bold leading-none mb-1 shrink-0 ${
-          isToday ? 'text-white bg-emerald-700 px-1.5 py-0.5 rounded-md shadow-xs' : 'text-[#F0FDFA]'
+          isToday ? 'text-white bg-emerald-700 px-1.5 py-0.5 rounded-md' : 'text-[#F0FDFA]'
         }`}>
           {customLabel || dateStr.split('-')[2]}
         </span>
 
         {hasExp && (
-          <span className="text-[8.5px] sm:text-[9.5px] font-black text-[#FF7A59] tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+          <span className="text-[9px] sm:text-[10px] font-extrabold text-[#FF7A59] tabular-nums leading-none">
             -{formatNumberLocale(dayData!.exp, lang)}
           </span>
         )}
         {hasInc && (
-          <span className="text-[8.5px] sm:text-[9.5px] font-black text-[#34D399] tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+          <span className="text-[9px] sm:text-[10px] font-extrabold text-[#34D399] tabular-nums leading-none">
             +{formatNumberLocale(dayData!.inc, lang)}
           </span>
         )}
@@ -597,20 +597,20 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-2xl bg-gradient-to-b from-[#0D4441] to-[#0A3734] text-[#F0FDFA] p-3.5 sm:p-5 shadow-lg border border-teal-700/50 relative overflow-hidden backdrop-blur-md"
+        className="rounded-2xl bg-[#0B3C39] text-[#F0FDFA] p-4 sm:p-5 shadow-sm border border-teal-800/80 relative overflow-hidden"
       >
         {/* Top Header of Hero Card: Month Filter, Custom Filter & Reset responsive on mobile */}
-        <div className="flex flex-wrap items-center justify-between border-b border-teal-800/60 pb-2.5 mb-3 gap-1.5 sm:gap-2">
-          <div className="flex items-center flex-wrap gap-1 sm:gap-1.5 min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between border-b border-teal-800/60 pb-3 mb-3 gap-2">
+          <div className="flex items-center flex-wrap gap-1.5 min-w-0 flex-1">
             {globalFilterMode === 'month' ? (
-              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(-1)}
-                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
                   title={t('Previous Month', 'পূর্ববর্তী মাস')}
                 >
-                  <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <ChevronLeft className="w-4 h-4" />
                 </button>
                 <select
                   value={selectedMonth}
@@ -618,10 +618,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setSelectedMonth(e.target.value);
                     setFilterPreset('this_month');
                   }}
-                  className="bg-[#062423]/90 border border-teal-700/70 text-white text-[10px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl px-1.5 sm:px-2.5 py-1 max-w-[100px] sm:max-w-none truncate focus:outline-none focus:ring-2 focus:ring-teal-400/40 focus:border-teal-400 cursor-pointer shadow-xs transition-all"
+                  className="min-h-[34px] bg-white border border-teal-700/70 text-slate-900 text-xs font-bold rounded-xl px-2.5 py-1 max-w-[125px] sm:max-w-none truncate focus:outline-none focus:ring-2 focus:ring-teal-400/40 cursor-pointer transition-all"
                 >
                   {monthOptions.map(m => (
-                    <option key={m.val} value={m.val} className="bg-[#062423] text-white">
+                    <option key={m.val} value={m.val}>
                       {m.label}
                     </option>
                   ))}
@@ -629,21 +629,21 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(1)}
-                  className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded-xl bg-[#062423]/90 hover:bg-teal-900/80 active:scale-90 text-teal-200 transition-all cursor-pointer shrink-0 border border-teal-700/60 shadow-xs"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
                   title={t('Next Month', 'পরবর্তী মাস')}
                 >
-                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] font-bold text-teal-200 shrink-0">
-                <Globe className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-bold text-teal-200 shrink-0">
+                <Globe className="w-4 h-4 text-teal-300 shrink-0" />
                 <span>{t('All-Time Overview', 'লাইফটাইম সর্বমোট')}</span>
               </div>
             )}
 
             {/* Custom Filter & Reset Buttons */}
-            <div className="flex items-center gap-1 relative shrink-0">
+            <div className="flex items-center gap-1.5 relative shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -652,15 +652,15 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setFilterPreset('custom');
                   }
                 }}
-                className={`px-1.5 sm:px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer border transition-all whitespace-nowrap ${
+                className={`min-h-[34px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer border transition-colors whitespace-nowrap ${
                   filterPreset === 'custom'
                     ? 'bg-emerald-900/80 text-emerald-200 border-emerald-700'
-                    : 'bg-[#062423] hover:bg-teal-900/80 text-teal-100 border border-teal-700/70'
+                    : 'bg-[#062423] hover:bg-teal-900/80 text-teal-100 border-teal-700/70'
                 }`}
               >
-                <CalendarDays className="w-3 h-3 text-emerald-400 shrink-0" />
+                <CalendarDays className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>{t('Custom Filter', 'কাস্টম ফিল্টার')}</span>
-                <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
+                <ChevronDown className="w-3 h-3 shrink-0" />
               </button>
 
               <button
@@ -671,10 +671,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                   setCustomEndDate('');
                   setShowAdvancedFilterDropdown(false);
                 }}
-                className="px-1.5 sm:px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-[#FF5252] text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-rose-800/80 shadow-xs active:scale-95 shrink-0 whitespace-nowrap"
+                className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-rose-800/70 active:scale-95 shrink-0 whitespace-nowrap"
                 title={t('Reset Filter', 'ফিল্টার রিসেট')}
               >
-                <RotateCcw className="w-3 h-3 shrink-0" />
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                 <span>{t('Reset', 'রিসেট')}</span>
               </button>
 
@@ -714,7 +714,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                             setCustomStartDate(e.target.value);
                             setFilterPreset('custom');
                           }}
-                          className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 shadow-xs"
+                          className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-400"
                         />
                       </div>
                       <div className="space-y-1">
@@ -726,7 +726,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                             setCustomEndDate(e.target.value);
                             setFilterPreset('custom');
                           }}
-                          className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 shadow-xs"
+                          className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-400"
                         />
                       </div>
                     </div>
@@ -777,9 +777,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span
               className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums transition-colors duration-200 ${
-                stats.net >= 0
-                  ? 'text-emerald-400 drop-shadow-[0_2px_8px_rgba(52,211,153,0.3)]'
-                  : 'text-[#FF7A59] drop-shadow-[0_2px_10px_rgba(255,122,89,0.35)]'
+                stats.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'
               }`}
             >
               {stats.net >= 0 ? '+' : ''}
@@ -788,49 +786,41 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
         </div>
 
-        {/* 2-Column KPI Cards (Income vs Expense) with interactive spring motion */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <motion.div
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-br from-emerald-500/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-emerald-500/40 flex items-center gap-2.5 shadow-sm hover:border-emerald-400/70 hover:shadow-[0_4px_16px_rgba(52,211,153,0.2)] transition-all duration-200 cursor-default"
-          >
-            <div className="w-8 h-8 rounded-xl bg-emerald-900/70 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/40 shadow-xs">
+        {/* 2-Column KPI Cards (Income vs Expense) */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="bg-[#062423] rounded-xl p-3 border border-emerald-700/50 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-950 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-700/60">
               <ArrowUpRight className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[9.5px] text-teal-200/90 font-bold block truncate">
+              <span className="text-[10px] text-teal-200/90 font-semibold block truncate">
                 {t('Income', 'আয়')}
               </span>
-              <span className="text-xs sm:text-sm font-black text-emerald-400 tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(52,211,153,0.3)]">
+              <span className="text-sm font-black text-emerald-400 tabular-nums truncate block">
                 +{formatNumberLocale(stats.inc, lang)}
               </span>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-2.5 sm:p-3 border border-[#FF7A59]/40 flex items-center gap-2.5 shadow-sm hover:border-[#FF7A59]/70 hover:shadow-[0_4px_16px_rgba(255,122,89,0.25)] transition-all duration-200 cursor-default"
-          >
-            <div className="w-8 h-8 rounded-xl bg-[#FF7A59]/20 text-[#FF7A59] flex items-center justify-center shrink-0 border border-[#FF7A59]/40 shadow-xs">
+          <div className="bg-[#062423] rounded-xl p-3 border border-[#FF7A59]/40 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#FF7A59]/15 text-[#FF7A59] flex items-center justify-center shrink-0 border border-[#FF7A59]/40">
               <ArrowDownLeft className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[9.5px] text-teal-200/90 font-bold block truncate">
+              <span className="text-[10px] text-teal-200/90 font-semibold block truncate">
                 {t('Expense', 'খরচ')}
               </span>
-              <span className="text-xs sm:text-sm font-black text-[#FF7A59] tabular-nums truncate block drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]">
+              <span className="text-sm font-black text-[#FF7A59] tabular-nums truncate block">
                 -{formatNumberLocale(stats.exp, lang)}
               </span>
             </div>
-          </motion.div>
+          </div>
         </div>
       </motion.div>
 
       {/* 3. DYNAMIC CALENDAR / RANGE GRID */}
       {globalFilterMode === 'month' && (
-        <div className="bg-gradient-to-b from-[#0D4441] to-[#0A3734] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-700/50 shadow-md space-y-3.5 backdrop-blur-md">
+        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -876,11 +866,11 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               {/* Bottom Legend */}
               <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shadow-[0_0_8px_rgba(255,122,89,0.5)] shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shrink-0" />
                   <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shadow-[0_0_8px_rgba(52,211,153,0.5)] shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shrink-0" />
                   <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -1015,7 +1005,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               {/* Center of Donut: Value and Ratio without label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                 <span className={`text-xs sm:text-sm font-black tabular-nums leading-tight ${
-                  chartType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400'
+                  chartType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
                 }`}>
                   {formatNumberLocale(chartDisplayedTotal, lang)}
                 </span>

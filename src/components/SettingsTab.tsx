@@ -312,7 +312,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   value={metrics.cityBank}
                   onChange={e => updateMetric('cityBank', e.target.value)}
                   placeholder="0"
-                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-white border border-teal-700/70 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
                 />
               </div>
             </div>
@@ -330,7 +330,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   value={metrics.bkash}
                   onChange={e => updateMetric('bkash', e.target.value)}
                   placeholder="0"
-                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-white border border-teal-700/70 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
                 />
               </div>
             </div>
@@ -348,7 +348,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   value={metrics.nagad}
                   onChange={e => updateMetric('nagad', e.target.value)}
                   placeholder="0"
-                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-white border border-teal-700/70 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
                 />
               </div>
             </div>
@@ -366,7 +366,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   value={metrics.cash}
                   onChange={e => updateMetric('cash', e.target.value)}
                   placeholder="0"
-                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-white border border-teal-700/70 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
                 />
               </div>
             </div>
@@ -384,7 +384,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   value={metrics.moneyBag}
                   onChange={e => updateMetric('moneyBag', e.target.value)}
                   placeholder="0"
-                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-[#062423] border border-teal-700/70 rounded-lg text-[#F0FDFA] focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
+                  className="w-full text-right font-mono font-bold px-3 py-1.5 bg-white border border-teal-700/70 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-400 text-xs sm:text-sm transition-colors"
                 />
               </div>
             </div>
@@ -675,7 +675,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             type="button"
             onClick={() => setShowExportModal(true)}
             disabled={isExportingZip}
-            className="py-3 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-60 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-emerald-950/40"
+            className="min-h-[44px] py-2.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-colors shadow-xs"
             title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
           >
             {isExportingZip ? (
@@ -691,7 +691,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <button
               type="button"
               onClick={() => setShowAppsScriptModal(true)}
-              className="py-3 px-2 bg-gradient-to-r from-teal-900 to-slate-900 hover:from-teal-800 hover:to-slate-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-slate-950/40"
+              className="min-h-[44px] py-2.5 px-2.5 bg-[#062423] hover:bg-teal-900/80 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-colors"
               title={t('Apps Script Code', 'গুগল স্ক্রিপ্ট কোড')}
             >
               <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
@@ -703,7 +703,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={onCheckForUpdates}
-            className="py-3 px-2 bg-gradient-to-r from-teal-800 to-emerald-900 hover:from-teal-700 hover:to-emerald-800 text-[#F0FDFA] rounded-xl text-xs font-extrabold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-emerald-950/30"
+            className="min-h-[44px] py-2.5 px-2.5 bg-[#062423] hover:bg-teal-900/80 text-[#F0FDFA] rounded-xl text-xs font-bold border border-teal-700/70 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-colors"
             title={t('Check for App Updates from GitHub', 'GitHub থেকে অ্যাপ আপডেট চেক করুন')}
           >
             <RefreshCw className="w-4 h-4 text-teal-300 shrink-0" />

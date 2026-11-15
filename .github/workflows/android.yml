@@ -44,6 +44,7 @@ jobs:
         run: |
           npx cap add android || true
           npx cap sync android
+          rm -f android/app/src/main/assets/public/pwa-*.png android/app/src/main/assets/public/apple-touch-icon.png android/app/src/main/assets/public/workbox-*.js android/app/src/main/assets/public/sw.js android/app/src/main/assets/public/registerSW.js android/app/src/main/assets/public/manifest.webmanifest || true
 
       - name: Cache Android Debug Keystore for Seamless Updates
         uses: actions/cache@v4
@@ -548,28 +549,62 @@ jobs:
           mkdir -p assets
           cp public/logo.png assets/icon.png || true
           cp public/logo.png assets/splash.png || true
-          npx @capacitor/assets generate --android || true
+          npx @capacitor/assets generate --android --iconBackgroundColor '#042F2E' --splashBackgroundColor '#042F2E' || true
+          rm -rf android/app/src/main/res/drawable-land-* android/app/src/main/res/drawable-port-xxxhdpi android/app/src/main/res/drawable-port-xxhdpi || true
 
-      - name: Auto Increment Android Version Code & Fix SigningConfig
+      - name: Auto Increment Android Version Code & Enable R8 Shrinking
         run: |
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
           sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
-          sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' android/app/build.gradle || true
 
-      - name: Build Android Debug APK
+          cat << 'EOF' >> android/app/proguard-rules.pro
+          -keep class com.abujar.hatkhoroc.** { *; }
+          -keepclassmembers class * {
+              @android.webkit.JavascriptInterface <methods>;
+          }
+          -keep class com.getcapacitor.** { *; }
+          -dontwarn com.getcapacitor.**
+          EOF
+
+          python3 - << 'EOF'
+          import re
+          gradle_path = "android/app/build.gradle"
+          with open(gradle_path, "r", encoding="utf-8") as f:
+              content = f.read()
+
+          if "resConfigs" not in content:
+              content = content.replace("defaultConfig {", 'defaultConfig {\n        resConfigs "en", "bn"', 1)
+
+          content = re.sub(r"minifyEnabled\s+false", "minifyEnabled true", content)
+          if "shrinkResources" not in content:
+              content = content.replace("minifyEnabled true", "minifyEnabled true\n            shrinkResources true")
+          if "signingConfig signingConfigs.debug" not in content and "buildTypes {" in content:
+              content = content.replace(
+                  "release {",
+                  "release {\n            signingConfig signingConfigs.debug",
+                  1
+              )
+          content = content.replace("signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")
+
+          with open(gradle_path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print("Configured R8 shrinking and debug keystore signing on release buildType")
+          EOF
+
+      - name: Build Shrunk Android APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew clean
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
       - name: Prepare and Rename APK Files
         run: |
           mkdir -p apk_output
-          find android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
+          find android/app/build/outputs/apk/release/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
           cp apk_output/hatkhoroc.apk "apk_output/হাত খরচ.apk"
-          ls -la apk_output/
+          ls -lh apk_output/
 
       - name: Upload APK File (Artifact)
         uses: actions/upload-artifact@v4

@@ -17,7 +17,7 @@ import {
   setupWebPushSubscription,
   syncTasksToPushServer
 } from './utils/taskAlarmManager';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry, NoteEntry } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES
@@ -46,6 +46,7 @@ import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
 import { Upcoming3MonthTab } from './components/Upcoming3MonthTab';
+import { NotepadTab } from './components/NotepadTab';
 import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
 import {
@@ -72,7 +73,7 @@ function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[
     role === 'super_admin_2'
       ? ['summary', 'monthly_summary', 'details']
       : isSuper
-        ? ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings']
+        ? ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'notepad', 'users', 'settings']
         : ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
 
   let tabs = rawTabs && rawTabs.length > 0 ? [...rawTabs] : [...defaultTabs];
@@ -84,8 +85,9 @@ function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[
   if (isSuper) {
     if (!tabs.includes('users')) tabs.push('users');
     if (!tabs.includes('upcoming_3_month')) tabs.push('upcoming_3_month');
+    if (!tabs.includes('notepad')) tabs.push('notepad');
   } else {
-    tabs = tabs.filter(tab => tab !== 'upcoming_3_month');
+    tabs = tabs.filter(tab => tab !== 'upcoming_3_month' && tab !== 'notepad');
     if (role !== 'admin') {
       tabs = tabs.filter(tab => tab !== 'users');
     }
@@ -103,7 +105,7 @@ const DEFAULT_ADMIN: AppUser = {
   createdAt: '2026-10-01',
   role: 'super_admin',
   isActive: true,
-  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings'],
+  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'notepad', 'users', 'settings'],
   isReadOnly: false
 };
 
@@ -749,7 +751,7 @@ export default function App() {
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
 
   useEffect(() => {
-    if (activeTab === 'upcoming_3_month' && !isSuperAdmin) {
+    if ((activeTab === 'upcoming_3_month' || activeTab === 'notepad') && !isSuperAdmin) {
       setActiveTab('summary');
     }
   }, [activeTab, isSuperAdmin]);
@@ -1342,6 +1344,246 @@ export default function App() {
     }
   }, [currentTab]);
 
+  // ----------------------------------------------------
+  // 8.5 NOTEPAD STATE & SYNC (BB:BF - abujar287 super_admin ONLY)
+  // ----------------------------------------------------
+  const [notes, setNotes] = useState<NoteEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('app_notes_abujar287');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [isSyncingNotes, setIsSyncingNotes] = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin) {
+      setNotes([]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem('app_notes_abujar287');
+      setNotes(saved ? (JSON.parse(saved) || []) : []);
+    } catch {
+      setNotes([]);
+    }
+  }, [isSuperAdmin]);
+
+  const formatNotepadDatetime = (d = new Date()) => {
+    return d.toLocaleString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
+
+  const mapRawNotes = (rawList: any[]): NoteEntry[] => {
+    return rawList
+      .map((n: any, idx: number) => ({
+        id: String(n.id || `note_${n.rowNumber || idx}_${Date.now()}`),
+        rowNumber: n.rowNumber ? Number(n.rowNumber) : undefined,
+        datetime: String(n.datetime || n.Datetime || '').trim(),
+        notename: String(n.notename || n.Notename || n.title || 'Untitled').trim(),
+        category: String(n.category || n.Category || 'Uncategorized').trim() || 'Uncategorized',
+        note: String(n.note ?? n.Note ?? ''),
+        action: String(n.action || n.Action || 'SYNC').trim() || 'SYNC'
+      }))
+      .filter((n: NoteEntry) => Boolean(n.notename || n.note));
+  };
+
+  const handleSyncNotes = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    setIsSyncingNotes(true);
+    try {
+      let data: any = null;
+      try {
+        const res = await fetchSheetApi('/api/sheet-proxy?action=getnotes&sheetTab=abujar287');
+        if (res.ok) {
+          const text = await res.text();
+          try { data = JSON.parse(text); } catch {}
+        }
+      } catch {}
+
+      if (!data || data.result !== 'success') {
+        try {
+          const directRes = await fetchSheetApi('?action=getnotes&sheetTab=abujar287');
+          if (directRes.ok) {
+            const text = await directRes.text();
+            try { data = JSON.parse(text); } catch {}
+          }
+        } catch {}
+      }
+
+      if (data && data.result === 'success' && Array.isArray(data.notes)) {
+        const mapped = mapRawNotes(data.notes);
+        setNotes(mapped);
+        try {
+          localStorage.setItem('app_notes_abujar287', JSON.stringify(mapped));
+        } catch {}
+        showToast(`Synced ${mapped.length} notes from Sheet BB:BF`, 'success');
+      } else {
+        showToast('Could not fetch notes from Sheet (check Apps Script deploy)', 'error');
+      }
+    } finally {
+      setIsSyncingNotes(false);
+    }
+  }, [isSuperAdmin, showToast]);
+
+  const handleAddNote = useCallback(async (input: { notename: string; category: string; note: string }) => {
+    if (!isSuperAdmin) return;
+    const tempId = `note_local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newNote: NoteEntry = {
+      id: tempId,
+      datetime: formatNotepadDatetime(new Date()),
+      notename: input.notename.trim() || 'Untitled',
+      category: input.category.trim() || 'Uncategorized',
+      note: input.note,
+      action: 'SYNC'
+    };
+
+    const appended = [...notes, newNote];
+    setNotes(appended);
+    try {
+      localStorage.setItem('app_notes_abujar287', JSON.stringify(appended));
+    } catch {}
+    playSound('success');
+
+    const payload = {
+      action: 'addnote',
+      sheetTab: 'abujar287',
+      datetime: newNote.datetime,
+      notename: newNote.notename,
+      category: newNote.category,
+      note: newNote.note,
+      actionLabel: 'SYNC'
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'addnote', sheetTab: 'abujar287', payload });
+      showToast('Note saved offline! Will append to Sheet BB:BF when online.', 'info');
+      return;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Note sync failed');
+      const resText = await res.text();
+      let resData: any = null;
+      try { resData = JSON.parse(resText); } catch {}
+      if (resData?.note?.rowNumber) {
+        setNotes(prev => {
+          const next = prev.map(n =>
+            n.id === tempId
+              ? { ...n, id: String(resData.note.id || n.id), rowNumber: Number(resData.note.rowNumber) }
+              : n
+          );
+          try {
+            localStorage.setItem('app_notes_abujar287', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+      showToast('Note saved below existing notes in Sheet BB:BF!', 'success');
+    } catch {
+      addToOfflineQueue({ action: 'addnote', sheetTab: 'abujar287', payload });
+      showToast('Note saved locally; queued for Google Sheet sync.', 'info');
+    }
+  }, [isSuperAdmin, notes, showToast]);
+
+  const handleUpdateNote = useCallback(async (
+    updatedNote: NoteEntry,
+    original?: { notename: string; datetime: string }
+  ) => {
+    if (!isSuperAdmin) return;
+    const nextList = notes.map(n => (n.id === updatedNote.id ? updatedNote : n));
+    setNotes(nextList);
+    try {
+      localStorage.setItem('app_notes_abujar287', JSON.stringify(nextList));
+    } catch {}
+
+    const payload = {
+      action: 'updatenote',
+      sheetTab: 'abujar287',
+      rowNumber: updatedNote.rowNumber,
+      datetime: updatedNote.datetime,
+      notename: updatedNote.notename,
+      category: updatedNote.category,
+      note: updatedNote.note,
+      actionLabel: 'SYNC',
+      originalNotename: original?.notename || updatedNote.notename,
+      originalDatetime: original?.datetime || updatedNote.datetime
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'updatenote', sheetTab: 'abujar287', payload });
+      showToast('Note updated offline! Will sync when online.', 'info');
+      return;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Update note failed');
+      showToast('Note updated in Google Sheet BB:BF!', 'success');
+    } catch {
+      addToOfflineQueue({ action: 'updatenote', sheetTab: 'abujar287', payload });
+      showToast('Note updated locally; queued for sync.', 'info');
+    }
+  }, [isSuperAdmin, notes, showToast]);
+
+  const handleDeleteNote = useCallback(async (targetNote: NoteEntry) => {
+    if (!isSuperAdmin) return;
+    const nextList = notes.filter(n => n.id !== targetNote.id);
+    setNotes(nextList);
+    try {
+      localStorage.setItem('app_notes_abujar287', JSON.stringify(nextList));
+    } catch {}
+    playSound('delete');
+
+    const payload = {
+      action: 'deletenote',
+      sheetTab: 'abujar287',
+      rowNumber: targetNote.rowNumber,
+      notename: targetNote.notename,
+      datetime: targetNote.datetime,
+      originalNotename: targetNote.notename,
+      originalDatetime: targetNote.datetime
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'deletenote', sheetTab: 'abujar287', payload });
+      showToast('Note deleted offline; queued for sync.', 'info');
+      return;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Delete note failed');
+      showToast('Note deleted from Google Sheet BB:BF', 'info');
+    } catch {
+      addToOfflineQueue({ action: 'deletenote', sheetTab: 'abujar287', payload });
+      showToast('Note removed locally; queued for sync.', 'info');
+    }
+  }, [isSuperAdmin, notes, showToast]);
+
   useEffect(() => {
     setLastSyncTime(formatSyncDateTime(lastSyncDate, lang));
   }, [lang, lastSyncDate]);
@@ -1548,6 +1790,14 @@ export default function App() {
           setBouGiftVersion(v => v + 1);
         }
 
+        if (isSuperAdmin && tabToSync.toLowerCase() === 'abujar287' && Array.isArray(data.notes)) {
+          const mappedNotes = mapRawNotes(data.notes);
+          setNotes(mappedNotes);
+          try {
+            localStorage.setItem('app_notes_abujar287', JSON.stringify(mappedNotes));
+          } catch {}
+        }
+
         // Load categories EXCLUSIVELY from Google Sheet (100% dynamic, zero hardcoding in codebase)
         const aggregatedExp: string[] = [];
         const aggregatedInc: string[] = [];
@@ -1677,7 +1927,7 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [currentTab, lang, saveTransactionsLocally, showToast]);
+  }, [currentTab, isSuperAdmin, lang, saveTransactionsLocally, showToast]);
 
   // Initial sync on mount or auth
   useEffect(() => {
@@ -2219,13 +2469,15 @@ export default function App() {
   // RENDER: APP
   // ----------------------------------------------------
   return (
-    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] bg-[radial-gradient(ellipse_100%_80%_at_50%_-15%,rgba(13,148,136,0.18),rgba(4,47,46,1))] flex flex-col items-center">
+    <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
       <div className="w-full flex flex-col h-full bg-transparent relative overflow-hidden">
         
         {toast.show && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#0B3C39]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-teal-500/40 animate-fadeIn text-xs font-bold text-[#F0FDFA] flex items-center gap-2 ring-1 ring-black/20">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <span>{toast.message}</span>
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#0B3C39] rounded-xl shadow-2xl border border-teal-600/60 animate-fadeIn text-xs font-bold text-[#F0FDFA] flex items-center gap-2 max-w-[90vw]">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${
+              toast.type === 'error' ? 'bg-rose-400' : toast.type === 'info' ? 'bg-amber-300' : 'bg-emerald-400'
+            }`} />
+            <span className="truncate">{toast.message}</span>
           </div>
         )}
 
@@ -2346,6 +2598,18 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'notepad' && isSuperAdmin && (
+                <NotepadTab
+                  notes={notes}
+                  isSyncing={isSyncingNotes || isSyncing}
+                  onSyncNotes={handleSyncNotes}
+                  onAddNote={handleAddNote}
+                  onUpdateNote={handleUpdateNote}
+                  onDeleteNote={handleDeleteNote}
+                  showToast={showToast}
+                />
+              )}
+
               {activeTab === 'users' && (
                 <UsersTab
                   currentUser={currentUser}
@@ -2413,7 +2677,7 @@ export default function App() {
           </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/90 backdrop-blur-2xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-40 w-full min-h-[64px] border-t border-teal-800/40">
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[64px] border-t border-teal-800/60">
           <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
               { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
@@ -2427,23 +2691,23 @@ export default function App() {
               return (
                 <motion.button
                   key={item.id}
-                  whileTap={{ scale: 0.92 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => setActiveTab(item.id)}
-                  className="flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-all duration-150"
+                  className="flex-1 relative flex flex-col items-center justify-center py-2 px-1 rounded-xl cursor-pointer select-none transition-colors duration-150"
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className="absolute inset-0 bg-gradient-to-b from-[#0F766E] to-[#0A4B45] rounded-xl border border-teal-400/40 shadow-[0_2px_12px_rgba(20,184,166,0.25)]"
+                      className="absolute inset-0 bg-[#0D9488] rounded-xl border border-teal-400/40"
                       transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                     />
                   )}
-                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 transition-transform duration-200 ${isActive ? 'text-white scale-110 drop-shadow-xs' : 'text-teal-300/70 hover:text-teal-100'}`} />
-                  <span className={`text-[9.5px] sm:text-[10.5px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-white' : 'text-teal-300/70'}`}>
+                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 ${isActive ? 'text-white' : 'text-teal-300/75 hover:text-teal-100'}`} />
+                  <span className={`text-[10px] sm:text-[11px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-white' : 'text-teal-300/75'}`}>
                     {item.label}
                   </span>
                   {item.id === 'upcoming_cost' && taskDueCount > 0 && (
-                    <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E] animate-ping" />
+                    <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E]" />
                   )}
                 </motion.button>
               );

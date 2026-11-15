@@ -555,10 +555,10 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             <select
               value={selectedMonth}
               onChange={e => setSelectedMonth(e.target.value)}
-              className="bg-transparent border-none text-[13px] sm:text-sm md:text-base font-bold text-[#F0FDFA] uppercase tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
+              className="bg-white border border-teal-700/70 rounded-xl px-2.5 py-1 text-xs sm:text-sm font-bold text-slate-900 tracking-wide focus:outline-none cursor-pointer truncate max-w-full"
             >
               {monthOptions.map(m => (
-                <option key={m.val} value={m.val} className="bg-[#042F2E] text-[#F0FDFA] normal-case">
+                <option key={m.val} value={m.val}>
                   {m.label}
                 </option>
               ))}
@@ -592,11 +592,11 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
           </span>
         </div>
 
-        <div className="bg-gradient-to-br from-[#FF7A59]/15 via-[#0B3C39] to-[#062423] rounded-2xl p-3 sm:p-4 border border-[#FF7A59]/40 shadow-sm hover:border-[#FF7A59]/60 hover:shadow-[0_4px_16px_rgba(255,122,89,0.2)] transition-all duration-200">
+        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-[#FF7A59]/40 shadow-sm transition-colors">
           <span className="text-[10px] sm:text-xs text-teal-200 font-bold block mb-1">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base md:text-xl font-black text-[#FF7A59] tabular-nums drop-shadow-[0_1px_3px_rgba(255,122,89,0.25)]">
+          <span className="text-sm sm:text-base md:text-xl font-black text-[#FF7A59] tabular-nums">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
@@ -640,7 +640,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             </button>
 
             {saveStatus === 'saving' && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[11px] font-semibold animate-pulse">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[11px] font-semibold">
                 <div className="w-2.5 h-2.5 border-2 border-amber-300/30 border-t-amber-300 rounded-full animate-spin" />
                 <span>{t('Saving...', 'সেভ হচ্ছে...')}</span>
               </div>
@@ -722,7 +722,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                           handlePerformSave();
                         }}
                         placeholder="0"
-                        className="w-full max-w-[80px] bg-[#062423] border border-teal-700/70 rounded-lg px-2 py-1 text-xs text-[#F0FDFA] text-right font-bold focus:outline-none focus:border-teal-400 tabular-nums shadow-2xs"
+                        className="w-full max-w-[80px] bg-white border border-teal-700/70 rounded-lg px-2 py-1 text-xs text-slate-900 text-right font-bold focus:outline-none focus:border-teal-400 tabular-nums"
                       />
                     </div>
 
@@ -731,7 +731,7 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                       <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
                         {t('Spent', 'খরচ')}
                       </span>
-                      <span className="font-black text-[#FF7A59] text-xs tabular-nums truncate max-w-full drop-shadow-[0_1px_2px_rgba(255,122,89,0.2)]">
+                      <span className="font-black text-[#FF7A59] text-xs tabular-nums truncate max-w-full">
                         {formatNumberLocale(spentVal, lang)}
                       </span>
                     </div>
@@ -763,9 +763,9 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                         %
                       </span>
                       <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 ${
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 tabular-nums ${
                           isOver
-                            ? 'bg-[#FF7A59]/20 text-[#FF7A59] border-[#FF7A59]/40 font-black animate-glowPulse'
+                            ? 'bg-rose-950/80 text-rose-300 border-rose-700/80 font-black'
                             : budgetVal > 0
                             ? 'bg-teal-950/80 text-teal-200 border-teal-800/80'
                             : 'text-teal-400/50 bg-[#062423] border-teal-800/40'
@@ -813,13 +813,13 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
             {/* SEARCH & SELECT ALL / CLEAR ALL ACTION BAR */}
             <div className="p-3 border-b border-teal-800/80 space-y-2.5 bg-[#0B3C39]">
               <div className="relative">
-                <Search className="w-4 h-4 text-teal-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={modalSearch}
                   onChange={e => setModalSearch(e.target.value)}
                   placeholder={t('Search expense category...', 'খরচের ক্যাটাগরি খুঁজুন...')}
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#062423] border border-teal-700/70 text-xs text-[#F0FDFA] placeholder:text-teal-400/60 focus:outline-none focus:border-emerald-400"
+                  className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-xl bg-white border border-teal-700/70 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400"
                 />
               </div>
 

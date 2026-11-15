@@ -2,7 +2,7 @@
 // হাত খরচ (Hisab Kitab): গুগল শিট Apps Script কোড (Code.gs)
 // ভার্সন: 7.0 (Unified 1-Tab Multi-User Architecture)
 // প্রতিটি ইউজারের (যেমন: abujar287, munni) জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
-// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ]
+// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Notepad: BB-BF]
 // কোনো এন্ট্রি ডিলিট করলে শুধুমাত্র সেই কলাম রেঞ্জ ডিলিট হবে, ডানের কলামের ডেটা অক্ষত থাকবে!
 // ====================================================================
 
@@ -218,6 +218,34 @@ function doPost(e) {
         message: 'বউ গিফট ডেটা AX:AZ কলামে সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
+
+    // ৫.১১ নোটপ্যাড নোট যোগ, আপডেট ও ডিলিট (BB:BF কলাম - শুধুমাত্র abujar287 সুপার এডমিন)
+    if (action === 'addnote' || action === 'insertnote') {
+      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
+        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var addedNote = insertNoteToRange(sheet, data);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        note: addedNote,
+        message: 'নোট BB:BF কলামে নিচে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'updatenote') {
+      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
+        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
+      }
+      return handleUpdateNoteRange(sheet, data);
+    }
+
+    if (action === 'deletenote') {
+      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
+        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
+      }
+      return handleDeleteNoteRange(sheet, data, e ? e.parameter : null);
+    }
     
     // ৬. নতুন ট্রানজ্যাকশন যোগ করা (INSERT ENTRY - A-G কলামে অ্যাপেন্ড)
     if (action === 'insert' || action === 'add' || action === 'create') {
@@ -270,6 +298,16 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({
       result: 'success',
       users: readUsersFromRange(ss)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // ১.৬ নোটপ্যাড লিস্ট (BB:BF - শুধুমাত্র abujar287)
+  if (action === 'getnotes') {
+    var notesOnly = (sheet.getName().trim().toLowerCase() === 'abujar287') ? readNotesFromRange(sheet) : [];
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      sheetTab: sheet.getName(),
+      notes: notesOnly
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -365,6 +403,7 @@ function doGet(e) {
   var userData = readUsersFromRange(ss);
   var upcoming3MData = readUpcoming3MonthFromRange(sheet);
   var bouGiftData = readBouGiftFromRange(sheet);
+  var notesData = (sheet.getName().trim().toLowerCase() === 'abujar287') ? readNotesFromRange(sheet) : [];
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -377,6 +416,7 @@ function doGet(e) {
     users: userData,
     upcoming3Month: upcoming3MData,
     bouGift: bouGiftData,
+    notes: notesData,
     count: txData.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -1652,6 +1692,203 @@ function readBouGiftFromRange(sheet) {
     });
   }
   return list;
+}
+
+// ----------------------------------------------------
+// ৮. NOTEPAD ফাংশনস (BB:BF কলাম, Cols 54-58, শুধুমাত্র abujar287)
+//    Columns: BB=Datetime, BC=Notename, BD=Category, BE=Note, BF=Action
+// ----------------------------------------------------
+
+function ensureNotepadHeaders(sheet) {
+  if (sheet.getMaxColumns() < 58) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 58 - sheet.getMaxColumns());
+  }
+  var r1 = String(sheet.getRange(1, 54).getValue() || '').trim();
+  var r2 = String(sheet.getRange(2, 54).getValue() || '').trim();
+  var r2Name = String(sheet.getRange(2, 55).getValue() || '').trim();
+  if (!r1 && !r2 && !r2Name) {
+    try { sheet.getRange(1, 54, 1, 5).breakApart(); } catch (e) {}
+    sheet.getRange(1, 54, 1, 5).merge().setValue('Notepad').setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(2, 54, 1, 5).setValues([['Datetime', 'Notename', 'Category', 'Note', 'Action']])
+      .setFontWeight('bold').setHorizontalAlignment('center');
+    try {
+      sheet.getRange(1, 54, 2, 5).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
+}
+
+function formatNoteDatetimeVal(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    try {
+      return Utilities.formatDate(val, Session.getScriptTimeZone() || 'Asia/Dhaka', 'M/d/yyyy, h:mm:ss a');
+    } catch (e) {
+      return val.toLocaleString();
+    }
+  }
+  return String(val).trim();
+}
+
+function readNotesFromRange(sheet) {
+  if (sheet.getMaxColumns() < 58) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  var vals = sheet.getRange(2, 54, lastRow - 1, 5).getValues();
+  var list = [];
+  for (var i = 0; i < vals.length; i++) {
+    var rowNum = i + 2;
+    var dt = formatNoteDatetimeVal(vals[i][0]);
+    var name = String(vals[i][1] || '').trim();
+    var cat = String(vals[i][2] || '').trim();
+    var body = String(vals[i][3] || '');
+    var act = String(vals[i][4] || '').trim();
+
+    if (!dt && !name && !cat && !body && !act) continue;
+    var dtLow = dt.toLowerCase();
+    var nameLow = name.toLowerCase();
+    if (dtLow === 'datetime' || nameLow === 'notename' || dtLow === 'notepad') continue;
+
+    list.push({
+      id: 'note_' + rowNum,
+      rowNumber: rowNum,
+      datetime: dt,
+      notename: name || 'Untitled',
+      category: cat || 'Uncategorized',
+      note: body,
+      action: act || 'SYNC'
+    });
+  }
+  return list;
+}
+
+function getLastUsedRowInNotepad(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 2;
+  var vals = sheet.getRange(1, 54, lastRow, 5).getValues();
+  for (var r = vals.length - 1; r >= 0; r--) {
+    for (var c = 0; c < 5; c++) {
+      if (vals[r][c] !== '' && vals[r][c] !== null && vals[r][c] !== undefined) {
+        return r + 1;
+      }
+    }
+  }
+  return 2;
+}
+
+function insertNoteToRange(sheet, data) {
+  ensureNotepadHeaders(sheet);
+  var lastUsed = getLastUsedRowInNotepad(sheet);
+  var targetRow = Math.max(lastUsed + 1, 3);
+
+  var dt = String(data.datetime || '').trim();
+  if (!dt) {
+    try {
+      dt = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Dhaka', 'M/d/yyyy, h:mm:ss a');
+    } catch (e) {
+      dt = new Date().toLocaleString();
+    }
+  }
+  var notename = String(data.notename || data.title || 'Untitled').trim();
+  var category = String(data.category || 'Uncategorized').trim() || 'Uncategorized';
+  var noteBody = String(data.note || data.content || '');
+  var actionVal = String(data.actionLabel || 'SYNC').trim() || 'SYNC';
+
+  sheet.getRange(targetRow, 54).setNumberFormat('@');
+  sheet.getRange(targetRow, 54, 1, 5).setValues([[dt, notename, category, noteBody, actionVal]]);
+  try {
+    sheet.getRange(targetRow, 54, 1, 5).setBorder(true, true, true, true, true, true);
+  } catch (e) {}
+
+  return {
+    id: 'note_' + targetRow,
+    rowNumber: targetRow,
+    datetime: dt,
+    notename: notename,
+    category: category,
+    note: noteBody,
+    action: actionVal
+  };
+}
+
+function findNoteRowIndex(sheet, data) {
+  var targetRowNum = Number(data.rowNumber || 0);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+
+  var origName = String(data.originalNotename || data.notename || '').trim().toLowerCase();
+  var origDt = String(data.originalDatetime || data.datetime || '').trim();
+
+  if (targetRowNum >= 2 && targetRowNum <= lastRow) {
+    var rowVals = sheet.getRange(targetRowNum, 54, 1, 5).getValues()[0];
+    var rDt = formatNoteDatetimeVal(rowVals[0]);
+    var rName = String(rowVals[1] || '').trim().toLowerCase();
+    if ((!origName || rName === origName) || (!origDt || rDt === origDt)) {
+      return targetRowNum;
+    }
+  }
+
+  var vals = sheet.getRange(2, 54, lastRow - 1, 5).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    var dt = formatNoteDatetimeVal(vals[i][0]);
+    var nm = String(vals[i][1] || '').trim().toLowerCase();
+    if (origDt && origName && dt === origDt && nm === origName) {
+      return i + 2;
+    }
+  }
+  for (var j = 0; j < vals.length; j++) {
+    var nm2 = String(vals[j][1] || '').trim().toLowerCase();
+    if (origName && nm2 === origName) {
+      return j + 2;
+    }
+  }
+  return -1;
+}
+
+function handleUpdateNoteRange(sheet, data) {
+  var rowNum = findNoteRowIndex(sheet, data);
+  if (rowNum < 2) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'not_found',
+      sheetTab: sheet.getName(),
+      message: 'নোট খুঁজে পাওয়া যায়নি'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var dt = String(data.datetime || formatNoteDatetimeVal(sheet.getRange(rowNum, 54).getValue())).trim();
+  var notename = String(data.notename || 'Untitled').trim();
+  var category = String(data.category || 'Uncategorized').trim() || 'Uncategorized';
+  var noteBody = String(data.note || '');
+  var actionVal = String(data.actionLabel || 'SYNC').trim() || 'SYNC';
+
+  sheet.getRange(rowNum, 54).setNumberFormat('@');
+  sheet.getRange(rowNum, 54, 1, 5).setValues([[dt, notename, category, noteBody, actionVal]]);
+
+  return ContentService.createTextOutput(JSON.stringify({
+    result: 'success',
+    sheetTab: sheet.getName(),
+    rowNumber: rowNum,
+    message: 'নোট আপডেট সম্পন্ন'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleDeleteNoteRange(sheet, data, params) {
+  var rowNum = findNoteRowIndex(sheet, data || params || {});
+  if (rowNum < 2) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'not_found',
+      sheetTab: sheet.getName(),
+      message: 'নোট খুঁজে পাওয়া যায়নি'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  sheet.getRange(rowNum, 54, 1, 5).deleteCells(SpreadsheetApp.Dimension.ROWS);
+  return ContentService.createTextOutput(JSON.stringify({
+    result: 'success',
+    sheetTab: sheet.getName(),
+    row: rowNum,
+    message: 'নোট ডিলিট হয়েছে (BB:BF কলাম রেঞ্জ)'
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 

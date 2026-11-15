@@ -1,7 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
@@ -124,6 +120,13 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
     dateStyle: 'medium',
     timeStyle: 'short'
   });
+
+  const [{ default: jsPDF }, { default: autoTable }, XLSX, { default: JSZip }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+    import('xlsx'),
+    import('jszip')
+  ]);
 
   // =========================================================================
   // 1. GENERATE BEAUTIFUL SUMMARY PDF WITH JSPDF

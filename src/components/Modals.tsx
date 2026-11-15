@@ -1605,12 +1605,12 @@ export const AppsScriptModal: React.FC<AppsScriptModalProps> = ({
         {/* Warning Banner */}
         <div className="p-2.5 bg-amber-950/80 rounded-xl border border-amber-800/80 text-[11px] text-amber-200 font-medium space-y-1">
           <p className="font-extrabold flex items-center gap-1 text-amber-300">
-            <span>⚠️</span> {t('Apps Script v7.0 (Unified 1-Tab Multi-User):', 'অ্যাপস স্ক্রিপ্ট v৭.০ (ইউজার প্রতি সিঙ্গেল ট্যাব ও নিরাপদ ডিলিট):')}
+            <span>⚠️</span> {t('Apps Script v7.0 (Unified Multi-User + Notepad BB:BF):', 'অ্যাপস স্ক্রিপ্ট v৭.০ (ইউজার প্রতি একক ট্যাব ও নোটপ্যাড BB:BF):')}
           </p>
           <p className="text-[10px] leading-snug text-amber-200/90">
             {t(
-              '1. Click Copy Code below. 2. In Google Sheet, go to Extensions > Apps Script and replace Code.gs. 3. Click Deploy > Manage Deployments > Edit (New version) > Deploy. Every user (e.g. abujar287, munni) gets their own tab with all 5 sections [Entry | Budget | Category | Month Mapping | Tasks] and non-destructive row deletes!',
-              '১. নিচের কোডটি কপি করুন। ২. আপনার গুগল শিটের Extensions > Apps Script-এ গিয়ে Code.gs রিপ্লেস করুন। ৩. উপরে Deploy > New deployment চাপুন। প্রতিটি ইউজারের (যেমন abujar287, munni) সম্পূর্ণ ৫টি সেকশন [Entry | Budget | Category | Month Mapping | Tasks] একক ট্যাবে থাকবে এবং এন্ট্রি মুছলে ডানের অন্য সেকশনের তথ্য কখনোই নষ্ট হবে না!'
+              '1. Click Copy Code below. 2. In Google Sheet, go to Extensions > Apps Script and replace Code.gs. 3. Click Deploy > Manage Deployments > Edit (New version) > Deploy. Supports Entry, Budget, Category, Month Mapping, Tasks, Users, Upcoming 3 Month, Bou Gift & Super-Admin Notepad (BB:BF) on abujar287 tab.',
+              '১. নিচের কোডটি কপি করুন। ২. আপনার গুগল শিটের Extensions > Apps Script-এ গিয়ে Code.gs রিপ্লেস করুন। ৩. Deploy > Manage Deployments > Edit (New version) > Deploy করুন। প্রতিটি সেকশন ও abujar287 ট্যাবের Notepad (BB:BF) এর সাথে নিরাপদ সিঙ্ক কাজ করবে।'
             )}
           </p>
         </div>

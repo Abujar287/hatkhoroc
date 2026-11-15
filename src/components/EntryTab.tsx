@@ -197,7 +197,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
           {entryType === 'Expense' && (
             <motion.div
               layoutId="entryTypeBg"
-              className="absolute inset-0 bg-gradient-to-r from-[#FF7A59] to-[#FF6B4A] rounded-xl shadow-[0_4px_16px_rgba(255,122,89,0.35)] z-[-1]"
+              className="absolute inset-0 bg-[#FF7A59] rounded-xl shadow-sm z-[-1]"
               transition={{ type: 'spring' as const, stiffness: 450, damping: 32 }}
             />
           )}
@@ -238,8 +238,8 @@ export const EntryTab: React.FC<EntryTabProps> = ({
               className="bg-[#0B3C39] border border-teal-800/80 p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:bg-teal-900/80 transition-all active:scale-98"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${
-                  entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 ${
+                  entryType === 'Expense' ? 'bg-[#FF7A59]' : 'bg-[#16A34A]'
                 }`}>
                   <CategoryIcon category={entryCategory} size="md" />
                 </div>
@@ -259,7 +259,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                     {t('Amount', 'পরিমাণ')}
                   </span>
                   <span className={`text-lg sm:text-xl font-black tabular-nums ${
-                    entryType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_3px_rgba(255,122,89,0.3)]' : 'text-emerald-400'
+                    entryType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
                   }`}>
                     {calcDisplay}
                   </span>
@@ -357,8 +357,8 @@ export const EntryTab: React.FC<EntryTabProps> = ({
               {/* Header: Category + Date + Close */}
               <div className="flex items-center justify-between gap-2 border-b border-teal-800/80 pb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm ${
-                    entryType === 'Expense' ? 'bg-[#FF7A59] shadow-sm shadow-[#FF7A59]/40' : 'bg-[#16A34A]'
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0 ${
+                    entryType === 'Expense' ? 'bg-[#FF7A59]' : 'bg-[#16A34A]'
                   }`}>
                     <CategoryIcon category={entryCategory} size="md" />
                   </div>
@@ -375,13 +375,13 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center gap-1.5 bg-[#062423] border border-teal-700/70 rounded-xl px-2.5 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <div className="flex items-center gap-1.5 bg-white border border-teal-700/70 rounded-xl px-2.5 py-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                     <input
                       type="date"
                       value={entryDate}
                       onChange={e => setEntryDate(e.target.value)}
-                      className="bg-transparent text-xs font-bold text-[#F0FDFA] focus:outline-none cursor-pointer"
+                      className="bg-white text-xs font-bold text-slate-900 focus:outline-none cursor-pointer"
                     />
                   </div>
                   <button
@@ -401,7 +401,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                   value={entryNote}
                   onChange={e => setEntryNote(e.target.value)}
                   placeholder={t('Add note (optional)...', 'নোট লিখুন (ঐচ্ছিক)...')}
-                  className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-[#F0FDFA] font-semibold focus:outline-none focus:border-emerald-400 placeholder:text-teal-400/60"
+                  className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-400 placeholder:text-slate-400"
                 />
 
                 <div className="bg-[#062423] rounded-2xl px-3.5 py-2.5 border border-teal-700/70 flex items-baseline justify-between shadow-inner">
@@ -415,7 +415,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                       </span>
                     )}
                     <span className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
-                      entryType === 'Expense' ? 'text-[#FF7A59] drop-shadow-[0_1px_4px_rgba(255,122,89,0.35)]' : 'text-emerald-400'
+                      entryType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
                     }`}>
                       {calcDisplay}
                     </span>
@@ -438,8 +438,8 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                       className={`h-11 sm:h-12 rounded-xl text-base font-extrabold transition-all active:scale-95 flex items-center justify-center cursor-pointer select-none ${
                         isSave
                           ? entryType === 'Expense'
-                            ? 'bg-gradient-to-r from-[#FF7A59] to-[#FF6B4A] hover:brightness-110 active:brightness-95 text-white shadow-lg shadow-[#FF7A59]/30'
-                            : 'bg-[#16A34A] hover:bg-green-700 active:bg-green-800 text-white shadow-md'
+                            ? 'bg-[#FF7A59] hover:bg-[#e86848] text-white shadow-sm'
+                            : 'bg-[#16A34A] hover:bg-green-700 text-white shadow-sm'
                           : key === 'C'
                           ? 'bg-[#FF7A59]/15 text-[#FF7A59] border border-[#FF7A59]/40 hover:bg-[#FF7A59]/25'
                           : key === 'DEL'

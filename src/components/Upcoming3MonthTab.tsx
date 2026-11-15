@@ -47,29 +47,9 @@ interface UpcomingMonthSlot {
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const DEFAULT_TEMPLATE_ROWS: Array<{ category: string; values: [number, number, number] }> = [
-  { category: 'Room Rent', values: [6000, 6000, 6000] },
-  { category: 'Gas', values: [2100, 0, 0] },
-  { category: 'Wifi', values: [525, 525, 525] },
-  { category: 'Electricity', values: [750, 500, 500] },
-  { category: 'Food Cost', values: [5000, 5000, 5000] },
-  { category: 'Hand Cost', values: [2000, 2000, 2000] },
-  { category: 'Relatives', values: [0, 0, 0] },
-  { category: 'Abujar', values: [0, 0, 0] },
-  { category: 'Bou Cost', values: [0, 0, 0] },
-  { category: 'Saving', values: [0, 0, 0] },
-  { category: 'Shopping', values: [0, 0, 0] },
-  { category: 'Mr & Mrs', values: [0, 0, 0] },
-  { category: 'Home', values: [1500, 1000, 1000] },
-  { category: 'Loan (Bou)', values: [0, 0, 2000] },
-  { category: 'Loan (Home)', values: [0, 5000, 3000] },
-  { category: 'Loan (Bkash1)', values: [2909, 0, 0] },
-  { category: 'Loan (Bkash2)', values: [1000, 0, 0] },
-  { category: 'Loan (Bkash3)', values: [1721, 1721, 1721] },
-  { category: 'Loan (Bkash4)', values: [3098, 3098, 3098] }
-];
+const DEFAULT_TEMPLATE_ROWS: Array<{ category: string; values: [number, number, number] }> = [];
 
-const DEFAULT_CORE_SET = new Set(DEFAULT_TEMPLATE_ROWS.map(r => r.category.toLowerCase()));
+const DEFAULT_CORE_SET = new Set<string>();
 
 function isBkashLoanCategory(name: string): boolean {
   const lower = name.toLowerCase();
@@ -96,69 +76,22 @@ function formatBouMonthLabel(year: number, month1Based: number): string {
 }
 
 function mergeBouGiftEntries(saved?: BouGiftEntry[]): BouGiftEntry[] {
-  const savedMap = new Map<string, BouGiftEntry>();
-  const extraEntries: BouGiftEntry[] = [];
-  if (Array.isArray(saved)) {
-    saved.forEach(item => {
-      if (!item || !item.month) return;
-      const key = normalizeBouMonthKey(item.month);
-      if (key) {
-        savedMap.set(key, item);
-      }
-    });
-  }
-
-  const now = new Date();
-  let endYear = now.getFullYear();
-  let endMonth = now.getMonth() + 1;
-  if (endYear < 2026 || (endYear === 2026 && endMonth < 2)) {
-    endYear = 2026;
-    endMonth = 2;
-  }
-
+  if (!Array.isArray(saved) || saved.length === 0) return [];
+  const seen = new Set<string>();
   const rows: BouGiftEntry[] = [];
-  const usedKeys = new Set<string>();
-  let y = 2026;
-  let m = 2; // Start from 17-Feb-26
-
-  while (y < endYear || (y === endYear && m <= endMonth)) {
-    const ym = `${y}-${String(m).padStart(2, '0')}`;
-    const label = formatBouMonthLabel(y, m);
-    const defaultBudget = ym === '2026-02' ? 0 : 1000;
-    const defaultGive = ym === '2026-03' || ym === '2026-04' ? 1000 : 0;
-    const existing = savedMap.get(ym);
-    usedKeys.add(ym);
-
-    rows.push({
-      month: label,
-      budget: existing && existing.budget !== undefined ? Number(existing.budget) || 0 : defaultBudget,
-      give: existing ? Number(existing.give) || 0 : defaultGive
-    });
-
-    m++;
-    if (m > 12) {
-      m = 1;
-      y++;
+  saved.forEach(item => {
+    if (!item || !item.month) return;
+    const key = normalizeBouMonthKey(item.month) || item.month.trim().toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      rows.push({
+        month: item.month,
+        budget: Number(item.budget) || 0,
+        give: Number(item.give) || 0
+      });
     }
-  }
-
-  // Keep any extra rows that may already exist in AX:AZ beyond the standard range
-  if (Array.isArray(saved)) {
-    saved.forEach(item => {
-      if (!item || !item.month) return;
-      const key = normalizeBouMonthKey(item.month);
-      if (key && !usedKeys.has(key)) {
-        usedKeys.add(key);
-        extraEntries.push({
-          month: item.month,
-          budget: Number(item.budget) || 0,
-          give: Number(item.give) || 0
-        });
-      }
-    });
-  }
-
-  return [...rows, ...extraEntries];
+  });
+  return rows;
 }
 
 function createDefaultPlan(): Upcoming3MonthPlan {
