@@ -176,10 +176,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   };
 
   const handleOpenNoteModal = (note: NoteEntry) => {
-    if (isSelectMode) {
-      toggleSelectNote(note.id);
-      return;
-    }
     setActiveNote(note);
     setFormName(note.notename || '');
     const cat = (note.category || 'Uncategorized').trim();
@@ -325,10 +321,10 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto pb-24 space-y-4 animate-fadeIn">
+    <div className="w-full max-w-6xl mx-auto pb-28 space-y-4 animate-fadeIn relative">
       {/* Top Header & Search & Filter Row */}
       <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-        {/* Title & Count + New Note button (No Sync button) */}
+        {/* Title & Count */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <NotebookPen className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -336,21 +332,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
               Notepad ({notes.length})
             </h2>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setFormName('');
-              setFormCategory(categories[0] || 'Uncategorized');
-              setFormCustomCat('');
-              setFormBody('');
-              setShowCreateModal(true);
-            }}
-            className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm whitespace-nowrap shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Note</span>
-          </button>
         </div>
 
         {/* Search Input */}
@@ -416,7 +397,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </select>
         </div>
 
-        {/* Multi-Select Bar when active (Just Select All, Assign Category, Delete, Cancel) */}
+        {/* Multi-Select Bar when active */}
         {isSelectMode && (
           <div className="flex items-center justify-between pt-1 text-xs bg-[#062423] p-2 rounded-xl border border-teal-700/60 flex-wrap gap-2">
             <span className="font-bold text-emerald-300">
@@ -483,7 +464,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             </h3>
             <p className="text-xs text-teal-300/75 max-w-sm mx-auto">
               {notes.length === 0
-                ? 'Tap Sync in header or create a new note.'
+                ? 'Tap the floating + button below to add a new note.'
                 : 'Try adjusting your search query, category, or date filter.'}
             </p>
           </div>
@@ -495,7 +476,13 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             return (
               <div
                 key={note.id}
-                onClick={() => handleOpenNoteModal(note)}
+                onClick={() => {
+                  if (isSelectMode) {
+                    toggleSelectNote(note.id);
+                  } else {
+                    handleOpenNoteModal(note);
+                  }
+                }}
                 onMouseDown={() => handleTouchStart(note.id)}
                 onMouseUp={handleTouchEnd}
                 onTouchStart={() => handleTouchStart(note.id)}
@@ -529,31 +516,37 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                       </h3>
                     </div>
 
-                    {/* Direct Copy & Remove Buttons on Card */}
-                    {!isSelectMode && (
-                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(note.note || note.notename, note.id)}
-                          className="w-7 h-7 rounded-lg bg-[#062423] text-teal-300 hover:text-white flex items-center justify-center border border-teal-800/60 cursor-pointer"
-                          title="Copy note"
-                        >
-                          {copiedId === note.id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteNote(note)}
-                          className="w-7 h-7 rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900 hover:text-white flex items-center justify-center border border-rose-800/60 cursor-pointer"
-                          title="Delete note"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                    {/* Preview, Copy & Remove Buttons on Card (Always accessible) */}
+                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNoteModal(note)}
+                        className="w-7 h-7 rounded-lg bg-[#062423] text-teal-300 hover:text-white flex items-center justify-center border border-teal-800/60 cursor-pointer"
+                        title="Preview note"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(note.note || note.notename, note.id)}
+                        className="w-7 h-7 rounded-lg bg-[#062423] text-teal-300 hover:text-white flex items-center justify-center border border-teal-800/60 cursor-pointer"
+                        title="Copy note"
+                      >
+                        {copiedId === note.id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteNote(note)}
+                        className="w-7 h-7 rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900 hover:text-white flex items-center justify-center border border-rose-800/60 cursor-pointer"
+                        title="Delete note"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-[11px] text-teal-300/80 truncate">
@@ -571,6 +564,22 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           })}
         </div>
       )}
+
+      {/* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */}
+      <button
+        type="button"
+        onClick={() => {
+          setFormName('');
+          setFormCategory(categories[0] || 'Uncategorized');
+          setFormCustomCat('');
+          setFormBody('');
+          setShowCreateModal(true);
+        }}
+        className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20"
+        title="Add New Note"
+      >
+        <Plus className="w-7 h-7 stroke-[3]" />
+      </button>
 
       {/* ======================================================== */}
       {/* BULK CATEGORY ASSIGN MODAL                              */}

@@ -2754,9 +2754,12 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                 </p>
               </div>
 
-              <div className="py-2">
-                <span className="text-4xl font-black text-emerald-400 tracking-tight tabular-nums">
+              <div className="py-2 space-y-1">
+                <span className="text-3xl font-black text-emerald-400 tracking-tight tabular-nums block">
                   {downloadProgress}%
+                </span>
+                <span className="text-xs font-bold text-teal-200 tabular-nums block">
+                  {((downloadProgress / 100) * 19.2).toFixed(1)} MB / 19.2 MB
                 </span>
               </div>
 
