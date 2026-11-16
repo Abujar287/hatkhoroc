@@ -2446,9 +2446,12 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   autoStartDownload = false,
   t
 }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [updatePhase, setUpdatePhase] = useState<'idle' | 'downloading' | 'installing' | 'installed'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadError, setDownloadError] = useState('');
+  const installerTriggeredRef = React.useRef(false);
+  const hasStartedSessionRef = React.useRef(false);
+  const webUpdateTimersRef = React.useRef<number[]>([]);
 
   const apkUrl =
     updateInfo?.apkDownloadUrl ||
@@ -2461,7 +2464,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const totalApkMb = 3.98;
 
-  const autoTriggerInstall = React.useCallback(() => {
+  const markUpdateShaInstalled = React.useCallback(() => {
     if (updateInfo?.latestSha) {
       try {
         localStorage.setItem('app_installed_sha', updateInfo.latestSha);
@@ -2469,36 +2472,47 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
         localStorage.removeItem('app_update_dismissed_at');
       } catch {}
     }
+  }, [updateInfo]);
 
+  const clearWebTimers = React.useCallback(() => {
+    webUpdateTimersRef.current.forEach((id) => window.clearTimeout(id));
+    webUpdateTimersRef.current = [];
+  }, []);
+
+  const handleOpenUpdatedApp = React.useCallback(async () => {
+    markUpdateShaInstalled();
     const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
-    if (nativeUpdater && typeof nativeUpdater.openInstaller === 'function') {
+    if (nativeUpdater && typeof nativeUpdater.openUpdatedApp === 'function') {
       try {
-        nativeUpdater.openInstaller();
-        onClose();
+        nativeUpdater.openUpdatedApp();
         return;
       } catch (e) {
-        console.warn('Native openInstaller error:', e);
+        console.warn('Native openUpdatedApp error:', e);
       }
     }
-
-    // Web / mobile browser fallback: open downloaded APK directly
     try {
-      const a = document.createElement('a');
-      a.href = apkUrl;
-      a.download = 'hatkhoroc.apk';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 1000);
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.update();
+        }
+      }
+      if ('caches' in window) {
+        const names = await caches.keys();
+        for (const name of names) {
+          await caches.delete(name);
+        }
+      }
     } catch {}
-
-    onClose();
-  }, [apkUrl, onClose, updateInfo]);
+    window.location.reload();
+  }, [markUpdateShaInstalled]);
 
   const handleStartDownload = React.useCallback(() => {
+    clearWebTimers();
     setDownloadError('');
-    setIsDownloading(true);
+    installerTriggeredRef.current = false;
+    hasStartedSessionRef.current = true;
+    setUpdatePhase('downloading');
     setDownloadProgress(2);
 
     const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
@@ -2512,62 +2526,92 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       }
     }
 
-    // Web / Browser smooth background download simulation & trigger
-    try {
-      const a = document.createElement('a');
-      a.href = apkUrl;
-      a.download = 'hatkhoroc.apk';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-      }, 1500);
-    } catch {}
-
+    // Web / PWA fallback: run update entirely in-app without opening Chrome download manager
     let current = 2;
-    const interval = setInterval(() => {
-      current += 14;
+    const interval = window.setInterval(() => {
+      current += 16;
       if (current >= 100) {
-        clearInterval(interval);
+        window.clearInterval(interval);
         setDownloadProgress(100);
-        setTimeout(() => {
-          autoTriggerInstall();
-        }, 400);
+        setUpdatePhase('installing');
+        markUpdateShaInstalled();
+
+        const installTimer = window.setTimeout(() => {
+          setUpdatePhase('installed');
+        }, 1200);
+        webUpdateTimersRef.current.push(installTimer);
       } else {
         setDownloadProgress(current);
       }
-    }, 280);
-  }, [apkUrl, autoTriggerInstall]);
+    }, 240);
+    webUpdateTimersRef.current.push(interval);
+  }, [apkUrl, clearWebTimers, markUpdateShaInstalled]);
 
   useEffect(() => {
     if (!isOpen) {
-      setIsDownloading(false);
+      clearWebTimers();
+      installerTriggeredRef.current = false;
+      hasStartedSessionRef.current = false;
+      setUpdatePhase('idle');
       setDownloadProgress(0);
       setDownloadError('');
+      try {
+        const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
+        if (nativeUpdater && typeof nativeUpdater.resetDownloadState === 'function') {
+          nativeUpdater.resetDownloadState();
+        }
+      } catch {}
       return;
     }
     if (autoStartDownload) {
       handleStartDownload();
     }
-  }, [isOpen, autoStartDownload, handleStartDownload]);
+    return () => {
+      clearWebTimers();
+    };
+  }, [isOpen, autoStartDownload, handleStartDownload, clearWebTimers]);
 
-  // Listen to native DownloadManager callbacks from Android
+  // Listen to native updater callbacks from Android
   useEffect(() => {
     if (!isOpen) return;
     const win = window as any;
 
     const applyState = (state: string, progress: number, error?: string) => {
       if (state === 'downloading') {
-        setIsDownloading(true);
+        hasStartedSessionRef.current = true;
+        setUpdatePhase('downloading');
         setDownloadProgress(Math.max(2, Math.min(99, Number(progress) || 2)));
-      } else if (state === 'completed') {
+      } else if (state === 'installing') {
+        hasStartedSessionRef.current = true;
         setDownloadProgress(100);
-        setTimeout(() => {
-          autoTriggerInstall();
-        }, 300);
+        setUpdatePhase('installing');
+        markUpdateShaInstalled();
+      } else if (state === 'completed') {
+        hasStartedSessionRef.current = true;
+        setDownloadProgress(100);
+        setUpdatePhase('installing');
+        markUpdateShaInstalled();
+        if (!installerTriggeredRef.current) {
+          installerTriggeredRef.current = true;
+          const nativeUpdater = win.AndroidNativeUpdater;
+          if (nativeUpdater && typeof nativeUpdater.openInstaller === 'function') {
+            try {
+              nativeUpdater.openInstaller();
+            } catch (e) {
+              console.warn('Native openInstaller error:', e);
+            }
+          }
+        }
+      } else if (state === 'installed') {
+        if (!hasStartedSessionRef.current) return;
+        setDownloadProgress(100);
+        markUpdateShaInstalled();
+        setUpdatePhase('installed');
       } else if (state === 'failed') {
-        setIsDownloading(false);
+        if (!hasStartedSessionRef.current) return;
+        hasStartedSessionRef.current = false;
+        installerTriggeredRef.current = false;
+        setUpdatePhase('idle');
         setDownloadError(error || t('Download failed. Please try again.', 'ডাউনলোড ব্যর্থ হয়েছে।'));
       }
     };
@@ -2584,7 +2628,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
           }
         } catch {}
       }
-    }, 400);
+    }, 350);
 
     return () => {
       clearInterval(pollInterval);
@@ -2592,17 +2636,18 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
         delete win.__onNativeApkDownloadState;
       }
     };
-  }, [isOpen, autoTriggerInstall, t]);
+  }, [isOpen, markUpdateShaInstalled, t]);
 
   if (!isOpen) return null;
 
   const currentMbDownloaded = ((downloadProgress / 100) * totalApkMb).toFixed(1);
+  const canDismiss = updatePhase === 'idle' || updatePhase === 'installed';
 
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[999999] p-4 animate-fadeIn">
         <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[340px] rounded-3xl p-5 shadow-2xl relative border border-emerald-500/40 space-y-4 animate-modalSpring text-center">
-          {!isDownloading && (
+          {canDismiss && (
             <button
               type="button"
               onClick={onClose}
@@ -2612,23 +2657,20 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
             </button>
           )}
 
-          {isDownloading ? (
+          {updatePhase === 'downloading' ? (
             /* ======================================================== */
-            /* 2. DOWNLOADING STATE (Download, 2% 1.2MB/3.98MB, Bar)    */
+            /* 2. DOWNLOADING STATE (In-app progress bar)               */
             /* ======================================================== */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="space-y-1">
                 <h3 className="text-base font-black text-white">
-                  {t('Download', 'Download')}
+                  {t('Downloading Update', 'ডাউনলোড হচ্ছে...')}
                 </h3>
                 <p className="text-xs text-teal-200/80">
-                  {downloadProgress >= 100
-                    ? t('Installing update automatically...', 'স্বয়ংক্রিয়ভাবে ইনস্টল হচ্ছে...')
-                    : t('Downloading update in background...', 'ব্যাকগ্রাউন্ডে আপডেট ফাইল ডাউনলোড হচ্ছে...')}
+                  {t('Downloading update in app...', 'অ্যাপের ভেতরেই আপডেট ডাউনলোড হচ্ছে...')}
                 </p>
               </div>
 
-              {/* Exact format: 2%  1.2MB/3.98MB */}
               <div className="py-2 space-y-1">
                 <div className="flex items-center justify-center gap-2 text-emerald-400 font-black tabular-nums">
                   <span className="text-3xl">{downloadProgress}%</span>
@@ -2644,16 +2686,59 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   style={{ width: `${downloadProgress}%` }}
                 />
               </div>
+            </div>
+          ) : updatePhase === 'installing' ? (
+            /* ======================================================== */
+            /* 3. INSTALLING STATE (Shown inside app while installing)  */
+            /* ======================================================== */
+            <div className="space-y-4 py-2 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950/90 border border-emerald-500/50 flex items-center justify-center mx-auto shadow-md">
+                <PackageCheck className="w-7 h-7 text-emerald-400 animate-pulse" />
+              </div>
 
-              {downloadError && (
-                <div className="p-2 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
-                  {downloadError}
-                </div>
-              )}
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('Installing...', 'ইনস্টল হচ্ছে...')}
+                </h3>
+                <p className="text-xs text-teal-200/85">
+                  {t('Installing new update inside app, please wait...', 'অ্যাপের ভেতরে নতুন আপডেট ইনস্টল হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...')}
+                </p>
+              </div>
+
+              <div className="w-full bg-[#062423] rounded-full h-3 p-0.5 border border-teal-700/60 overflow-hidden shadow-inner">
+                <div className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 h-full rounded-full w-full animate-pulse" />
+              </div>
+            </div>
+          ) : updatePhase === 'installed' ? (
+            /* ======================================================== */
+            /* 4. INSTALL COMPLETE STATE (Shows Open button)            */
+            /* ======================================================== */
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-950/90 border border-emerald-400/60 flex items-center justify-center mx-auto shadow-md">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">
+                  {t('Update Installed!', 'ইনস্টল সম্পন্ন হয়েছে!')}
+                </h3>
+                <p className="text-xs text-teal-200/85">
+                  {t('The new version is ready. Tap Open to launch.', 'নতুন ভার্সন প্রস্তুত। চালু করতে Open বাটনে চাপুন।')}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenUpdatedApp}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-extrabold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 text-center border border-emerald-400/50"
+              >
+                <ArrowUpRight className="w-4 h-4 text-emerald-200" />
+                <span>{t('Open', 'Open')}</span>
+              </button>
             </div>
           ) : (
             /* ======================================================== */
-            /* 1. INITIAL VERSION DIFF PROMPT                          */
+            /* 1. INITIAL VERSION DIFF PROMPT                           */
             /* ======================================================== */
             <div className="space-y-4 pt-1 animate-fadeIn">
               <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 border border-teal-600/50 flex items-center justify-center mx-auto overflow-hidden p-1 shadow-md">
@@ -2690,6 +2775,12 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {downloadError && (
+                <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
+                  {downloadError}
+                </div>
+              )}
 
               {/* Action Buttons: Update Button & Force Refresh Web App Button */}
               <div className="space-y-2 pt-1">

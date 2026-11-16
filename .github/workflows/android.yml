@@ -109,21 +109,16 @@ jobs:
           package com.abujar.hatkhoroc;
 
           import android.app.DownloadManager;
-          import android.content.BroadcastReceiver;
           import android.content.Context;
           import android.content.Intent;
-          import android.content.IntentFilter;
           import android.content.pm.PackageInfo;
           import android.content.pm.PackageManager;
           import android.content.pm.ResolveInfo;
           import android.content.pm.Signature;
-          import android.database.Cursor;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
           import android.os.Environment;
-          import android.os.Handler;
-          import android.os.Looper;
           import android.provider.Settings;
           import android.webkit.DownloadListener;
           import android.webkit.WebView;
@@ -131,21 +126,24 @@ jobs:
           import androidx.core.content.FileProvider;
           import com.getcapacitor.BridgeActivity;
           import org.json.JSONObject;
+          import java.io.BufferedInputStream;
           import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
           import java.util.Arrays;
           import java.util.List;
 
           public class MainActivity extends BridgeActivity {
-              private long downloadId = -1;
-              private BroadcastReceiver downloadReceiver;
+              private static final int REQUEST_INSTALL_APK = 9001;
               private boolean pendingInstall = false;
               private boolean pendingForceUninstall = false;
               private volatile String downloadState = "idle";
               private volatile int downloadProgress = 0;
               private volatile String downloadError = "";
               private File downloadedApkFile = null;
-              private final Handler progressHandler = new Handler(Looper.getMainLooper());
-              private Runnable progressRunnable;
+              private Thread downloadThread = null;
 
               public class WebAppInterface {
                   @android.webkit.JavascriptInterface
@@ -176,9 +174,43 @@ jobs:
                       runOnUiThread(new Runnable() {
                           @Override
                           public void run() {
-                              installOrForceUpdateApk(false);
+                              if (!"installing".equals(downloadState) && !"installed".equals(downloadState)) {
+                                  installOrForceUpdateApk(false);
+                              }
                           }
                       });
+                  }
+
+                  @android.webkit.JavascriptInterface
+                  public void openUpdatedApp() {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              try {
+                                  Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                                  if (launchIntent != null) {
+                                      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                      startActivity(launchIntent);
+                                      finish();
+                                      return;
+                                  }
+                              } catch (Exception ignored) {}
+                              try {
+                                  if (bridge != null && bridge.getWebView() != null) {
+                                      bridge.getWebView().reload();
+                                  }
+                              } catch (Exception ignored) {}
+                          }
+                      });
+                  }
+
+                  @android.webkit.JavascriptInterface
+                  public void resetDownloadState() {
+                      if (!"downloading".equals(downloadState) && !"installing".equals(downloadState)) {
+                          downloadState = "idle";
+                          downloadProgress = 0;
+                          downloadError = "";
+                      }
                   }
 
                   @android.webkit.JavascriptInterface
@@ -196,7 +228,7 @@ jobs:
                       runOnUiThread(new Runnable() {
                           @Override
                           public void run() {
-                              launchUninstallWithDownloadsBackdrop();
+                              launchUninstallOnly();
                           }
                       });
                   }
@@ -242,7 +274,6 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  setupDownloadReceiver();
                   setupDownloadListener();
               }
 
@@ -281,145 +312,128 @@ jobs:
                   });
               }
 
-              private void startApkDownload(String url, String userAgent) {
-                  try {
-                      if ("downloading".equals(downloadState) && downloadId != -1) {
-                          notifyWebDownloadState("downloading", downloadProgress, "");
-                          return;
-                      }
-
-                      DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                      if (dm == null) {
-                          notifyWebDownloadState("failed", 0, "DownloadManager unavailable");
-                          return;
-                      }
-
-                      String uniqueFileName = "hatkhoroc_" + System.currentTimeMillis() + ".apk";
-                      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                      request.setMimeType("application/vnd.android.package-archive");
-                      if (userAgent != null && !userAgent.trim().isEmpty()) {
-                          request.addRequestHeader("User-Agent", userAgent);
-                      }
-                      request.setDescription("হাত খরচ অ্যাপের নতুন আপডেট ডাউনলোড হচ্ছে...");
-                      request.setTitle("hatkhoroc.apk");
-                      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                      request.setAllowedOverMetered(true);
-                      request.setAllowedOverRoaming(true);
-
-                      try {
-                          request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, uniqueFileName);
-                          File pubDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                          downloadedApkFile = new File(pubDir, uniqueFileName);
-                      } catch (Exception pubErr) {
-                          File privDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-                          if (privDir != null) {
-                              File oldApk = new File(privDir, "hatkhoroc_update.apk");
-                              if (oldApk.exists()) oldApk.delete();
-                          }
-                          request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "hatkhoroc_update.apk");
-                          downloadedApkFile = new File(privDir, "hatkhoroc_update.apk");
-                      }
-
-                      downloadId = dm.enqueue(request);
-                      notifyWebDownloadState("downloading", 3, "");
-                      startProgressPolling();
-                      Toast.makeText(getApplicationContext(), "📥 ডাউনলোড ম্যানেজারে আপডেট ডাউনলোড শুরু হয়েছে...", Toast.LENGTH_SHORT).show();
-                  } catch (Exception e) {
-                      notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "Download failed");
+              private void startApkDownload(final String urlStr, final String userAgent) {
+                  if ("downloading".equals(downloadState) || "installing".equals(downloadState)) {
+                      notifyWebDownloadState(downloadState, downloadProgress, "");
+                      return;
                   }
-              }
 
-              private void startProgressPolling() {
-                  stopProgressPolling();
-                  progressRunnable = new Runnable() {
+                  notifyWebDownloadState("downloading", 2, "");
+
+                  downloadThread = new Thread(new Runnable() {
                       @Override
                       public void run() {
-                          if (!"downloading".equals(downloadState) || downloadId == -1) return;
-                          pollDownloadStatusOnce();
-                          if ("downloading".equals(downloadState)) {
-                              progressHandler.postDelayed(this, 350);
-                          }
-                      }
-                  };
-                  progressHandler.postDelayed(progressRunnable, 350);
-              }
-
-              private void stopProgressPolling() {
-                  if (progressRunnable != null) {
-                      progressHandler.removeCallbacks(progressRunnable);
-                      progressRunnable = null;
-                  }
-              }
-
-              private void pollDownloadStatusOnce() {
-                  try {
-                      if (downloadId == -1) return;
-                      DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                      if (dm == null) return;
-                      DownloadManager.Query query = new DownloadManager.Query();
-                      query.setFilterById(downloadId);
-                      Cursor cursor = dm.query(query);
-                      if (cursor != null) {
-                          if (cursor.moveToFirst()) {
-                              int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
-                              int status = statusIdx != -1 ? cursor.getInt(statusIdx) : -1;
-
-                               if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                                  int uriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
-                                  if (uriIdx != -1) {
-                                      String localUriStr = cursor.getString(uriIdx);
-                                      if (localUriStr != null && localUriStr.startsWith("file://")) {
-                                          downloadedApkFile = new File(Uri.parse(localUriStr).getPath());
+                          HttpURLConnection conn = null;
+                          InputStream input = null;
+                          FileOutputStream output = null;
+                          try {
+                              String currentUrl = urlStr;
+                              int redirects = 0;
+                              while (redirects < 8) {
+                                  URL parsed = new URL(currentUrl);
+                                  conn = (HttpURLConnection) parsed.openConnection();
+                                  conn.setInstanceFollowRedirects(false);
+                                  conn.setConnectTimeout(20000);
+                                  conn.setReadTimeout(30000);
+                                  conn.setRequestProperty("User-Agent", (userAgent != null && !userAgent.trim().isEmpty()) ? userAgent : "HatKhorocUpdater/1.0");
+                                  conn.setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*");
+                                  int code = conn.getResponseCode();
+                                  if (code == HttpURLConnection.HTTP_MOVED_PERM
+                                      || code == HttpURLConnection.HTTP_MOVED_TEMP
+                                      || code == HttpURLConnection.HTTP_SEE_OTHER
+                                      || code == 307
+                                      || code == 308) {
+                                      String loc = conn.getHeaderField("Location");
+                                      conn.disconnect();
+                                      if (loc == null || loc.trim().isEmpty()) {
+                                          throw new Exception("Redirect location missing");
                                       }
+                                      currentUrl = new URL(parsed, loc).toString();
+                                      redirects++;
+                                  } else {
+                                      break;
                                   }
-                                  stopProgressPolling();
-                                  notifyWebDownloadState("completed", 100, "");
-                                  installOrForceUpdateApk(false);
-                              } else if (status == DownloadManager.STATUS_FAILED) {
-                                  int reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
-                                  int reason = reasonIdx != -1 ? cursor.getInt(reasonIdx) : -1;
-                                  stopProgressPolling();
-                                  notifyWebDownloadState("failed", 0, "Download failed (code " + reason + ")");
-                              } else {
-                                  int dlIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-                                  int totIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-                                  long dl = dlIdx != -1 ? cursor.getLong(dlIdx) : 0;
-                                  long tot = totIdx != -1 ? cursor.getLong(totIdx) : 0;
-                                  int pct = downloadProgress;
-                                  if (tot > 0) {
-                                      pct = (int) Math.min(99, Math.max(3, (dl * 100L) / tot));
-                                  } else if (dl > 0) {
-                                      pct = Math.min(88, Math.max(5, downloadProgress + 4));
-                                  }
-                                  notifyWebDownloadState("downloading", pct, "");
                               }
-                          }
-                          cursor.close();
-                      }
-                  } catch (Exception ignored) {}
-              }
 
-              private void setupDownloadReceiver() {
-                  downloadReceiver = new BroadcastReceiver() {
-                      @Override
-                      public void onReceive(Context context, Intent intent) {
-                          long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                          if (id == downloadId && downloadId != -1) {
-                              pollDownloadStatusOnce();
-                              if ("completed".equals(downloadState)) {
-                                  Toast.makeText(context, "✅ ডাউনলোড সম্পন্ন! ইনস্টলার চালু হচ্ছে...", Toast.LENGTH_SHORT).show();
-                                  installOrForceUpdateApk(false);
+                              int responseCode = conn.getResponseCode();
+                              if (responseCode < 200 || responseCode >= 300) {
+                                  throw new Exception("Server returned HTTP " + responseCode);
                               }
+
+                              long totalBytes = -1;
+                              String clHeader = conn.getHeaderField("Content-Length");
+                              if (clHeader != null) {
+                                  try {
+                                      totalBytes = Long.parseLong(clHeader.trim());
+                                  } catch (Exception ignored) {}
+                              }
+                              if (totalBytes <= 0) {
+                                  totalBytes = conn.getContentLength();
+                              }
+
+                              File targetDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                              if (targetDir == null) targetDir = getCacheDir();
+                              if (!targetDir.exists()) targetDir.mkdirs();
+
+                              File finalFile = new File(targetDir, "hatkhoroc_update.apk");
+                              File tempFile = new File(targetDir, "hatkhoroc_update.apk.tmp");
+                              if (finalFile.exists()) finalFile.delete();
+                              if (tempFile.exists()) tempFile.delete();
+
+                              input = new BufferedInputStream(conn.getInputStream(), 16384);
+                              output = new FileOutputStream(tempFile);
+
+                              byte[] buffer = new byte[16384];
+                              long downloaded = 0;
+                              int count;
+                              int lastPct = 2;
+                              long lastNotifyMs = 0;
+
+                              while ((count = input.read(buffer)) != -1) {
+                                  output.write(buffer, 0, count);
+                                  downloaded += count;
+                                  int pct;
+                                  if (totalBytes > 0) {
+                                      pct = (int) Math.min(99, Math.max(3, (downloaded * 100L) / totalBytes));
+                                  } else {
+                                      pct = Math.min(92, lastPct + 1);
+                                  }
+                                  long now = System.currentTimeMillis();
+                                  if (pct != lastPct && (now - lastNotifyMs >= 180 || pct >= 99)) {
+                                      lastPct = pct;
+                                      lastNotifyMs = now;
+                                      notifyWebDownloadState("downloading", pct, "");
+                                  }
+                              }
+
+                              output.flush();
+                              output.close();
+                              output = null;
+                              input.close();
+                              input = null;
+
+                              if (!tempFile.renameTo(finalFile)) {
+                                  throw new Exception("Failed to prepare update file");
+                              }
+                              downloadedApkFile = finalFile;
+
+                              notifyWebDownloadState("installing", 100, "");
+                              runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      installOrForceUpdateApk(false);
+                                  }
+                              });
+                          } catch (Exception e) {
+                              notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "Download failed");
+                          } finally {
+                              try { if (output != null) output.close(); } catch (Exception ignored) {}
+                              try { if (input != null) input.close(); } catch (Exception ignored) {}
+                              try { if (conn != null) conn.disconnect(); } catch (Exception ignored) {}
                           }
                       }
-                  };
-                  try {
-                      if (Build.VERSION.SDK_INT >= 33) {
-                          registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
-                      } else {
-                          registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
-                      }
-                  } catch (Exception e) {}
+                  });
+                  downloadThread.start();
               }
 
               private boolean isApkSignatureCompatible(File apkFile) {
@@ -451,15 +465,9 @@ jobs:
                   }
               }
 
-              private void launchUninstallWithDownloadsBackdrop() {
+              private void launchUninstallOnly() {
                   try {
-                      Toast.makeText(getApplicationContext(), "🗑️ পুরনো ভার্সন আনইনস্টল করুন — এরপর ডাউনলোড থেকে নতুন ভার্সন ইনস্টল করুন", Toast.LENGTH_LONG).show();
-                      try {
-                          Intent downloadsIntent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
-                          downloadsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                          startActivity(downloadsIntent);
-                      } catch (Exception ignored) {}
-
+                      Toast.makeText(getApplicationContext(), "🗑️ পুরনো ভার্সন আনইনস্টল করুন", Toast.LENGTH_LONG).show();
                       Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
                       uninstallIntent.setData(Uri.parse("package:" + getPackageName()));
                       uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -473,6 +481,7 @@ jobs:
                           if (!getPackageManager().canRequestPackageInstalls()) {
                               pendingInstall = true;
                               pendingForceUninstall = forceUninstall;
+                              notifyWebDownloadState("installing", 100, "");
                               Toast.makeText(this, "হাত খরচ অ্যাপ আপডেট করতে পারমিশন অন করুন", Toast.LENGTH_LONG).show();
                               Intent permIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
                               permIntent.setData(Uri.parse("package:" + getPackageName()));
@@ -482,47 +491,50 @@ jobs:
                       }
 
                       if (forceUninstall || !isApkSignatureCompatible(downloadedApkFile)) {
-                          launchUninstallWithDownloadsBackdrop();
+                          notifyWebDownloadState("failed", 0, "অ্যাপ সিগনেচার ভিন্ন। পুরনো অ্যাপ আনইনস্টল করে নতুন আপডেট ইনস্টল করুন।");
+                          launchUninstallOnly();
                           return;
                       }
 
-                      Uri apkUri = null;
-                      DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                      if (dm != null && downloadId != -1) {
-                          apkUri = dm.getUriForDownloadedFile(downloadId);
-                      }
-
-                      if (apkUri == null && downloadedApkFile != null && downloadedApkFile.exists()) {
-                          apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedApkFile);
-                      }
-
-                      if (apkUri == null) {
-                          Toast.makeText(this, "ডাউনলোড করা APK ফাইল খুঁজে পাওয়া যায়নি", Toast.LENGTH_SHORT).show();
+                      if (downloadedApkFile == null || !downloadedApkFile.exists()) {
+                          notifyWebDownloadState("failed", 0, "ডাউনলোড করা APK ফাইল খুঁজে পাওয়া যায়নি");
                           return;
                       }
+
+                      Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedApkFile);
+
+                      notifyWebDownloadState("installing", 100, "");
 
                       Intent installIntent = new Intent(Intent.ACTION_VIEW);
                       installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                       installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                      installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                      installIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
 
                       List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
                       for (ResolveInfo resolveInfo : resInfoList) {
                           grantUriPermission(resolveInfo.activityInfo.packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       }
-                      startActivity(installIntent);
+                      startActivityForResult(installIntent, REQUEST_INSTALL_APK);
                   } catch (Exception e) {
-                      launchUninstallWithDownloadsBackdrop();
+                      notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "ইনস্টল শুরু করা যায়নি");
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  super.onActivityResult(requestCode, resultCode, data);
+                  if (requestCode == REQUEST_INSTALL_APK) {
+                      if (resultCode == android.app.Activity.RESULT_OK) {
+                          notifyWebDownloadState("installed", 100, "");
+                      } else {
+                          notifyWebDownloadState("failed", 0, "ইনস্টলেশন বাতিল হয়েছে। আবার চেষ্টা করুন।");
+                      }
                   }
               }
 
               @Override
               public void onResume() {
                   super.onResume();
-                  if ("downloading".equals(downloadState) && downloadId != -1) {
-                      pollDownloadStatusOnce();
-                  }
                   if (pendingInstall) {
                       boolean force = pendingForceUninstall;
                       pendingInstall = false;
@@ -530,6 +542,8 @@ jobs:
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                           if (getPackageManager().canRequestPackageInstalls()) {
                               installOrForceUpdateApk(force);
+                          } else {
+                              notifyWebDownloadState("failed", 0, "ইনস্টল পারমিশন দেওয়া হয়নি।");
                           }
                       }
                   }
@@ -538,10 +552,6 @@ jobs:
               @Override
               public void onDestroy() {
                   super.onDestroy();
-                  stopProgressPolling();
-                  try {
-                      if (downloadReceiver != null) unregisterReceiver(downloadReceiver);
-                  } catch (Exception ignored) {}
               }
           }
           EOF
