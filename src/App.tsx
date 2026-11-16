@@ -275,9 +275,9 @@ export default function App() {
           return;
         }
 
-        // New version exists on GitHub! Show update popup with versions comparison
+        // New version exists on GitHub! Start auto-download -> install -> Open flow immediately in-app
         setUpdateInfoModal(info);
-        setUpdateAutoStart(false);
+        setUpdateAutoStart(true);
         setShowUpdateModal(true);
       } else if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
