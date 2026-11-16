@@ -122,17 +122,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                     {totalRecords} {t('total records', 'মোট রেকর্ডস')}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-teal-300/80">
-                  <span>Google Sheet abujar287 (AL:AQ)</span>
-                  {syncStatus?.lastSuccess && (
-                    <>
-                      <span>•</span>
-                      <span className="text-emerald-400 font-mono">
-                        {t('Auto Synced:', 'অটো সিঙ্ক:')} {syncStatus.lastSuccess}
-                      </span>
-                    </>
-                  )}
-                </div>
               </div>
             </div>
           </div>

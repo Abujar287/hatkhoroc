@@ -599,18 +599,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
         className="rounded-2xl bg-[#0B3C39] text-[#F0FDFA] p-4 sm:p-5 shadow-sm border border-teal-800/80 relative overflow-hidden"
       >
-        {/* Top Header of Hero Card: Month Filter, Custom Filter & Reset responsive on mobile */}
-        <div className="flex flex-wrap items-center justify-between border-b border-teal-800/60 pb-3 mb-3 gap-2">
-          <div className="flex items-center flex-wrap gap-1.5 min-w-0 flex-1">
+        {/* Top Header of Hero Card: Month Filter, Date Filter & Reset in one compact row */}
+        <div className="flex items-center justify-between border-b border-teal-800/60 pb-3 mb-3 gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
             {globalFilterMode === 'month' ? (
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(-1)}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
                   title={t('Previous Month', 'পূর্ববর্তী মাস')}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
                 <select
                   value={selectedMonth}
@@ -618,7 +618,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setSelectedMonth(e.target.value);
                     setFilterPreset('this_month');
                   }}
-                  className="min-h-[34px] bg-white border border-teal-700/70 text-slate-900 text-xs font-bold rounded-xl px-2.5 py-1 max-w-[125px] sm:max-w-none truncate focus:outline-none focus:ring-2 focus:ring-teal-400/40 cursor-pointer transition-all"
+                  className="h-7 sm:h-[34px] bg-white border border-teal-700/70 text-slate-900 text-[11px] sm:text-xs font-bold rounded-xl px-1.5 sm:px-2.5 py-0.5 max-w-[96px] sm:max-w-none truncate focus:outline-none focus:ring-2 focus:ring-teal-400/40 cursor-pointer transition-all"
                 >
                   {monthOptions.map(m => (
                     <option key={m.val} value={m.val}>
@@ -629,10 +629,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 <button
                   type="button"
                   onClick={() => handleShiftMonth(1)}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl bg-[#062423] hover:bg-teal-900/80 active:scale-95 text-teal-200 transition-colors cursor-pointer shrink-0 border border-teal-700/70"
                   title={t('Next Month', 'পরবর্তী মাস')}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
             ) : (
@@ -642,8 +642,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               </div>
             )}
 
-            {/* Custom Filter & Reset Buttons */}
-            <div className="flex items-center gap-1.5 relative shrink-0">
+            {/* Date Filter & Reset Buttons */}
+            <div className="flex items-center gap-1 sm:gap-1.5 relative shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -652,14 +652,15 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     setFilterPreset('custom');
                   }
                 }}
-                className={`min-h-[34px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer border transition-colors whitespace-nowrap ${
+                className={`h-7 sm:h-[34px] px-2 sm:px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer border transition-colors whitespace-nowrap ${
                   filterPreset === 'custom'
                     ? 'bg-emerald-900/80 text-emerald-200 border-emerald-700'
                     : 'bg-[#062423] hover:bg-teal-900/80 text-teal-100 border-teal-700/70'
                 }`}
+                title={t('Filter by Date Range', 'তারিখ অনুযায়ী ফিল্টার')}
               >
                 <CalendarDays className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{t('Custom Filter', 'কাস্টম ফিল্টার')}</span>
+                <span>{t('Date', 'তারিখ')}</span>
                 <ChevronDown className="w-3 h-3 shrink-0" />
               </button>
 
@@ -670,11 +671,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                   setCustomStartDate('');
                   setCustomEndDate('');
                   setShowAdvancedFilterDropdown(false);
+                  if (globalFilterMode !== 'month') {
+                    setGlobalFilterMode('month');
+                  }
+                  const defMap = monthMappings.find(m => m.isDefault);
+                  if (defMap?.label) {
+                    setSelectedMonth(defMap.label);
+                  }
                 }}
-                className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-rose-800/70 active:scale-95 shrink-0 whitespace-nowrap"
+                className="h-7 sm:h-[34px] px-2 sm:px-2.5 py-1 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-rose-800/70 active:scale-95 shrink-0 whitespace-nowrap"
                 title={t('Reset Filter', 'ফিল্টার রিসেট')}
               >
-                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span>{t('Reset', 'রিসেট')}</span>
               </button>
 

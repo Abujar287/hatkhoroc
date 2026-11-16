@@ -18,7 +18,8 @@ import {
   cleanMappingLabel,
   formatNumberLocale,
   getMonthKeyFromLabel,
-  normalizeDate
+  normalizeDate,
+  formatMonth2DigitYear
 } from '../utils/dateUtils';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { CategoryIcon } from './CategoryIcon';
@@ -41,6 +42,7 @@ interface Upcoming3MonthTabProps {
 interface UpcomingMonthSlot {
   key: string; // YYYY-MM
   label: string; // e.g. Nov-2026 or '' if unmapped
+  displayLabel: string; // e.g. Nov-26, Dec-26, Jan-27 (always 2-digit year)
   rangeText: string; // e.g. 01-Nov to 30-Nov or ''
   isMapped: boolean;
 }
@@ -316,12 +318,13 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
       const m = d.getMonth() + 1;
       const ym = `${y}-${String(m).padStart(2, '0')}`;
       const expectedLabel = `${MONTHS_SHORT[m - 1]}-${y}`;
+      const expected2Digit = `${MONTHS_SHORT[m - 1]}-${String(y).slice(-2)}`;
 
       const mapped = monthMappings.find(item => {
         if (!item || !item.label) return false;
         const itemKey = getMonthKeyFromLabel(item.label);
         const itemClean = cleanMappingLabel(item.label).toLowerCase();
-        return itemKey === ym || itemClean === expectedLabel.toLowerCase();
+        return itemKey === ym || itemClean === expectedLabel.toLowerCase() || itemClean === expected2Digit.toLowerCase();
       });
 
       if (mapped) {
@@ -331,21 +334,23 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
         slots.push({
           key: ym,
           label: mappedLabel,
+          displayLabel: formatMonth2DigitYear(mappedLabel) || expected2Digit,
           rangeText: sDate && eDate ? `${formatShortDayMonth(sDate)} to ${formatShortDayMonth(eDate)}` : '',
           isMapped: true
         });
       } else {
         slots.push({
           key: ym,
-          label: '',
+          label: expectedLabel,
+          displayLabel: expected2Digit,
           rangeText: '',
-          isMapped: false
+          isMapped: true
         });
       }
     }
 
     return {
-      defaultMonthLabel: cleanedBase,
+      defaultMonthLabel: formatMonth2DigitYear(cleanedBase) || cleanedBase,
       upcomingMonths: slots
     };
   }, [monthMappings, selectedMonth]);
@@ -655,7 +660,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                     scope="col"
                     className="w-[22%] py-1.5 px-1 sm:px-3 text-[9.5px] sm:text-xs font-black text-right text-[#F0FDFA] truncate"
                   >
-                    {slot.isMapped && slot.label ? slot.label : '\u00A0'}
+                    {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                   </th>
                 ))}
               </tr>
@@ -763,7 +768,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right"
                 >
                   <div className="text-[#F0FDFA] min-h-[13px] truncate">
-                    {slot.isMapped && slot.label ? slot.label : '\u00A0'}
+                    {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                   </div>
                   {slot.isMapped && slot.rangeText && (
                     <div className="hidden sm:block text-[8px] font-semibold text-teal-400/75 normal-case leading-tight">
@@ -925,7 +930,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               </th>
               {upcomingMonths.map(slot => (
                 <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right truncate">
-                  {slot.isMapped && slot.label ? slot.label : '\u00A0'}
+                  {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                 </th>
               ))}
               <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right">
@@ -1040,7 +1045,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               </th>
               {upcomingMonths.map(slot => (
                 <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right truncate">
-                  {slot.isMapped && slot.label ? slot.label : '\u00A0'}
+                  {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                 </th>
               ))}
               <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right">

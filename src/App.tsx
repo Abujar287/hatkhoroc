@@ -36,6 +36,8 @@ import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
 import { fetchSheetApi } from './utils/sheetApi';
 import { processOfflineQueue, addToOfflineQueue, getOfflineQueue } from './utils/offlineQueue';
+import { exportMonthlyReportZip } from './utils/exportZipReport';
+import { ExportMonthModal } from './components/Modals';
 
 // Modular Components
 import { Header } from './components/Header';
@@ -179,6 +181,29 @@ export default function App() {
   const [showMobileModal, setShowMobileModal] = useState<boolean>(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState<boolean>(false);
   const [showSelfSignupModal, setShowSelfSignupModal] = useState<boolean>(false);
+  const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+
+  const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
+    setShowExportModal(false);
+    setIsExportingZip(true);
+    try {
+      await exportMonthlyReportZip({
+        month: params.month,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        transactions,
+        lang,
+        userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari',
+        monthMappings
+      });
+      showToast(t('Monthly report ZIP downloaded!', 'মাসিক রিপোর্ট ZIP ডাউনলোড সম্পন্ন!'), 'success');
+    } catch (err: any) {
+      showToast(err?.message || t('Failed to export ZIP report', 'ZIP রিপোর্ট এক্সপোর্ট করা যায়নি'), 'error');
+    } finally {
+      setIsExportingZip(false);
+    }
+  };
   const [rememberLogin, setRememberLogin] = useState<boolean>(() => {
     try {
       return localStorage.getItem('app_remember_login') === 'true';
@@ -2519,6 +2544,8 @@ export default function App() {
                     setGlobalFilterMode('month');
                     setActiveTab('summary');
                   }}
+                  onExportZip={() => setShowExportModal(true)}
+                  isExportingZip={isExportingZip}
                   lang={lang}
                   t={t}
                 />
@@ -2715,6 +2742,7 @@ export default function App() {
       <DeleteUserModal user={userToDelete} onClose={() => setUserToDelete(null)} onConfirm={handleConfirmDeleteUser} lang={lang} t={t} />
       <AddCategoryModal isOpen={showAddCatModal} type={catModalType} onClose={() => setShowAddCatModal(false)} onAdd={handleAddCategory} lang={lang} t={t} />
       <CategoryManagerModal isOpen={showCategoryManager} onClose={() => setShowCategoryManager(false)} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onUpdateCategories={handleUpdateCategories} onOpenAddModal={t => { setCatModalType(t); setShowAddCatModal(true); }} lang={lang} t={t} />
+      <ExportMonthModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} onExport={handlePerformExportZip} currentMonth={selectedMonth} monthMappings={monthMappings} lang={lang} t={t} />
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
       <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />

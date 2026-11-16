@@ -537,5 +537,69 @@ export function formatTaskCreatedAt(raw?: string | null): string {
   return s.replace('T', ' ').substring(0, 16);
 }
 
+/**
+ * Formats any month representation into strict MMM-YY format with 2-digit year
+ * e.g., "NOV-2026" -> "Nov-26", "Nov-2026" -> "Nov-26", "2026-11" -> "Nov-26", "Jan-2027" -> "Jan-27"
+ */
+export function formatMonth2DigitYear(rawLabel: any): string {
+  if (!rawLabel) return '';
+  const s = String(rawLabel).trim();
+  if (!s) return '';
+
+  const monthsProper = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthsLower = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  // 1. GMT / ISO / Full Date String (e.g. "Thu Oct 01 2026 00:00:00 GMT+0600...") or "Oct 01 2026"
+  const gmtTextMatch = s.match(/(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
+  if (gmtTextMatch) {
+    const mStr = gmtTextMatch[1].toLowerCase();
+    const y2 = gmtTextMatch[3].slice(-2);
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${monthsProper[idx]}-${y2}`;
+    }
+  }
+
+  // 2. YYYY-MM or YYYY-MM-DD (e.g. "2026-11" or "2026-11-01")
+  const ymMatch = s.match(/^(\d{4})[-/](\d{1,2})/);
+  if (ymMatch) {
+    const y2 = ymMatch[1].slice(-2);
+    const m = parseInt(ymMatch[2], 10);
+    if (m >= 1 && m <= 12) {
+      return `${monthsProper[m - 1]}-${y2}`;
+    }
+  }
+
+  // 3. Month name and year (e.g. "NOV-2026", "Nov-2026", "nov-26", "November 2026", "oct 26", "Oct-26")
+  const alphaMatch = s.match(/^([A-Za-z]{3,9})[-\s/]?(\d{2,4})$/i);
+  if (alphaMatch) {
+    const mStr = alphaMatch[1].toLowerCase();
+    let y = alphaMatch[2];
+    const y2 = y.slice(-2);
+    const idx = monthsLower.findIndex(m => mStr.startsWith(m));
+    if (idx !== -1) {
+      return `${monthsProper[idx]}-${y2}`;
+    }
+  }
+
+  // 4. MM-YYYY or MM-YY (e.g. "11-2026" or "11-26")
+  const myNumericMatch = s.match(/^(\d{1,2})[-\s/](\d{2,4})$/);
+  if (myNumericMatch) {
+    const m = parseInt(myNumericMatch[1], 10);
+    const y2 = myNumericMatch[2].slice(-2);
+    if (m >= 1 && m <= 12) {
+      return `${monthsProper[m - 1]}-${y2}`;
+    }
+  }
+
+  // Fallback: check if cleanMappingLabel can parse it first
+  const cleaned = cleanMappingLabel(s);
+  if (cleaned && cleaned !== s) {
+    return formatMonth2DigitYear(cleaned);
+  }
+
+  return s;
+}
+
 
 

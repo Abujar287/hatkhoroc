@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { CalendarRange, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { CalendarRange, ArrowUpRight, ArrowDownLeft, Archive } from 'lucide-react';
 import { Transaction, MonthMapping } from '../types';
 import {
   normalizeDate,
   formatNumberLocale,
   cleanMappingLabel,
-  getMonthKeyFromLabel
+  getMonthKeyFromLabel,
+  formatMonth2DigitYear
 } from '../utils/dateUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 
@@ -13,6 +14,8 @@ interface MonthlySummaryTabProps {
   transactions: Transaction[];
   monthMappings: MonthMapping[];
   onSelectMonth?: (monthLabel: string) => void;
+  onExportZip?: () => void;
+  isExportingZip?: boolean;
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
 }
@@ -36,6 +39,8 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
   transactions,
   monthMappings,
   onSelectMonth,
+  onExportZip,
+  isExportingZip,
   lang,
   t
 }) => {
@@ -78,7 +83,8 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
         }
       });
 
-      const label = cleanMappingLabel(m.label) || m.label;
+      const rawLabel = cleanMappingLabel(m.label) || m.label;
+      const label = formatMonth2DigitYear(rawLabel) || rawLabel;
       const sortKey = getMonthKeyFromLabel(label) || sDate.slice(0, 7);
 
       rows.push({
@@ -117,7 +123,8 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
       const lastDay = new Date(y, m, 0).getDate();
       const sDate = `${y}-${String(m).padStart(2, '0')}-01`;
       const eDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const label = `${MONTHS_SHORT[m - 1] || 'Mon'}-${y}`;
+      const rawStdLabel = `${MONTHS_SHORT[m - 1] || 'Mon'}-${y}`;
+      const label = formatMonth2DigitYear(rawStdLabel) || rawStdLabel;
 
       rows.push({
         key: `std_${ym}`,
@@ -151,7 +158,7 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
     <div className="w-full max-w-7xl mx-auto space-y-4 pb-16 animate-fadeIn px-0.5 sm:px-2">
       {/* Header & Totals Strip */}
       <div className="bg-gradient-to-b from-[#0D4441] to-[#0A3734] rounded-2xl p-3.5 sm:p-5 border border-teal-700/50 shadow-md space-y-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center justify-between gap-2.5 flex-wrap">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#062423] border border-teal-700/70 text-emerald-400 flex items-center justify-center shrink-0">
               <CalendarRange className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -165,6 +172,23 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
               </p>
             </div>
           </div>
+
+          {onExportZip && (
+            <button
+              type="button"
+              onClick={onExportZip}
+              disabled={isExportingZip}
+              className="min-h-[38px] py-2 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-colors shadow-xs shrink-0"
+              title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
+            >
+              {isExportingZip ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+              ) : (
+                <Archive className="w-4 h-4 shrink-0" />
+              )}
+              <span className="truncate">{t('Export ZIP', 'Export ZIP')}</span>
+            </button>
+          )}
         </div>
 
         {/* 2 Summary Cards (Income & Expense) */}

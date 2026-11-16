@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   RefreshCw,
   Users,
-  MoreVertical,
+  Menu,
   LayoutDashboard,
   PlusCircle,
   ListFilter,
@@ -16,7 +16,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { AppUser, AppTab } from '../types';
-import { findMonthMapping, getMonthKeyFromLabel } from '../utils/dateUtils';
+import { findMonthMapping, getMonthKeyFromLabel, formatMonth2DigitYear } from '../utils/dateUtils';
 
 interface HeaderProps {
   currentUser: AppUser | null;
@@ -150,17 +150,17 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center justify-between gap-2">
-        {/* Left: 3-Dot Menu, App Logo, Title */}
+        {/* Left: 3-Line Menu, App Logo, Title */}
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="w-10 h-10 rounded-xl bg-[#0B3C39] hover:bg-teal-900/80 text-teal-200 hover:text-white border border-teal-700/60 transition-colors cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
-              title={t('More Options', 'মেনু')}
-              aria-label={t('More Options', 'মেনু')}
+              className="w-10 h-10 rounded-xl bg-[#0B3C39] hover:bg-teal-900/80 text-teal-200 hover:text-white border border-teal-700/60 transition-colors cursor-pointer active:scale-95 flex items-center justify-center shrink-0 shadow-xs"
+              title={t('Menu', 'মেনু')}
+              aria-label={t('Menu', 'মেনু')}
             >
-              <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+              <Menu className="w-5 h-5 text-emerald-400" />
             </button>
 
             {isMenuOpen && (
@@ -234,24 +234,25 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Active Month + Sync Button */}
+        {/* Right: Active Month + Compact Icon-Only Sync Button */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] sm:text-xs font-semibold text-teal-200 px-2.5 py-1.5 rounded-xl bg-[#0B3C39] border border-teal-800/70 whitespace-nowrap">
-            {activeMonthLabel}
+          <span className="text-[11px] sm:text-xs font-bold text-teal-200 px-2.5 py-1.5 rounded-xl bg-[#0B3C39] border border-teal-800/70 whitespace-nowrap">
+            {formatMonth2DigitYear(activeMonthLabel) || activeMonthLabel}
           </span>
 
           <button
             type="button"
             onClick={onSync}
             disabled={isSyncing}
-            className={`min-h-[38px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer border whitespace-nowrap ${
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all cursor-pointer border shrink-0 ${
               isSyncing
-                ? 'bg-teal-900/90 text-teal-300 border-teal-800'
-                : 'bg-[#0D9488] hover:bg-[#0F766E] text-white border-teal-500/40 active:scale-95'
+                ? 'bg-teal-900/90 text-teal-300 border-teal-800 cursor-not-allowed'
+                : 'bg-[#0D9488] hover:bg-[#0F766E] text-white border-teal-500/40 active:scale-95 shadow-sm'
             }`}
+            title={isSyncing ? t('Syncing...', 'সিঙ্ক হচ্ছে...') : t('Sync Data', 'ডাটা সিঙ্ক')}
+            aria-label={t('Sync Data', 'ডাটা সিঙ্ক')}
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-white shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? t('Syncing', 'সিঙ্ক...') : t('Sync', 'সিঙ্ক')}</span>
+            <RefreshCw className={`w-4 h-4 text-white shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>

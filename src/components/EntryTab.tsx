@@ -285,40 +285,34 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* 3. Circular Responsive Category Grid with Stagger & Spring Animations */}
+      {/* 3. Compact Rectangular Category Grid (6 per row on phone, fitting exact text) */}
       <motion.div
         key={entryType}
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-y-5 sm:gap-y-6 gap-x-2 sm:gap-x-4 pt-2"
+        className="grid grid-cols-6 gap-1.5 sm:gap-2.5 pt-1"
       >
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
+          const label = cleanCategoryName(cat, lang);
           return (
             <motion.button
               key={cat}
               variants={itemVariants}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={() => handleSelectCategory(cat)}
-              className="flex flex-col items-center group cursor-pointer transition-transform"
+              className={`flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl border transition-all cursor-pointer shadow-xs min-h-[52px] sm:min-h-[64px] w-full ${
+                isSelected
+                  ? 'bg-emerald-600 text-white border-emerald-400 ring-1 ring-emerald-300'
+                  : 'bg-[#0B3C39] hover:bg-teal-900/90 text-[#F0FDFA] border-teal-700/80 hover:border-emerald-500/70'
+              }`}
             >
-              {/* Circular Icon Container */}
-              <div
-                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all shadow-md ${
-                  isSelected
-                    ? 'bg-emerald-500 text-white ring-2 ring-emerald-300 ring-offset-2 ring-offset-[#042F2E] scale-105'
-                    : 'bg-[#0B3C39] border border-teal-700/70 text-teal-100 group-hover:border-emerald-400/80 group-hover:bg-teal-800/80'
-                }`}
-              >
-                <CategoryIcon category={cat} size="lg" />
-              </div>
-
-              {/* Category Name Underneath */}
-              <span className="text-[11px] sm:text-xs font-bold text-[#F0FDFA] group-hover:text-teal-200 text-center leading-tight max-w-[85px] sm:max-w-[100px] truncate mt-1.5">
-                {cleanCategoryName(cat, lang)}
+              <CategoryIcon category={cat} size="sm" className="shrink-0 mb-1" />
+              <span className="text-[9px] sm:text-[11px] font-bold text-center leading-tight tracking-tight px-0.5 w-full break-words line-clamp-2">
+                {label}
               </span>
             </motion.button>
           );
@@ -327,17 +321,15 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         {/* Plus / Add Category Button at the end of grid */}
         <motion.button
           variants={itemVariants}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
           type="button"
           onClick={onOpenCategoryManager}
-          className="flex flex-col items-center group cursor-pointer transition-transform"
+          className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-teal-900/50 hover:bg-teal-800/80 text-teal-200 hover:text-white border border-dashed border-teal-500/80 transition-all cursor-pointer shadow-xs min-h-[52px] sm:min-h-[64px] w-full"
         >
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-teal-900/50 border-2 border-dashed border-teal-500/80 flex items-center justify-center text-teal-200 group-hover:text-white group-hover:border-teal-300 transition-all shadow-md">
-            <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <span className="text-[11px] sm:text-xs font-bold text-teal-200 group-hover:text-white text-center leading-tight mt-1.5">
-            {t('Add Category', 'ক্যাটাগরি')}
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0" />
+          <span className="text-[9px] sm:text-[10px] font-bold text-center leading-tight tracking-tight px-0.5 truncate w-full">
+            {t('Add', 'যোগ')}
           </span>
         </motion.button>
       </motion.div>
