@@ -227,7 +227,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     });
 
     const net = inc - exp;
-    const savingsRate = inc > 0 ? Math.max(0, (net / inc) * 100).toFixed(1) : '0';
+    const rawRate = inc > 0 ? (net / inc) * 100 : 0;
+    const roundedRate = Number(rawRate.toFixed(1));
+    const savingsRate = inc > 0 ? (roundedRate === 0 ? '0' : rawRate.toFixed(1)) : '0';
 
     return { inc, exp, net, savingsRate, dailyMap };
   }, [displayTransactions]);
@@ -615,8 +617,12 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
               </span>
             )}
             <span
-              className="text-[10px] text-emerald-300 font-bold px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/80 tabular-nums whitespace-nowrap"
-              title={t('Savings Rate (Net Balance / Total Income)', 'সঞ্চয়ের হার (অবশিষ্ট ব্যালেন্স / মোট আয়)')}
+              className={`text-[10px] font-bold px-2 py-1 rounded-lg border tabular-nums whitespace-nowrap ${
+                Number(stats.savingsRate) < 0
+                  ? 'text-[#FF7A59] bg-rose-950/60 border-rose-800/80'
+                  : 'text-emerald-300 bg-emerald-950/60 border-emerald-800/80'
+              }`}
+              title={t('Savings Rate: (Income - Expense) / Income', 'সঞ্চয়ের হার: (আয় - খরচ) / আয়')}
             >
               {t('Save', 'সঞ্চয়')} {stats.savingsRate}%
             </span>
