@@ -148,11 +148,53 @@ export async function exportMonthlyReportZip(options: ExportZipOptions): Promise
   doc.setFillColor(79, 70, 229); // indigo-600
   doc.rect(0, 42, pageWidth, 2.5, 'F');
 
-  // Title Text
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.text('HISAB-KITAB', 14, 16);
+  // Helper to render Unicode Bengali text crisply into PDF via offscreen canvas
+  const renderTextPng = (
+    text: string,
+    opts: { fontSizePx: number; color: string; bold?: boolean; widthPx?: number; heightPx?: number }
+  ): { dataUrl: string; wMm: number; hMm: number } | null => {
+    try {
+      if (typeof document === 'undefined') return null;
+      const canvas = document.createElement('canvas');
+      const scale = 3;
+      const w = opts.widthPx || 420;
+      const h = opts.heightPx || Math.ceil(opts.fontSizePx * 1.6);
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.scale(scale, scale);
+      ctx.font = `${opts.bold ? 'bold ' : ''}${opts.fontSizePx}px "Hind Siliguri", "Anek Bangla", "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = opts.color;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 0, h / 2);
+      const mmPerPx = 0.264583;
+      return {
+        dataUrl: canvas.toDataURL('image/png'),
+        wMm: w * mmPerPx,
+        hMm: h * mmPerPx
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  // Title Text (হাত খরচ)
+  const headerLogoImg = renderTextPng('হাত খরচ', {
+    fontSizePx: 22,
+    color: '#FFFFFF',
+    bold: true,
+    widthPx: 260,
+    heightPx: 34
+  });
+  if (headerLogoImg) {
+    doc.addImage(headerLogoImg.dataUrl, 'PNG', 14, 9, headerLogoImg.wMm, headerLogoImg.hMm);
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('হাত খরচ', 14, 16);
+  }
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -463,13 +505,23 @@ function toAsciiSafe(str: any): string {
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    const footerBrandImg = renderTextPng(
+      `হাত খরচ  |  Smart Personal Expense & Income Tracker  |  Page ${i} of ${totalPages}`,
+      { fontSizePx: 9, color: '#94A3B8', widthPx: 500, heightPx: 16 }
+    );
+    if (footerBrandImg) {
+      doc.addImage(footerBrandImg.dataUrl, 'PNG', 14, pageHeight - 10.5, footerBrandImg.wMm, footerBrandImg.hMm);
+    } else {
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        `হাত খরচ Smart Personal Expense & Income Tracker  |  Page ${i} of ${totalPages}`,
+        14,
+        pageHeight - 8
+      );
+    }
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(
-      `Hisab-Kitab Smart Personal Expense & Income Tracker  |  Page ${i} of ${totalPages}`,
-      14,
-      pageHeight - 8
-    );
     doc.text(
       `Confidential & Personal Report  |  ${safeUserName}`,
       pageWidth - 75,
@@ -545,7 +597,7 @@ function toAsciiSafe(str: any): string {
 
   // --- SHEET 3: OVERVIEW & AUDIT SUMMARY ---
   const overviewSheetData = [
-    ['HISAB-KITAB FINANCIAL SUMMARY REPORT', ''],
+    ['হাত খরচ FINANCIAL SUMMARY REPORT', ''],
     ['Period', periodLabel],
     ['Account Holder', userName],
     ['Report Generated Date', generatedDateStr],
@@ -618,31 +670,29 @@ function toAsciiSafe(str: any): string {
       const dataUrl = await blobToBase64(zipBlob);
       const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
 
-      // Write file natively to Cache & Documents directory
+      const writeReplacingExisting = async (directory: Directory) => {
+        try {
+          await Filesystem.deleteFile({ path: fileName, directory });
+        } catch {}
+        return await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory,
+          recursive: true
+        });
+      };
+
+      // Write file natively to Cache & Documents directory (replacing any existing file with same name)
       let result;
       try {
-        result = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Cache
-        });
+        result = await writeReplacingExisting(Directory.Cache);
       } catch {
-        result = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Documents,
-          recursive: true
-        });
+        result = await writeReplacingExisting(Directory.Documents);
       }
 
-      // Also attempt to save directly in Documents folder for easy file manager access
+      // Also attempt to save/replace directly in Documents folder for easy file manager access
       try {
-        await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Documents,
-          recursive: true
-        });
+        await writeReplacingExisting(Directory.Documents);
       } catch (docErr) {
         console.warn('Secondary save to Documents folder skipped:', docErr);
       }
@@ -650,7 +700,7 @@ function toAsciiSafe(str: any): string {
       // Open Android / iOS native Share sheet so user can save to Downloads/Files or share
       await Share.share({
         title: 'হাত খরচ - ' + fileName,
-        text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)',
+        text: 'হাত খরচ রিপোর্ট প্যাকেজ (PDF ও Excel)',
         url: result.uri,
         dialogTitle: 'রিপোর্ট সেভ বা শেয়ার করুন'
       });
@@ -671,7 +721,7 @@ function toAsciiSafe(str: any): string {
       await navigator.share({
         files: [file],
         title: 'হাত খরচ - ' + fileName,
-        text: 'হিসাব-কিতাব রিপোর্ট প্যাকেজ (PDF ও Excel)'
+        text: 'হাত খরচ রিপোর্ট প্যাকেজ (PDF ও Excel)'
       });
       return true;
     } catch (shareErr: any) {

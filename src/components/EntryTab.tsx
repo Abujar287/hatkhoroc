@@ -181,7 +181,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-5 pb-16 select-none pt-1 px-1 sm:px-3 animate-fadeIn">
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16 select-none pt-1 px-0.5 sm:px-3 animate-fadeIn">
       {/* 1. Sleek Animated Type Selector Tabs: Expense | Income */}
       <div className="w-full max-w-md mx-auto bg-[#0B3C39] border border-teal-800/80 p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 shadow-sm relative overflow-hidden">
         <button
@@ -285,13 +285,13 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* 3. Compact Rectangular Category Grid (6 per row on phone, fitting exact text) */}
+      {/* 3. Full-Width Aligned Single-Line Category Pills */}
       <motion.div
         key={entryType}
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-6 gap-1.5 sm:gap-2.5 pt-1"
+        className="flex flex-wrap items-stretch gap-1.5 sm:gap-2.5 pt-1 w-full"
       >
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
@@ -300,35 +300,35 @@ export const EntryTab: React.FC<EntryTabProps> = ({
             <motion.button
               key={cat}
               variants={itemVariants}
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.96 }}
               type="button"
               onClick={() => handleSelectCategory(cat)}
-              className={`flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl border transition-all cursor-pointer shadow-xs min-h-[52px] sm:min-h-[64px] w-full ${
+              className={`flex-auto inline-flex flex-col items-center justify-center px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition-all cursor-pointer shadow-xs min-h-[54px] sm:min-h-[62px] ${
                 isSelected
                   ? 'bg-emerald-600 text-white border-emerald-400 ring-1 ring-emerald-300'
                   : 'bg-[#0B3C39] hover:bg-teal-900/90 text-[#F0FDFA] border-teal-700/80 hover:border-emerald-500/70'
               }`}
             >
               <CategoryIcon category={cat} size="sm" className="shrink-0 mb-1" />
-              <span className="text-[9px] sm:text-[11px] font-bold text-center leading-tight tracking-tight px-0.5 w-full break-words line-clamp-2">
+              <span className="text-[11px] sm:text-xs font-bold text-center leading-none tracking-tight whitespace-nowrap">
                 {label}
               </span>
             </motion.button>
           );
         })}
 
-        {/* Plus / Add Category Button at the end of grid */}
+        {/* Plus / Add Category Button at the end */}
         <motion.button
           variants={itemVariants}
-          whileHover={{ scale: 1.03 }}
+          whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.96 }}
           type="button"
           onClick={onOpenCategoryManager}
-          className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-teal-900/50 hover:bg-teal-800/80 text-teal-200 hover:text-white border border-dashed border-teal-500/80 transition-all cursor-pointer shadow-xs min-h-[52px] sm:min-h-[64px] w-full"
+          className="flex-auto inline-flex flex-col items-center justify-center px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-dashed border-amber-400/80 transition-all cursor-pointer shadow-sm min-h-[54px] sm:min-h-[62px]"
         >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0" />
-          <span className="text-[9px] sm:text-[10px] font-bold text-center leading-tight tracking-tight px-0.5 truncate w-full">
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0 text-amber-300" />
+          <span className="text-[11px] sm:text-xs font-extrabold text-center leading-none tracking-tight whitespace-nowrap">
             {t('Add', 'যোগ')}
           </span>
         </motion.button>

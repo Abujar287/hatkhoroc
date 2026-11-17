@@ -1,5 +1,5 @@
 // ====================================================================
-// হাত খরচ (Hisab Kitab): গুগল শিট Apps Script কোড (Code.gs)
+// হাত খরচ: গুগল শিট Apps Script কোড (Code.gs)
 // ভার্সন: 7.0 (Unified 1-Tab Multi-User Architecture)
 // প্রতিটি ইউজারের (যেমন: abujar287, munni) জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
 // [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Notepad: BB-BF]

@@ -123,7 +123,7 @@ async function startServer() {
 
   try {
     webpush.setVapidDetails(
-      'mailto:support@hisabkitab.app',
+      'mailto:support@hatkhoroch.app',
       vapidKeys.publicKey,
       vapidKeys.privateKey
     );

@@ -155,16 +155,16 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
   }, [monthlyRows]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-4 pb-16 animate-fadeIn px-0.5 sm:px-2">
+    <div className="w-full max-w-7xl mx-auto space-y-3.5 sm:space-y-4 pb-16 animate-fadeIn px-0.5 sm:px-2">
       {/* Header & Totals Strip */}
-      <div className="bg-gradient-to-b from-[#0D4441] to-[#0A3734] rounded-2xl p-3.5 sm:p-5 border border-teal-700/50 shadow-md space-y-3">
-        <div className="flex items-center justify-between gap-2.5 flex-wrap">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#062423] border border-teal-700/70 text-emerald-400 flex items-center justify-center shrink-0">
+      <div className="bg-gradient-to-b from-[#0D4441] to-[#0A3734] rounded-2xl p-3 sm:p-5 border border-teal-700/50 shadow-md space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#062423] border border-teal-700/70 text-emerald-400 flex items-center justify-center shrink-0">
               <CalendarRange className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-black text-[#F0FDFA] tracking-tight">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-black text-[#F0FDFA] tracking-tight truncate">
                 {t('Monthly Summary', 'মাসিক সারসংক্ষেপ')}
               </h2>
               <p className="text-[10.5px] sm:text-xs text-teal-300/80 font-medium">
@@ -178,7 +178,7 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
               type="button"
               onClick={onExportZip}
               disabled={isExportingZip}
-              className="min-h-[38px] py-2 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-colors shadow-xs shrink-0"
+              className="min-h-[36px] py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-colors shadow-xs shrink-0"
               title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
             >
               {isExportingZip ? (
@@ -192,8 +192,8 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
         </div>
 
         {/* 2 Summary Cards (Income & Expense) */}
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-emerald-700/50">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-emerald-700/50 min-w-0">
             <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
               <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0" />
               <span className="truncate">{t('Total Income', 'মোট আয়')}</span>
@@ -203,7 +203,7 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
             </span>
           </div>
 
-          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-[#FF7A59]/40">
+          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-[#FF7A59]/40 min-w-0">
             <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
               <ArrowDownLeft className="w-3 h-3 text-[#FF7A59] shrink-0" />
               <span className="truncate">{t('Total Expense', 'মোট খরচ')}</span>
@@ -215,7 +215,7 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
         </div>
       </div>
 
-      {/* Monthly Summary Table */}
+      {/* Monthly Summary Table (Auto-fits mobile screen without horizontal scroll) */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-md overflow-hidden">
         {monthlyRows.length === 0 ? (
           <div className="py-12 px-4 text-center space-y-2">
@@ -228,48 +228,53 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
             </p>
           </div>
         ) : (
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left border-collapse table-fixed sm:table-auto">
               <thead>
                 <tr className="bg-[#062423] text-teal-300/90 border-b border-teal-800/80">
-                  <th scope="col" className="py-2.5 px-2.5 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
+                  <th scope="col" className="py-2.5 px-2 sm:px-4 text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider w-[34%] sm:w-auto">
                     {t('Month', 'মাস')}
                   </th>
-                  <th scope="col" className="py-2.5 px-2 sm:px-3 text-[10px] sm:text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
+                  <th scope="col" className="hidden sm:table-cell py-2.5 px-3 text-[11px] font-black uppercase tracking-wider whitespace-nowrap">
                     {t('Date Range', 'সময়সীমা')}
                   </th>
-                  <th scope="col" className="py-2.5 px-2 sm:px-3 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-right whitespace-nowrap">
+                  <th scope="col" className="py-2.5 px-1.5 sm:px-3 text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-right w-[22%] sm:w-auto">
                     {t('Income', 'আয়')}
                   </th>
-                  <th scope="col" className="py-2.5 px-2 sm:px-3 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-right whitespace-nowrap">
+                  <th scope="col" className="py-2.5 px-1.5 sm:px-3 text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-right w-[22%] sm:w-auto">
                     {t('Expense', 'ব্যয়')}
                   </th>
-                  <th scope="col" className="py-2.5 px-2.5 sm:px-4 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-right whitespace-nowrap">
+                  <th scope="col" className="py-2.5 px-2 sm:px-4 text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-right w-[22%] sm:w-auto">
                     {t('Balance', 'ব্যালেন্স')}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-teal-800/50 text-[11px] sm:text-xs text-[#F0FDFA]">
+              <tbody className="divide-y divide-teal-800/50 text-[10.5px] sm:text-xs text-[#F0FDFA]">
                 {monthlyRows.map(row => (
                   <tr
                     key={row.key}
                     onClick={() => onSelectMonth?.(row.monthLabel)}
                     className={`transition-colors hover:bg-teal-900/40 ${onSelectMonth ? 'cursor-pointer' : ''}`}
                   >
-                    <td className="py-2.5 px-2.5 sm:px-4 font-extrabold text-[#F0FDFA] whitespace-nowrap">
-                      {row.monthLabel}
+                    <td className="py-2.5 px-2 sm:px-4 align-middle min-w-0">
+                      <span className="font-extrabold text-[#F0FDFA] block truncate leading-tight">
+                        {row.monthLabel}
+                      </span>
+                      <span className="block sm:hidden text-[8.5px] text-teal-300/75 font-medium truncate leading-tight mt-0.5">
+                        {row.dateRangeText}
+                      </span>
                     </td>
-                    <td className="py-2.5 px-2 sm:px-3 text-[10px] sm:text-[11px] text-teal-200/90 font-medium whitespace-nowrap">
+                    <td className="hidden sm:table-cell py-2.5 px-3 text-[11px] text-teal-200/90 font-medium whitespace-nowrap">
                       {row.dateRangeText}
                     </td>
-                    <td className="py-2.5 px-2 sm:px-3 text-right font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                    <td className="py-2.5 px-1.5 sm:px-3 text-right font-bold text-emerald-400 tabular-nums align-middle truncate">
                       {formatNumberLocale(row.income, lang)}
                     </td>
-                    <td className="py-2.5 px-2 sm:px-3 text-right font-bold text-[#FF7A59] tabular-nums whitespace-nowrap">
+                    <td className="py-2.5 px-1.5 sm:px-3 text-right font-bold text-[#FF7A59] tabular-nums align-middle truncate">
                       {formatNumberLocale(row.expense, lang)}
                     </td>
                     <td
-                      className={`py-2.5 px-2.5 sm:px-4 text-right font-black tabular-nums whitespace-nowrap ${
+                      className={`py-2.5 px-2 sm:px-4 text-right font-black tabular-nums align-middle truncate ${
                         row.balance >= 0 ? 'text-emerald-300' : 'text-rose-400'
                       }`}
                     >

@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   User,
   FileSpreadsheet,
-  Archive,
   Calendar,
   Trash2,
   Plus,
@@ -11,8 +10,6 @@ import {
   ChevronUp,
   EyeOff,
   RotateCcw,
-  CheckCircle2,
-  AlertCircle,
   RefreshCw
 } from 'lucide-react';
 import { AppUser, Transaction } from '../types';
@@ -27,8 +24,7 @@ import {
   getMonthKeyFromLabel,
   findMonthMapping
 } from '../utils/dateUtils';
-import { exportMonthlyReportZip } from '../utils/exportZipReport';
-import { AppsScriptModal, ExportMonthModal } from './Modals';
+import { AppsScriptModal } from './Modals';
 
 interface SettingsTabProps {
   currentUser: AppUser | null;
@@ -125,37 +121,37 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setEditingMappingId(null);
   };
 
-  const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
-  const [showExportModal, setShowExportModal] = useState<boolean>(false);
-  const [exportFeedback, setExportFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  // Show only 4-month window in Month Mapping UI: [current - 1 month ... current + 2 months]
+  // All older/other month mappings remain preserved in Google Sheet & app state
+  const { visibleMonthMappings, hiddenMappingsCount } = useMemo(() => {
+    const now = new Date();
+    const currentTotalMonths = now.getFullYear() * 12 + now.getMonth();
+    const minMonth = currentTotalMonths - 1;
+    const maxMonth = currentTotalMonths + 2;
 
-  const handlePerformExportZip = async (params: { month: string; startDate?: string; endDate?: string }) => {
-    setShowExportModal(false);
-    setIsExportingZip(true);
-    setExportFeedback(null);
-    try {
-      await exportMonthlyReportZip({
-        month: params.month,
-        startDate: params.startDate,
-        endDate: params.endDate,
-        transactions,
-        lang,
-        userName: currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari',
-        monthMappings
-      });
-      setExportFeedback({
-        type: 'success',
-        msg: t('Monthly report ZIP downloaded!', 'মাসিক রিপোর্ট ZIP ডাউনলোড সম্পন্ন!')
-      });
-    } catch (err: any) {
-      setExportFeedback({
-        type: 'error',
-        msg: err?.message || t('Failed to export ZIP report', 'ZIP রিপোর্ট এক্সপোর্ট করা যায়নি')
-      });
-    } finally {
-      setIsExportingZip(false);
-    }
-  };
+    const getMappingMonths = (m: import('../types').MonthMapping): number | null => {
+      const key = getMonthKeyFromLabel(m.label) || (m.startDate ? m.startDate.slice(0, 7) : '');
+      const match = key.match(/^(\d{4})-(\d{1,2})/);
+      if (!match) return null;
+      const y = Number(match[1]);
+      const mo = Number(match[2]);
+      if (isNaN(y) || isNaN(mo) || mo < 1 || mo > 12) return null;
+      return y * 12 + (mo - 1);
+    };
+
+    const filtered = monthMappings
+      .filter(m => {
+        const total = getMappingMonths(m);
+        if (total === null) return false;
+        return total >= minMonth && total <= maxMonth;
+      })
+      .sort((a, b) => (getMappingMonths(a) ?? 0) - (getMappingMonths(b) ?? 0));
+
+    return {
+      visibleMonthMappings: filtered,
+      hiddenMappingsCount: Math.max(0, monthMappings.length - filtered.length)
+    };
+  }, [monthMappings]);
 
   // Full month stats for printing
   const currentMonthPrefix = new Date().toISOString().slice(0, 7);
@@ -273,27 +269,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* 0. MATRICS AMOUNT (CLEAN & SIMPLE REPORTING FORMAT) */}
       <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-sm overflow-hidden animate-fadeIn">
         {/* Header - Minimal & Clean */}
-        <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-teal-800/80 flex items-center justify-between">
-          <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA] flex items-center gap-2">
-            <span>Manual Pocket Balance Audit</span>
-            {selectedMonth && (
-              <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md bg-teal-900/80 text-emerald-400 border border-teal-700/60">
-                {selectedMonth}
-              </span>
-            )}
+        <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-teal-800/80 flex items-center justify-between gap-2">
+          <h3 className="text-sm sm:text-base font-extrabold text-[#F0FDFA]">
+            Manual Pocket Balance Audit
           </h3>
 
-          {(metrics.cityBank || metrics.bkash || metrics.nagad || metrics.cash || metrics.moneyBag) && (
-            <button
-              type="button"
-              onClick={handleResetMetrics}
-              className="text-xs font-semibold text-teal-300/80 hover:text-white flex items-center gap-1 cursor-pointer"
-              title="Reset"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleResetMetrics}
+            className="text-xs font-semibold text-teal-300/80 hover:text-white flex items-center gap-1 cursor-pointer px-2.5 py-1 rounded-lg bg-[#062423] hover:bg-teal-900/80 border border-teal-700/60 transition-colors active:scale-95 shrink-0"
+            title="Reset"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-teal-800/60">
@@ -595,14 +584,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               </div>
             )}
 
-            {/* List of Mappings */}
+            {/* List of Mappings (Filtered to previous 1 + current + next 2 months) */}
             <div className="space-y-2">
-              {monthMappings.length === 0 ? (
+              {visibleMonthMappings.length === 0 ? (
                 <div className="py-4 text-center text-xs text-teal-300/60 italic">
-                  {t('No month range mappings added yet.', 'কোন মাস রেঞ্জ যোগ করা হয়নি।')}
+                  {t('No recent or upcoming month mappings found.', 'সাম্প্রতিক বা আসন্ন কোনো মাস রেঞ্জ যোগ করা হয়নি।')}
                 </div>
               ) : (
-                monthMappings.map(m => {
+                visibleMonthMappings.map(m => {
                   return (
                     <div
                       key={m.id}
@@ -662,31 +651,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   );
                 })
               )}
+              {hiddenMappingsCount > 0 && (
+                <p className="text-[10.5px] text-teal-300/60 text-center pt-1 font-medium">
+                  {t(
+                    `${hiddenMappingsCount} older/other month mapping(s) safely stored in Sheet`,
+                    `অন্যান্য ${formatNumberLocale(hiddenMappingsCount, lang)}টি মাস শিটে সংরক্ষিত আছে`
+                  )}
+                </p>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* 2. ACTIONS & TOOLS (EXPORT ZIP, SCRIPT, UPDATE) */}
+      {/* 2. ACTIONS & TOOLS (SCRIPT, UPDATE) */}
       <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm space-y-0">
-        <div className={`grid ${(currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
-          {/* 1. Export ZIP */}
-          <button
-            type="button"
-            onClick={() => setShowExportModal(true)}
-            disabled={isExportingZip}
-            className="min-h-[44px] py-2.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-colors shadow-xs"
-            title={t('Download Monthly Report (ZIP: PDF + Excel)', 'মাসিক রিপোর্ট ডাউনলোড (ZIP: PDF + Excel)')}
-          >
-            {isExportingZip ? (
-              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-            ) : (
-              <Archive className="w-4 h-4 shrink-0" />
-            )}
-            <span className="truncate">{t('Export ZIP', 'Export ZIP')}</span>
-          </button>
-
-          {/* 2. Google Apps Script */}
+        <div className={`grid ${(currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+          {/* 1. Google Apps Script */}
           {(currentUser?.username === 'abujar287' || currentUser?.role === 'super_admin') && (
             <button
               type="button"
@@ -699,7 +680,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </button>
           )}
 
-          {/* 3. Check for Updates */}
+          {/* 2. Check for Updates */}
           <button
             type="button"
             onClick={onCheckForUpdates}
@@ -710,21 +691,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span className="truncate">{t('Check Update', 'আপডেট চেক')}</span>
           </button>
         </div>
-
-        {exportFeedback && (
-          <div className={`mt-2.5 p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-fadeIn ${
-            exportFeedback.type === 'success'
-              ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60'
-              : 'bg-rose-950/90 text-rose-300 border border-rose-500/60'
-          }`}>
-            {exportFeedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            )}
-            <span className="leading-tight">{exportFeedback.msg}</span>
-          </div>
-        )}
       </div>
 
       {/* 3. ACTIVE PROFILE OVERVIEW */}
@@ -778,25 +744,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         />
       )}
 
-      {/* Export Month Selection Modal */}
-      {showExportModal && (
-        <ExportMonthModal
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          onExport={handlePerformExportZip}
-          currentMonth={selectedMonth}
-          monthMappings={monthMappings}
-          lang={lang}
-          t={t}
-        />
-      )}
-
       {/* Printable Full Month Overall Report (Hidden except in print mode) */}
       <div className="hidden print:block printable-container text-slate-900 bg-white p-4">
         <div className="border-b-2 border-slate-900 pb-3 mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
-              Hisab Kitab - Full Month Overall Report ({currentMonthPrefix})
+              হাত খরচ - Full Month Overall Report ({currentMonthPrefix})
             </h1>
             <p className="text-xs font-semibold text-slate-600 mt-0.5">
               User: @{currentUser?.username || 'user'} ({currentUser?.displayName})

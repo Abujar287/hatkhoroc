@@ -1088,7 +1088,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
         >
         <div className="flex items-center justify-between border-b border-teal-800/60 pb-2.5">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="HisabKitab Logo" className="w-6 h-6 rounded-lg object-cover shadow-sm border border-teal-700/60" />
+            <img src="/logo.png" alt="হাত খরচ Logo" className="w-6 h-6 rounded-lg object-cover shadow-sm border border-teal-700/60" />
             <div>
               <h3 className="text-xs font-bold text-[#F0FDFA]">হাত খরচ</h3>
               <p className="text-[9px] text-teal-300/80">{t('Install App', 'অ্যাপ ইনস্টল করুন')}</p>

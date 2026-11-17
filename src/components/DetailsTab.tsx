@@ -283,7 +283,7 @@ export const DetailsTab: React.FC<DetailsTabProps> = ({
       {/* Hidden Print Layout (A4 optimized) */}
       <div id="printable-details-report" className="hidden print:block printable-container text-slate-900 bg-white">
           <div className="border-b-2 border-slate-900 pb-3 mb-6 flex justify-between items-center">
-            <h1 className="text-xl font-black uppercase italic">Hisab Kitab Ledger</h1>
+            <h1 className="text-xl font-black uppercase italic">হাত খরচ Ledger</h1>
             <span className="text-xs">{new Date().toLocaleDateString()}</span>
           </div>
           <table className="w-full text-xs">
