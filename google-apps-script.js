@@ -25,8 +25,16 @@ function doPost(e) {
     }
     
     var tabName = (data.sheetTab || data.sheet || (e && e.parameter ? (e.parameter.sheetTab || e.parameter.sheet) : '') || 'abujar287').toString().trim();
-    var sheet = getTargetSheet(ss, tabName);
     var action = (data.action || (e && e.parameter ? e.parameter.action : '') || '').toString().toLowerCase().trim();
+
+    if (action === 'getusers' || action === 'users') {
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        users: readUsersFromRange(ss, true)
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var sheet = getTargetSheet(ss, tabName, action !== 'createtab');
     
     // ১. নতুন ইউজার ট্যাব তৈরি অ্যাকশন (CREATE TAB - যেমন munni)
     if (action === 'createtab') {
@@ -174,7 +182,7 @@ function doPost(e) {
     if (action === 'getusers' || action === 'users') {
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
-        users: readUsersFromRange(ss)
+        users: readUsersFromRange(ss, true)
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -280,8 +288,18 @@ function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var params = (e && e.parameter) ? e.parameter : {};
   var tabName = (params.sheetTab || params.sheet || 'abujar287').toString().trim();
-  var sheet = getTargetSheet(ss, tabName);
   var action = (params.action || '').toString().toLowerCase().trim();
+
+  // ১.৫ ইউজার লিস্ট
+  if (action === 'getusers' || action === 'users') {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'success',
+      users: readUsersFromRange(ss, true)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var isFullSync = (action === '' || action === 'getdetails');
+  var sheet = getTargetSheet(ss, tabName, !isFullSync && action !== 'createtab');
   
   // ১. ট্যাব তৈরি
   if (action === 'createtab') {
@@ -290,14 +308,6 @@ function doGet(e) {
       result: 'success',
       sheetTab: sheet.getName(),
       message: 'ইউজার শিট ট্যাব প্রস্তুত'
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // ১.৫ ইউজার লিস্ট
-  if (action === 'getusers') {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: 'success',
-      users: readUsersFromRange(ss)
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -393,14 +403,12 @@ function doGet(e) {
   }
 
   // ৯. নির্দিষ্ট ইউজারের সব ডেটা (Transactions, Budget, Categories, Month Mappings, Tasks, Users, Upcoming 3 Month) পড়া
-  ensureUnifiedTemplateHeaders(sheet);
-  
   var txData = readEntriesFromRange(sheet);
   var catData = readCategoriesFromRange(sheet, ss);
   var mapData = readMonthMappingsFromRange(sheet, ss);
   var budgetData = readBudgetsFromRange(sheet, ss);
   var taskData = readTasksFromRange(sheet, ss);
-  var userData = readUsersFromRange(ss);
+  var userData = readUsersFromRange(ss, false);
   var upcoming3MData = readUpcoming3MonthFromRange(sheet);
   var bouGiftData = readBouGiftFromRange(sheet);
   var notesData = (sheet.getName().trim().toLowerCase() === 'abujar287') ? readNotesFromRange(sheet) : [];
@@ -425,20 +433,20 @@ function doGet(e) {
 // শিট ও টেমপ্লেট হেল্পার ফাংশন
 // ====================================================================
 
-function getTargetSheet(ss, tabName) {
+function getTargetSheet(ss, tabName, skipHeaderCheck) {
   var name = tabName ? String(tabName).trim() : 'abujar287';
   if (!name) name = 'abujar287';
   
   var target = ss.getSheetByName(name);
   if (target) {
-    ensureUnifiedTemplateHeaders(target);
+    if (!skipHeaderCheck) ensureUnifiedTemplateHeaders(target);
     return target;
   }
   
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].getName().trim().toLowerCase() === name.toLowerCase()) {
-      ensureUnifiedTemplateHeaders(sheets[i]);
+      if (!skipHeaderCheck) ensureUnifiedTemplateHeaders(sheets[i]);
       return sheets[i];
     }
   }
@@ -593,17 +601,32 @@ function getNextEmptyRowInRange(sheet, startCol, numCols) {
 // ----------------------------------------------------
 
 function insertEntryIfNotExists(sheet, id, datetime, type, category, date, value, note) {
+  var cleanId = String(id).trim();
   var lastRow = sheet.getLastRow();
+  var targetRow = 3;
+
   if (lastRow >= 3) {
-    var ids = sheet.getRange(3, 1, lastRow - 2, 1).getValues();
-    for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]).trim() === String(id).trim()) {
+    var rows = sheet.getRange(3, 1, lastRow - 2, 7).getValues();
+    var firstEmptyRow = -1;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (String(r[0] || '').trim() === cleanId) {
         return;
       }
+      if (firstEmptyRow === -1) {
+        var isEmpty = true;
+        for (var c = 0; c < 7; c++) {
+          if (r[c] !== '' && r[c] !== null && r[c] !== undefined) {
+            isEmpty = false;
+            break;
+          }
+        }
+        if (isEmpty) firstEmptyRow = i + 3;
+      }
     }
+    targetRow = firstEmptyRow !== -1 ? firstEmptyRow : (rows.length + 3);
   }
-  
-  var targetRow = getNextEmptyRowInRange(sheet, 1, 7);
+
   sheet.getRange(targetRow, 1, 1, 7).setValues([[
     String(id),
     String(datetime),
@@ -613,9 +636,6 @@ function insertEntryIfNotExists(sheet, id, datetime, type, category, date, value
     Number(value) || 0,
     String(note || '')
   ]]);
-  try {
-    sheet.getRange(targetRow, 1, 1, 7).setBorder(true, true, true, true, true, true);
-  } catch (e) {}
 }
 
 function handleUpdateEntry(sheet, data) {
@@ -992,17 +1012,32 @@ function readMonthMappingsFromRange(sheet, ss) {
 // ----------------------------------------------------
 
 function insertTaskToRange(sheet, id, title, dueDate, dueTime, amount, category, priority, notes, status, reminderDays, autoNotify, createdBy, createdAt) {
+  var cleanId = String(id).trim();
   var lastRow = sheet.getLastRow();
+  var targetRow = 3;
+
   if (lastRow >= 3) {
-    var ids = sheet.getRange(3, 24, lastRow - 2, 1).getValues();
-    for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]).trim() === String(id).trim()) {
+    var rows = sheet.getRange(3, 24, lastRow - 2, 13).getValues();
+    var firstEmptyRow = -1;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (String(r[0] || '').trim() === cleanId) {
         return;
       }
+      if (firstEmptyRow === -1) {
+        var isEmpty = true;
+        for (var c = 0; c < 13; c++) {
+          if (r[c] !== '' && r[c] !== null && r[c] !== undefined) {
+            isEmpty = false;
+            break;
+          }
+        }
+        if (isEmpty) firstEmptyRow = i + 3;
+      }
     }
+    targetRow = firstEmptyRow !== -1 ? firstEmptyRow : (rows.length + 3);
   }
-  
-  var targetRow = getNextEmptyRowInRange(sheet, 24, 13);
+
   sheet.getRange(targetRow, 24, 1, 13).setValues([[
     String(id),
     String(title),
@@ -1018,9 +1053,6 @@ function insertTaskToRange(sheet, id, title, dueDate, dueTime, amount, category,
     String(createdBy || sheet.getName()),
     String(createdAt || new Date().toISOString())
   ]]);
-  try {
-    sheet.getRange(targetRow, 24, 1, 13).setBorder(true, true, true, true, true, true);
-  } catch (e) {}
 }
 
 function handleUpdateTaskRange(sheet, data) {
@@ -1229,9 +1261,18 @@ function saveUserToRange(ss, data) {
     } catch (e) {}
   }
 }
-function readUsersFromRange(ss) {
-  var mainSheet = getTargetSheet(ss, 'abujar287');
+function readUsersFromRange(ss, includeCounts) {
+  var mainSheet = getTargetSheet(ss, 'abujar287', true);
   if (!mainSheet) return [];
+
+  var shouldCount = includeCounts !== false;
+  var sheetMap = {};
+  if (shouldCount) {
+    var allSheets = ss.getSheets();
+    for (var s = 0; s < allSheets.length; s++) {
+      sheetMap[allSheets[s].getName().trim().toLowerCase()] = allSheets[s];
+    }
+  }
   
   var lastRow = mainSheet.getLastRow();
   var users = [];
@@ -1260,15 +1301,35 @@ function readUsersFromRange(ss) {
         var role = colAP || 'member';
         var rawAllowed = colAQ || 'summary,entry,details,budget,upcoming_cost,settings';
         var allowedTabs = rawAllowed.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s !== '';});
-        
-        users.push({
+
+        var userObj = {
           displayName: displayName,
           username: username,
           password: password,
           sheetTab: sheetTab,
           role: role,
           allowedTabs: allowedTabs
-        });
+        };
+
+        if (shouldCount) {
+          var recordCount = 0;
+          var userSheet = sheetMap[sheetTab.trim().toLowerCase()] || null;
+          if (userSheet) {
+            var uLastRow = userSheet.getLastRow();
+            if (uLastRow >= 3) {
+              var entryRows = userSheet.getRange(3, 1, uLastRow - 2, 7).getValues();
+              for (var eIdx = 0; eIdx < entryRows.length; eIdx++) {
+                var er = entryRows[eIdx];
+                if (er[0] || er[1] || er[2] || er[3] || er[4] || er[5]) {
+                  recordCount++;
+                }
+              }
+            }
+          }
+          userObj.recordCount = recordCount;
+        }
+        
+        users.push(userObj);
       }
     }
   }

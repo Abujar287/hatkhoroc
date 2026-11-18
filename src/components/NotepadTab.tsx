@@ -15,7 +15,8 @@ import {
   Calendar,
   CheckSquare,
   Square,
-  Tag
+  Tag,
+  ArrowLeft
 } from 'lucide-react';
 import { NoteEntry } from '../types';
 
@@ -332,16 +333,16 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   const handleSavePopupEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeNote) return;
-    if (!formName.trim() && !formBody.trim()) {
-      showToast('Please enter a note title or content', 'error');
+    if (!formBody.trim() && !activeNote.notename?.trim()) {
+      showToast('Please enter note content', 'error');
       return;
     }
     setIsSaving(true);
     try {
       const updated: NoteEntry = {
         ...activeNote,
-        notename: formName.trim() || 'Untitled',
-        category: resolvedCategory,
+        notename: activeNote.notename?.trim() || 'Untitled',
+        category: activeNote.category?.trim() || 'Uncategorized',
         note: formBody,
         action: 'SYNC'
       };
@@ -797,9 +798,64 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* NOTE DETAILS & EDIT POPUP MODAL                         */}
+      {/* NOTE FULL-SCREEN CONTENT EDITOR (WHEN EDITING)           */}
       {/* ======================================================== */}
-      {activeNote && (
+      {activeNote && isEditingInPopup && createPortal(
+        <div className="fixed inset-0 z-[999999] bg-[#042F2E] text-[#F0FDFA] flex flex-col w-full h-full overflow-hidden animate-fadeIn">
+          {/* Full-screen Top Bar */}
+          <div className="px-3 sm:px-5 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => setIsEditingInPopup(false)}
+                className="w-8 h-8 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-200 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60 shrink-0"
+                title="Back"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
+                Edit Content
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsEditingInPopup(false)}
+                className="min-h-[34px] px-3 py-1 rounded-xl bg-[#0B3C39] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleSavePopupEdit}
+                className="min-h-[34px] px-3.5 py-1 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSaving ? 'Saving...' : 'Save Note'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Full-screen Content Editor Only */}
+          <form onSubmit={handleSavePopupEdit} className="flex-1 flex flex-col p-3 sm:p-5 min-h-0">
+            <textarea
+              value={formBody}
+              onChange={e => setFormBody(e.target.value)}
+              placeholder="Write note content..."
+              autoFocus
+              className="flex-1 w-full h-full min-h-0 p-3.5 sm:p-4 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-emerald-400 resize-none"
+            />
+          </form>
+        </div>,
+        document.body
+      )}
+
+      {/* ======================================================== */}
+      {/* NOTE DETAILS POPUP MODAL (WHEN VIEWING)                  */}
+      {/* ======================================================== */}
+      {activeNote && !isEditingInPopup && (
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
           onClick={() => {
@@ -816,21 +872,19 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <NotebookPen className="w-4 h-4 text-emerald-400 shrink-0" />
                 <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
-                  {isEditingInPopup ? 'Edit Note' : (activeNote.notename || 'Note Details')}
+                  {activeNote.notename || 'Note Details'}
                 </h3>
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {!isEditingInPopup && (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingInPopup(true)}
-                    className="min-h-[34px] px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsEditingInPopup(true)}
+                  className="min-h-[34px] px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -846,147 +900,74 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
 
             {/* Modal Content */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-              {isEditingInPopup ? (
-                <form onSubmit={handleSavePopupEdit} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-teal-200">Title</label>
-                      <input
-                        type="text"
-                        value={formName}
-                        onChange={e => setFormName(e.target.value)}
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none focus:border-emerald-400"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-teal-200">Category</label>
-                      <select
-                        value={formCategory}
-                        onChange={e => setFormCategory(e.target.value)}
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer"
-                      >
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option value="__custom__">+ Custom...</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {formCategory === '__custom__' && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-teal-200">Custom Category</label>
-                      <input
-                        type="text"
-                        value={formCustomCat}
-                        onChange={e => setFormCustomCat(e.target.value)}
-                        placeholder="Enter category name..."
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-teal-200">Content (Click text to edit)</label>
-                    <textarea
-                      value={formBody}
-                      onChange={e => setFormBody(e.target.value)}
-                      rows={10}
-                      className="w-full p-3 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs leading-relaxed focus:outline-none focus:border-emerald-400 resize-y"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingInPopup(false)}
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#062423] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{isSaving ? 'Saving...' : 'Save Note'}</span>
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[#F0FDFA] leading-snug break-words">
-                      {activeNote.notename}
-                    </h2>
-                    <div className="flex items-center gap-2 text-[11px] text-teal-300/80 mt-1 flex-wrap">
-                      <span className="font-semibold text-emerald-300">{activeNote.category || 'Uncategorized'}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="tabular-nums">{activeNote.datetime || 'Synced'}</span>
-                    </div>
-                  </div>
-
-                  {/* Clicking directly on text switches to edit mode */}
-                  <div
-                    onClick={() => setIsEditingInPopup(true)}
-                    className="bg-[#062423] border border-teal-800/70 hover:border-emerald-500/60 rounded-xl p-4 text-xs sm:text-sm text-[#F0FDFA] leading-relaxed whitespace-pre-wrap break-words min-h-[180px] cursor-pointer transition-colors group relative"
-                    title="Click anywhere to edit"
-                  >
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
-                      Click to edit
-                    </div>
-                    {activeNote.note || <span className="text-teal-400/60 italic">No content (click to add)</span>}
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-[#F0FDFA] leading-snug break-words">
+                    {activeNote.notename}
+                  </h2>
+                  <div className="flex items-center gap-2 text-[11px] text-teal-300/80 mt-1 flex-wrap">
+                    <span className="font-semibold text-emerald-300">{activeNote.category || 'Uncategorized'}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="tabular-nums">{activeNote.datetime || 'Synced'}</span>
                   </div>
                 </div>
-              )}
+
+                {/* Clicking directly on text switches to full-screen edit mode */}
+                <div
+                  onClick={() => setIsEditingInPopup(true)}
+                  className="bg-[#062423] border border-teal-800/70 hover:border-emerald-500/60 rounded-xl p-4 text-xs sm:text-sm text-[#F0FDFA] leading-relaxed whitespace-pre-wrap break-words min-h-[180px] cursor-pointer transition-colors group relative"
+                  title="Click anywhere to edit"
+                >
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
+                    Click to edit
+                  </div>
+                  {activeNote.note || <span className="text-teal-400/60 italic">No content (click to add)</span>}
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer actions */}
-            {!isEditingInPopup && (
-              <div className="px-4 py-3 bg-[#062423] border-t border-teal-800/80 flex items-center justify-between gap-2">
+            <div className="px-4 py-3 bg-[#062423] border-t border-teal-800/80 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteNote(activeNote)}
+                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setConfirmDeleteNote(activeNote)}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => handleCopy(activeNote.note || activeNote.notename, activeNote.id)}
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-100 border border-teal-700/70 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete</span>
+                  {copiedId === activeNote.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-teal-300" />
+                      <span>Copy</span>
+                    </>
+                  )}
                 </button>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(activeNote.note || activeNote.notename, activeNote.id)}
-                    className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-100 border border-teal-700/70 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {copiedId === activeNote.id ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-teal-300" />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveNote(null);
-                      setIsEditingInPopup(false);
-                    }}
-                    className="min-h-[36px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold cursor-pointer"
-                  >
-                    Done
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveNote(null);
+                    setIsEditingInPopup(false);
+                  }}
+                  className="min-h-[36px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold cursor-pointer"
+                >
+                  Done
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

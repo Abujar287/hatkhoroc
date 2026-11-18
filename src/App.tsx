@@ -382,15 +382,43 @@ export default function App() {
     return null;
   });
 
-  const mapUserFromSheet = (u: any): AppUser => {
+  const usersRef = React.useRef<AppUser[]>(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
+
+  const isRefreshingUserCountsRef = React.useRef(false);
+  const fetchedUserTabsRef = React.useRef<Set<string>>(new Set());
+  const pendingInsertMapRef = React.useRef<Map<string, Transaction>>(new Map());
+
+  const mapUserFromSheet = useCallback((
+    u: any,
+    prevUsers?: AppUser[],
+    activeTabName?: string,
+    activeTxCount?: number
+  ): AppUser => {
     const role = (u.username === 'abujar287' ? 'super_admin' : (u.role || 'member')) as UserRole;
     const tabs = normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]);
-    
+
     const userTab = String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase();
-    let recordCount = Number(u.recordCount || u.recordsCount || u.records || u.txCount || 0);
-    if (!recordCount) {
-      if (userTab === currentTab.toLowerCase() && Array.isArray(transactions)) {
-        recordCount = transactions.length;
+    const hasExplicitCount =
+      typeof u.recordCount === 'number' ||
+      typeof u.recordsCount === 'number' ||
+      typeof u.records === 'number' ||
+      typeof u.txCount === 'number';
+
+    let recordCount: number = 0;
+    if (hasExplicitCount) {
+      recordCount = Number(u.recordCount ?? u.recordsCount ?? u.records ?? u.txCount ?? 0);
+      fetchedUserTabsRef.current.add(userTab);
+    } else if (activeTabName && userTab === activeTabName.toLowerCase() && typeof activeTxCount === 'number') {
+      recordCount = activeTxCount;
+    } else {
+      const prevMatch = prevUsers?.find(
+        p => (p.sheetTab || p.username || '').trim().toLowerCase() === userTab
+      );
+      if (prevMatch && typeof prevMatch.recordCount === 'number' && prevMatch.recordCount > 0) {
+        recordCount = prevMatch.recordCount;
       } else {
         try {
           const storedTxs = localStorage.getItem(`app_transactions_${userTab}`);
@@ -415,7 +443,68 @@ export default function App() {
       isReadOnly: u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true',
       recordCount
     };
-  };
+  }, []);
+
+  const refreshMissingUserRecordCounts = useCallback(async (userList: AppUser[], activeTabName: string, activeTxCount: number, forceAll = false) => {
+    if (isRefreshingUserCountsRef.current || !Array.isArray(userList) || userList.length === 0) return;
+
+    const targets = userList.filter(u => {
+      const tab = (u.sheetTab || u.username || '').trim().toLowerCase();
+      if (!tab) return false;
+      if (tab === activeTabName.toLowerCase()) return false;
+      return forceAll || !fetchedUserTabsRef.current.has(tab);
+    });
+
+    if (targets.length === 0) return;
+    isRefreshingUserCountsRef.current = true;
+    try {
+      const countsByTab = new Map<string, number>();
+      await Promise.allSettled(
+        targets.map(async u => {
+          const tab = (u.sheetTab || u.username || '').trim().toLowerCase();
+          try {
+            const res = await fetchSheetApi(`/api/sheet-proxy?action=getDetails&sheetTab=${encodeURIComponent(tab)}`);
+            if (!res.ok) return;
+            const txt = await res.text();
+            const d = JSON.parse(txt);
+            if (d && d.result === 'success') {
+              const count = Array.isArray(d.transactions)
+                ? d.transactions.length
+                : (typeof d.count === 'number' ? d.count : Number(d.count) || 0);
+              countsByTab.set(tab, count);
+              fetchedUserTabsRef.current.add(tab);
+            }
+          } catch {}
+        })
+      );
+
+      setUsers(prevUsers => {
+        let changed = false;
+        const nextUsers = prevUsers.map(u => {
+          const tab = (u.sheetTab || u.username || '').trim().toLowerCase();
+          let nextCount = u.recordCount ?? 0;
+          if (tab === activeTabName.toLowerCase()) {
+            nextCount = activeTxCount;
+          } else if (countsByTab.has(tab)) {
+            nextCount = countsByTab.get(tab)!;
+          }
+          if (nextCount !== u.recordCount) {
+            changed = true;
+            return { ...u, recordCount: nextCount };
+          }
+          return u;
+        });
+        if (changed) {
+          try {
+            localStorage.setItem('app_registered_users_v2', JSON.stringify(nextUsers));
+          } catch {}
+        }
+        return changed ? nextUsers : prevUsers;
+      });
+    } finally {
+      isRefreshingUserCountsRef.current = false;
+    }
+  }, []);
 
   const [userSyncStatus, setUserSyncStatus] = useState<{ loading: boolean; error: string | null; lastSuccess: string | null }>({
     loading: false,
@@ -439,17 +528,39 @@ export default function App() {
           .then(data => {
             if (data && Array.isArray(data.users)) {
               if (data.users.length > 0) {
-                let mappedUsers = data.users.map(mapUserFromSheet);
+                const activeTabKey = (currentUser?.role === 'super_admin_2'
+                  ? (currentUser?.viewTargetTab || 'abujar287')
+                  : (currentUser?.sheetTab || currentUser?.username || 'abujar287')).trim().toLowerCase();
+                let activeTxLen: number | undefined;
+                try {
+                  const saved = localStorage.getItem(`app_transactions_${activeTabKey}`);
+                  if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) activeTxLen = parsed.length;
+                  }
+                } catch {}
+
+                const prevSnapshot = usersRef.current;
+                let mappedUsers = data.users.map((rawU: any) =>
+                  mapUserFromSheet(rawU, prevSnapshot, activeTabKey, activeTxLen)
+                );
                 if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
-                  mappedUsers = [DEFAULT_ADMIN, ...mappedUsers];
+                  const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
+                  mappedUsers = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mappedUsers];
                 }
                 setUsers(mappedUsers);
-                localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
-                
+                try {
+                  localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+                } catch {}
+
+                if (mappedUsers.length > 0) {
+                  refreshMissingUserRecordCounts(mappedUsers, activeTabKey, activeTxLen ?? 0, false);
+                }
+
                 // Auto-update active user profile if found in synced list (Case-Insensitive)
                 if (currentUser && currentUser.username) {
                   const myLower = currentUser.username.toLowerCase();
-                  const updatedMe = mappedUsers.find((u: AppUser) => 
+                  const updatedMe = mappedUsers.find((u: AppUser) =>
                     u.username && u.username.toLowerCase() === myLower
                   );
                   if (updatedMe) {
@@ -486,7 +597,7 @@ export default function App() {
       const interval = setInterval(syncUsers, 60000); // Sync users every minute for admins
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, currentUser?.username]);
+  }, [isAuthenticated, currentUser?.username, mapUserFromSheet, refreshMissingUserRecordCounts]);
 
   // Login form state
   const [loginUsername, setLoginUsername] = useState<string>('');
@@ -771,6 +882,34 @@ export default function App() {
       setActiveTab('summary');
     }
   }, [activeTab, isSuperAdmin]);
+
+  // Keep active user's recordCount synced with live transactions & refresh all user tab counts when opening Users tab
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setUsers(prevUsers => {
+      let changed = false;
+      const next = prevUsers.map(u => {
+        const uTab = (u.sheetTab || u.username || '').trim().toLowerCase();
+        if (uTab === currentTab.toLowerCase() && u.recordCount !== transactions.length) {
+          changed = true;
+          return { ...u, recordCount: transactions.length };
+        }
+        return u;
+      });
+      if (changed) {
+        try {
+          localStorage.setItem('app_registered_users_v2', JSON.stringify(next));
+        } catch {}
+      }
+      return changed ? next : prevUsers;
+    });
+  }, [isAuthenticated, currentTab, transactions.length]);
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'users' && users.length > 0) {
+      refreshMissingUserRecordCounts(users, currentTab, transactions.length, true);
+    }
+  }, [isAuthenticated, activeTab, users.length, currentTab, transactions.length, refreshMissingUserRecordCounts]);
 
   // ----------------------------------------------------
   // ROBUST BACK BUTTON & APP EXIT LOGIC (Android APK / Capacitor / PWA / Web)
@@ -1655,6 +1794,9 @@ export default function App() {
               rawId = `${rawId}_row${t.rowNumber || t.row || idx}`;
             }
             seenTxIds.add(rawId);
+            if (pendingInsertMapRef.current.has(rawId)) {
+              pendingInsertMapRef.current.delete(rawId);
+            }
             return {
               id: rawId,
               rowNumber: t.rowNumber || t.row || t.rowIndex,
@@ -1666,7 +1808,33 @@ export default function App() {
               note: t.note || ''
             };
           });
-          saveTransactionsLocally(formatted);
+
+          const preservedPending: Transaction[] = [];
+          pendingInsertMapRef.current.forEach((pendingTx, id) => {
+            if (!seenTxIds.has(id)) {
+              preservedPending.push(pendingTx);
+              seenTxIds.add(id);
+            }
+          });
+          getOfflineQueue().forEach(qItem => {
+            if (qItem.action === 'insert' && qItem.sheetTab === tabToSync && qItem.payload?.id) {
+              const qId = String(qItem.payload.id).trim();
+              if (qId && !seenTxIds.has(qId)) {
+                preservedPending.push({
+                  id: qId,
+                  datetime: formatCleanDateTime(qItem.payload.datetime, 'en') || qItem.payload.datetime || '',
+                  type: qItem.payload.type === 'Income' ? 'Income' : 'Expense',
+                  category: qItem.payload.category || '',
+                  date: normalizeDate(qItem.payload.date),
+                  value: Math.abs(Number(qItem.payload.value) || 0),
+                  note: qItem.payload.note || ''
+                });
+                seenTxIds.add(qId);
+              }
+            }
+          });
+
+          saveTransactionsLocally(preservedPending.length > 0 ? [...preservedPending, ...formatted] : formatted);
         }
         
         if (Array.isArray(data.tasks)) {
@@ -1899,36 +2067,51 @@ export default function App() {
         try {
           localStorage.setItem(`app_income_categories_${tabToSync}`, JSON.stringify(finalIncList));
         } catch {}
-        // Also sync users list (Master list in abujar287 tab)
-        try {
-          const uRes = await fetchSheetApi('/api/sheet-proxy?action=getusers');
-          if (uRes.ok) {
-            const uText = await uRes.text();
-            let uData: any = null;
-            try { uData = JSON.parse(uText); } catch {}
-            if (uData && Array.isArray(uData.users) && uData.users.length > 0) {
-              let mappedUsers = uData.users.map(mapUserFromSheet);
-              if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
-                mappedUsers = [DEFAULT_ADMIN, ...mappedUsers];
-              }
-              setUsers(mappedUsers);
-              localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+        const syncedTxCount = Array.isArray(data.transactions) ? data.transactions.length : transactions.length;
+        const applySyncedUsers = (rawUsersList: any[]) => {
+          const prevSnapshot = usersRef.current;
+          let mappedUsers = rawUsersList.map((rawU: any) =>
+            mapUserFromSheet(rawU, prevSnapshot, tabToSync, syncedTxCount)
+          );
+          if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+            const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
+            mappedUsers = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mappedUsers];
+          }
+          setUsers(mappedUsers);
+          try {
+            localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
+          } catch {}
 
-              // Auto-update current active user profile during manual sync (Case-Insensitive)
-              if (currentUser && currentUser.username) {
-                const myLower = currentUser.username.toLowerCase();
-                const updatedMe = mappedUsers.find((u: AppUser) => 
-                  u.username && u.username.toLowerCase() === myLower
-                );
-                if (updatedMe) {
-                  setCurrentUser(updatedMe);
-                  localStorage.setItem('active_user_v2', JSON.stringify(updatedMe));
-                }
-              }
+          if (mappedUsers.length > 0) {
+            refreshMissingUserRecordCounts(mappedUsers, tabToSync, syncedTxCount, false);
+          }
+
+          if (currentUser && currentUser.username) {
+            const myLower = currentUser.username.toLowerCase();
+            const updatedMe = mappedUsers.find((u: AppUser) =>
+              u.username && u.username.toLowerCase() === myLower
+            );
+            if (updatedMe) {
+              setCurrentUser(updatedMe);
+              localStorage.setItem('active_user_v2', JSON.stringify(updatedMe));
             }
           }
-        } catch (uErr) {
-          console.error('Failed to sync users during manual sync:', uErr);
+        };
+
+        if (Array.isArray(data.users) && data.users.length > 0) {
+          applySyncedUsers(data.users);
+        } else {
+          fetchSheetApi('/api/sheet-proxy?action=getusers')
+            .then(async uRes => {
+              if (!uRes.ok) return;
+              const uText = await uRes.text();
+              let uData: any = null;
+              try { uData = JSON.parse(uText); } catch {}
+              if (uData && Array.isArray(uData.users) && uData.users.length > 0) {
+                applySyncedUsers(uData.users);
+              }
+            })
+            .catch(() => {});
         }
 
         setLastSyncDate(new Date());
@@ -1943,7 +2126,7 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [currentTab, isSuperAdmin, lang, saveTransactionsLocally, showToast]);
+  }, [currentTab, isSuperAdmin, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
 
   // Initial sync on mount or auth
   useEffect(() => {
@@ -2004,7 +2187,6 @@ export default function App() {
     const val = typeof overrideVal === 'number' ? overrideVal : Math.abs(evaluateExpression(calcDisplay));
     if (isNaN(val) || val <= 0) return;
 
-    setIsSubmitting(true);
     const newTx: Transaction = {
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       datetime: formatCleanDateTime(new Date().toString(), 'en'),
@@ -2015,33 +2197,41 @@ export default function App() {
       note: entryNote.trim()
     };
 
+    // Optimistic instant local commit (<100ms UI response, zero waiting for network)
+    pendingInsertMapRef.current.set(newTx.id, newTx);
     saveTransactionsLocally([newTx, ...transactions]);
     playSound('success');
-
-    const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
-
-    if (!navigator.onLine) {
-      addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
-      showToast(lang === 'en' ? 'Saved offline! Will sync when online.' : 'অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
-    } else {
-      try {
-        const res = await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('Proxy failed');
-        showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
-      } catch (err) {
-        addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
-        showToast(lang === 'en' ? 'Saved offline! Will sync when online.' : 'অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
-      }
-    }
-
     setCalcDisplay('0');
     setEntryCategory('');
     setEntryNote('');
     setIsSubmitting(false);
+
+    const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
+
+    if (!navigator.onLine) {
+      pendingInsertMapRef.current.delete(newTx.id);
+      addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+      showToast(lang === 'en' ? 'Saved offline! Will sync when online.' : 'অফলাইনে সেভ হয়েছে! ইন্টারনেট আসলে অটো-সিঙ্ক হবে।', 'info');
+      return;
+    }
+
+    showToast(lang === 'en' ? 'Saved!' : 'সেভ হয়েছে!', 'success');
+
+    // Non-blocking background sync with offline queue fallback
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Proxy failed');
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+      })
+      .finally(() => {
+        pendingInsertMapRef.current.delete(newTx.id);
+      });
   };
 
   const handleConvertTaskToExpense = async (task: CostTask) => {
@@ -2056,27 +2246,31 @@ export default function App() {
       note: `[Task] ${task.title}${task.notes ? ' - ' + task.notes : ''}`
     };
 
+    pendingInsertMapRef.current.set(newTx.id, newTx);
     saveTransactionsLocally([newTx, ...transactions]);
-    
-    // Automatically delete/remove task from task list upon payment
     handleDeleteTask(task.id);
-    
     playSound('success');
 
     const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
 
     if (!navigator.onLine) {
+      pendingInsertMapRef.current.delete(newTx.id);
       addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
     } else {
-      try {
-        await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+      fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Proxy failed');
+        })
+        .catch(() => {
+          addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
+        })
+        .finally(() => {
+          pendingInsertMapRef.current.delete(newTx.id);
         });
-      } catch {
-        addToOfflineQueue({ action: 'insert', sheetTab: currentTab, payload });
-      }
     }
 
     showToast(t(`${task.amount.toLocaleString()} paid & removed from tasks!`, `${task.amount.toLocaleString()} খরচে যোগ করা হয়েছে এবং টাস্ক লিস্ট থেকে সরানো হয়েছে!`), 'success');
@@ -2091,48 +2285,50 @@ export default function App() {
     if (!navigator.onLine) {
       addToOfflineQueue({ action: 'update', sheetTab: currentTab, payload });
       showToast(lang === 'en' ? 'Updated offline!' : 'অফলাইনে আপডেট হয়েছে!', 'info');
-    } else {
-      try {
-        await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        showToast('Updated!', 'success');
-      } catch {
-        addToOfflineQueue({ action: 'update', sheetTab: currentTab, payload });
-        showToast(lang === 'en' ? 'Updated offline!' : 'অফলাইনে আপডেট হয়েছে!', 'info');
-      }
+      return;
     }
+
+    showToast('Updated!', 'success');
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Proxy failed');
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'update', sheetTab: currentTab, payload });
+      });
   };
 
   const handleConfirmDelete = async (txToDelete: Transaction) => {
     if (isReadOnly) return;
-    setIsDeleting(true);
     saveTransactionsLocally(transactions.filter(t => t.id !== txToDelete.id));
     playSound('delete');
+    setIsDeleting(false);
+    setDeletingTx(null);
 
     const payload = { action: 'delete', sheetTab: currentTab, id: txToDelete.id };
 
     if (!navigator.onLine) {
       addToOfflineQueue({ action: 'delete', sheetTab: currentTab, payload });
       showToast(lang === 'en' ? 'Deleted offline' : 'অফলাইনে ডিলিট হয়েছে', 'info');
-    } else {
-      try {
-        await fetchSheetApi('/api/sheet-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        showToast('Deleted', 'info');
-      } catch {
-        addToOfflineQueue({ action: 'delete', sheetTab: currentTab, payload });
-        showToast(lang === 'en' ? 'Deleted offline' : 'অফলাইনে ডিলিট হয়েছে', 'info');
-      }
+      return;
     }
 
-    setIsDeleting(false);
-    setDeletingTx(null);
+    showToast('Deleted', 'info');
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Proxy failed');
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'delete', sheetTab: currentTab, payload });
+      });
   };
 
   // ----------------------------------------------------
@@ -2646,12 +2842,21 @@ export default function App() {
                       })
                       .then(data => {
                         if (data && Array.isArray(data.users) && data.users.length > 0) {
-                          let mapped = data.users.map(mapUserFromSheet);
+                          const prevSnapshot = usersRef.current;
+                          let mapped = data.users.map((rawU: any) =>
+                            mapUserFromSheet(rawU, prevSnapshot, currentTab, transactions.length)
+                          );
                           if (!mapped.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
-                            mapped = [DEFAULT_ADMIN, ...mapped];
+                            const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
+                            mapped = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mapped];
                           }
                           setUsers(mapped);
-                          localStorage.setItem('app_registered_users_v2', JSON.stringify(mapped));
+                          try {
+                            localStorage.setItem('app_registered_users_v2', JSON.stringify(mapped));
+                          } catch {}
+                          if (mapped.length > 0) {
+                            refreshMissingUserRecordCounts(mapped, currentTab, transactions.length, true);
+                          }
                           setUserSyncStatus({ loading: false, error: null, lastSuccess: new Date().toLocaleTimeString() });
                           showToast(t('User list synced from Sheet AL:AQ!', 'শিট AL:AQ থেকে ইউজার সিঙ্ক সম্পন্ন!'), 'success');
                         } else if (data && data.needsDeployUpdate) {

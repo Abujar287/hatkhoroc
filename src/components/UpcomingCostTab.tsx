@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Calendar,
   Clock,
   Plus,
   BellRing,
@@ -10,8 +9,7 @@ import {
   Check,
   X,
   RotateCcw,
-  Zap,
-  AlertTriangle
+  Zap
 } from 'lucide-react';
 import { CostTask } from '../types';
 import { ModalPortal } from './Modals';
@@ -49,6 +47,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<CostTask | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<CostTask | null>(null);
+  const [selectedTaskForAction, setSelectedTaskForAction] = useState<CostTask | null>(null);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -188,6 +187,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
   // Statistics calculation
   const stats = useMemo(() => {
+    let pendingCount = 0;
     let dueTodayOrOverdueCount = 0;
     let dueTodayOrOverdueAmount = 0;
     let upcomingCount = 0;
@@ -196,7 +196,9 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
     let completedCount = 0;
 
     tasks.forEach(task => {
-      if (task.status === 'pending') {
+      const isDone = task.status === 'completed' || task.status === 'paid';
+      if (!isDone) {
+        pendingCount++;
         if (task.dueDate <= todayStr) {
           dueTodayOrOverdueCount++;
           dueTodayOrOverdueAmount += task.amount;
@@ -211,6 +213,7 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
     });
 
     return {
+      pendingCount,
       dueTodayOrOverdueCount,
       dueTodayOrOverdueAmount,
       upcomingCount,
@@ -240,312 +243,165 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
   return (
     <div className="w-full flex flex-col space-y-3 pb-28 p-2 md:p-4">
 
-      {/* Summary Statistics Card */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
-        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Total Due</span>
-          <span className="text-sm font-black text-amber-300 tabular-nums">
+      {/* Summary Statistics Card: Total Due, Due Today, Due Count in 1 Row */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+            Total Due
+          </span>
+          <span className="text-xs sm:text-sm font-black text-amber-300 tabular-nums truncate">
             {formatNumberLocale(stats.totalPendingAmount, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Due Today</span>
-          <span className="text-sm font-black text-[#FF7A59] tabular-nums">
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+            Due Today
+          </span>
+          <span className="text-xs sm:text-sm font-black text-[#FF7A59] tabular-nums truncate">
             {formatNumberLocale(stats.dueTodayOrOverdueAmount, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Upcoming</span>
-          <span className="text-sm font-black text-teal-300 tabular-nums">
-            {formatNumberLocale(stats.upcomingAmount, lang)}
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+            Due Count
           </span>
-        </div>
-        <div className="bg-[#0B3C39] p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-tight">Completed</span>
-          <span className="text-sm font-black text-emerald-400 tabular-nums">
-            {formatNumberLocale(stats.completedAmount, lang)}
+          <span className="text-xs sm:text-sm font-black text-emerald-400 tabular-nums truncate">
+            {formatNumberLocale(stats.pendingCount, lang)}
           </span>
         </div>
       </div>
 
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-end mb-1">
-        <button
-          type="button"
-          onClick={() => openFormModal()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Add Task</span>
-        </button>
-      </div>
-
-      {/* Search & Category Filter Row */}
-      <div className="bg-[#0B3C39] p-2.5 rounded-xl border border-teal-800/80 flex items-center justify-between gap-2 shadow-xs">
-        {/* Search Box */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+      {/* Single Row: Search Task | All Category | Add Task */}
+      <div className="bg-[#0B3C39] p-2 rounded-xl border border-teal-800/80 flex items-center gap-1.5 sm:gap-2 shadow-xs">
+        <div className="relative flex-1 min-w-0">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search task..."
-            className="w-full min-h-[38px] pl-8.5 pr-8 py-1.5 text-xs bg-white text-slate-900 rounded-xl border border-teal-700/60 focus:outline-none placeholder:text-slate-400 font-medium"
+            className="w-full min-h-[36px] pl-8 pr-6 py-1 text-[11px] sm:text-xs bg-white text-slate-900 rounded-xl border border-teal-700/60 focus:outline-none placeholder:text-slate-400 font-medium"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Category Select */}
         <select
           value={selectedCategory}
           onChange={e => setSelectedCategory(e.target.value)}
-          className="min-h-[38px] px-2.5 py-1.5 text-xs bg-white text-slate-900 rounded-xl border border-teal-700/60 font-semibold focus:outline-none shrink-0 cursor-pointer"
+          className="w-[100px] sm:w-[140px] min-h-[36px] px-1.5 sm:px-2.5 py-1 text-[11px] sm:text-xs bg-white text-slate-900 rounded-xl border border-teal-700/60 font-semibold focus:outline-none shrink-0 cursor-pointer truncate"
         >
           <option value="all">All Category</option>
           {categories.map(cat => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
+
+        <button
+          type="button"
+          onClick={() => openFormModal()}
+          className="min-h-[36px] flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-[11px] sm:text-xs transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+        >
+          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+          <span>Add Task</span>
+        </button>
       </div>
 
-      {/* ULTRA-COMPACT TASK LIST VIEW */}
+      {/* MOBILE-FIT TASK TABLE (Task name | Category | Target Date time | Amount) */}
       {filteredTasks.length === 0 ? (
-        <div className="bg-[#0B3C39] rounded-xl border border-teal-800/80 p-6 text-center flex flex-col items-center justify-center my-2">
+        <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 p-6 text-center flex flex-col items-center justify-center my-2">
           <Clock className="w-6 h-6 text-teal-400 mb-2" />
           <p className="text-xs font-bold text-teal-100">No task reminders found</p>
           <button
             type="button"
             onClick={() => openFormModal()}
-            className="mt-3 px-3 py-1.5 bg-teal-500 text-teal-950 font-bold text-xs rounded-lg shadow-sm"
+            className="mt-3 px-3 py-1.5 bg-teal-500 text-teal-950 font-bold text-xs rounded-lg shadow-sm cursor-pointer"
           >
             + Add Task
           </button>
         </div>
       ) : (
-        <div className="bg-[#0B3C39] rounded-xl border border-teal-800/80 overflow-hidden shadow-md divide-y divide-teal-800/60">
-          
-          {/* Table Header Row (Desktop/Tablet) */}
-          <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-2 bg-teal-950/80 text-[11px] font-extrabold uppercase tracking-wider text-teal-300">
-            <div className="col-span-3">Task Name</div>
-            <div className="col-span-2">Category</div>
-            <div className="col-span-2">Datetime</div>
-            <div className="col-span-1">Due Days</div>
-            <div className="col-span-1">Amount</div>
-            <div className="col-span-1">Priority</div>
-            <div className="col-span-2 text-right">Actions</div>
-          </div>
+        <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 overflow-hidden shadow-md">
+          <table className="w-full table-fixed text-left border-collapse">
+            <thead>
+              <tr className="bg-[#062423] text-teal-300/90 border-b border-teal-800/80">
+                <th scope="col" className="w-[32%] py-2 px-1.5 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border-r border-teal-800/60">
+                  Task name
+                </th>
+                <th scope="col" className="w-[22%] py-2 px-1.5 sm:px-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
+                  Category
+                </th>
+                <th scope="col" className="w-[26%] py-2 px-1.5 sm:px-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
+                  Target Date time
+                </th>
+                <th scope="col" className="w-[20%] py-2 px-1.5 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right">
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-teal-800/50 text-[10px] sm:text-xs text-[#F0FDFA]">
+              {filteredTasks.map(task => {
+                const isDone = task.status === 'completed' || task.status === 'paid';
+                const isOverdue = !isDone && task.dueDate < todayStr;
+                const isToday = !isDone && task.dueDate === todayStr;
+                const isDueNow = (isToday || isOverdue) && !isDone;
 
-          {/* List Rows - Closest due date & time displayed first */}
-          {filteredTasks.map(task => {
-            const isDone = task.status === 'completed' || task.status === 'paid';
-            const isOverdue = !isDone && task.dueDate < todayStr;
-            const isToday = !isDone && task.dueDate === todayStr;
-            const isDueNow = (isToday || isOverdue) && !isDone;
-            const daysText = getDaysDifferenceText(task.dueDate);
-
-            return (
-              <div
-                key={task.id}
-                className={`p-3 transition-colors duration-150 ${
-                  isDone
-                    ? 'bg-[#062423]/70 opacity-75 hover:bg-teal-950/60'
-                    : isDueNow
-                    ? 'bg-[#361A17] border border-[#FF7A59]/60'
-                    : 'bg-[#0B3C39] hover:bg-teal-900/40'
-                }`}
-              >
-                {/* DESKTOP ROW (md:grid) */}
-                <div className="hidden md:grid grid-cols-12 items-center gap-2">
-                  {/* 1. Task Name */}
-                  <div className="col-span-3 min-w-0">
-                    <span className={`text-sm font-bold truncate block ${
+                return (
+                  <tr
+                    key={task.id}
+                    onClick={() => setSelectedTaskForAction(task)}
+                    className={`cursor-pointer transition-colors ${
                       isDone
-                        ? 'line-through text-slate-400'
-                        : 'text-[#F0FDFA]'
-                    }`}>
-                      {task.title}
-                    </span>
-                  </div>
-
-                  {/* 2. Category */}
-                  <div className="col-span-2 truncate">
-                    <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${
-                      isDueNow
-                        ? 'text-orange-200 bg-[#FF7A59]/15 border-[#FF7A59]/40'
-                        : 'text-teal-200 bg-teal-950/80 border-teal-800'
-                    }`}>
-                      {task.category}
-                    </span>
-                  </div>
-
-                  {/* 3. Datetime (2026-11-10 (10:00AM)) */}
-                  <div className={`col-span-2 text-xs flex items-center gap-1 ${isDueNow ? 'text-orange-100 font-semibold' : 'text-teal-200'}`}>
-                    <span className="font-semibold">{task.dueDate}</span>
-                    {task.dueTime && (
-                      <span className="text-[11px] font-medium text-amber-300">
-                        ({formatTime12h(task.dueTime)})
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 4. Due Days */}
-                  <div className="col-span-1">
-                    {isDone ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700 whitespace-nowrap">
-                        Paid
-                      </span>
-                    ) : isDueNow ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-[#FF7A59] px-2 py-0.5 rounded-full whitespace-nowrap">
-                        {isToday ? 'Due Today' : daysText}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800 whitespace-nowrap">
-                        {daysText}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 5. Amount */}
-                  <div className="col-span-1 text-left">
-                    <span className={`text-sm font-extrabold tabular-nums ${
-                      isDone
-                        ? 'text-slate-400'
+                        ? 'bg-[#062423]/70 opacity-75 hover:bg-teal-950/60'
                         : isDueNow
-                        ? 'text-[#FF7A59]'
-                        : 'text-amber-300'
-                    }`}>
-                      {task.amount.toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* 6. Priority */}
-                  <div className="col-span-1">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                      task.priority === 'high'
-                        ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                        : task.priority === 'medium'
-                        ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                        : 'bg-teal-950 text-teal-300 border border-teal-800'
-                    }`}>
-                      {task.priority ? task.priority.toUpperCase() : 'MED'}
-                    </span>
-                  </div>
-
-                  {/* 7. Actions */}
-                  <div className="col-span-2 flex items-center justify-end gap-1.5 shrink-0">
-                    {!isDone ? (
-                      <button
-                        type="button"
-                        onClick={() => onConvertTaskToExpense(task)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors active:scale-95 cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                          isDueNow
-                            ? 'bg-[#FF7A59] hover:bg-[#e86848] text-white'
-                            : 'bg-teal-500 hover:bg-teal-400 text-teal-950'
-                        }`}
-                      >
-                        <Zap className="w-3 h-3" />
-                        <span>Pay Now</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateTask({ ...task, status: 'pending' })}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Unpaid</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => openFormModal(task)}
-                      className="p-1.5 rounded-lg transition-colors cursor-pointer border bg-[#062423] hover:bg-teal-900 text-teal-200 border-teal-700/70"
-                      title="Edit Task"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTaskToDelete(task)}
-                      className="p-1.5 rounded-lg transition-colors cursor-pointer border bg-rose-950/70 hover:bg-rose-900 text-rose-300 border-rose-800/70"
-                      title="Delete Task"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* MOBILE COMPACT CARD (md:hidden) */}
-                <div className="flex md:hidden flex-col space-y-2">
-                  {/* Mobile Top Row: Priority + Title + Status */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 ${
-                        task.priority === 'high'
-                          ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                          : task.priority === 'medium'
-                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                          : 'bg-teal-950 text-teal-300 border border-teal-800'
-                      }`}>
-                        {task.priority ? task.priority.substring(0, 3).toUpperCase() : 'MED'}
-                      </span>
-                      <h3 className={`text-sm font-bold truncate ${
+                        ? 'bg-[#361A17] hover:bg-[#44211D]'
+                        : 'hover:bg-teal-900/30'
+                    }`}
+                  >
+                    {/* 1. Task name */}
+                    <td className="py-2 px-1.5 sm:px-3 border-r border-teal-800/60">
+                      <span className={`font-bold text-[10px] sm:text-xs leading-tight break-words block ${
                         isDone ? 'line-through text-slate-400' : 'text-[#F0FDFA]'
                       }`}>
                         {task.title}
-                      </h3>
-                    </div>
+                      </span>
+                    </td>
 
-                    <div className="shrink-0">
-                      {isDone ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-300 bg-teal-950/80 px-2 py-0.5 rounded-full border border-teal-700 whitespace-nowrap">
-                          <Check className="w-3 h-3 stroke-[3]" /> Paid
-                        </span>
-                      ) : isDueNow ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-[#FF7A59] px-2 py-0.5 rounded-full whitespace-nowrap">
-                          <AlertTriangle className="w-3 h-3" /> {isToday ? 'Due Today' : daysText}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-200 bg-teal-950 px-2 py-0.5 rounded-full border border-teal-800 whitespace-nowrap">
-                          {daysText}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Mobile Middle Row: Category + Date & Time + Amount */}
-                  <div className={`flex items-center justify-between gap-2 text-xs pt-1.5 border-t ${
-                    isDueNow ? 'border-[#FF7A59]/30 text-orange-100' : 'border-teal-800/40 text-teal-200/90'
-                  }`}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                        isDueNow ? 'text-orange-200 bg-[#FF7A59]/15 border-[#FF7A59]/40 font-semibold' : 'text-teal-300 bg-teal-950/80 border-teal-800'
+                    {/* 2. Category */}
+                    <td className="py-2 px-1.5 sm:px-2.5">
+                      <span className={`text-[9.5px] sm:text-[11px] font-medium leading-tight break-words block ${
+                        isDueNow ? 'text-orange-200' : 'text-teal-200'
                       }`}>
                         {task.category}
                       </span>
-                      <div className="flex items-center gap-1 text-[11px] font-medium">
-                        <Calendar className={`w-3 h-3 shrink-0 ${isDueNow ? 'text-[#FF7A59]' : 'text-teal-400'}`} />
-                        <span className="font-semibold">{task.dueDate}</span>
+                    </td>
+
+                    {/* 3. Target Date time */}
+                    <td className="py-2 px-1.5 sm:px-2.5 tabular-nums">
+                      <div className="leading-tight">
+                        <span className={`block text-[9.5px] sm:text-[11px] font-semibold ${
+                          isDueNow ? 'text-orange-100' : 'text-teal-100'
+                        }`}>
+                          {task.dueDate}
+                        </span>
                         {task.dueTime && (
-                          <span className="text-amber-300 font-semibold">
-                            ({formatTime12h(task.dueTime)})
+                          <span className="block text-[9px] sm:text-[10px] font-medium text-amber-300">
+                            {formatTime12h(task.dueTime)}
                           </span>
                         )}
                       </div>
-                    </div>
+                    </td>
 
-                    <div className="text-right">
-                      <span className={`text-base font-extrabold tabular-nums ${
+                    {/* 4. Amount */}
+                    <td className="py-2 px-1.5 sm:px-3 text-right">
+                      <span className={`text-[10px] sm:text-xs font-extrabold tabular-nums ${
                         isDone
                           ? 'text-slate-400'
                           : isDueNow
@@ -554,61 +410,135 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
                       }`}>
                         {task.amount.toLocaleString()}
                       </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* TASK CLICK ACTION POPUP (Edit / Delete / Pay Now) */}
+      {selectedTaskForAction && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+            onClick={() => setSelectedTaskForAction(null)}
+          >
+            <div
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-xs sm:max-w-sm rounded-2xl shadow-2xl border border-teal-700/80 overflow-hidden animate-modalSpring"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <BellRing className="w-4 h-4 text-teal-300 shrink-0" />
+                  <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
+                    {selectedTaskForAction.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTaskForAction(null)}
+                  className="w-7 h-7 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60 shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 text-xs">
+                <div className="bg-[#062423] rounded-xl p-3 border border-teal-800/70 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-teal-300/80">Category</span>
+                    <span className="font-bold text-teal-100">{selectedTaskForAction.category}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-teal-300/80">Target Date & Time</span>
+                    <span className="font-semibold text-amber-300 tabular-nums">
+                      {selectedTaskForAction.dueDate}
+                      {selectedTaskForAction.dueTime ? ` (${formatTime12h(selectedTaskForAction.dueTime)})` : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-teal-300/80">Amount</span>
+                    <span className="font-black text-sm text-[#FF7A59] tabular-nums">
+                      {selectedTaskForAction.amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-teal-300/80">Status</span>
+                    <span className="font-bold text-emerald-300">
+                      {selectedTaskForAction.status === 'completed' || selectedTaskForAction.status === 'paid'
+                        ? 'Paid'
+                        : getDaysDifferenceText(selectedTaskForAction.dueDate)}
+                    </span>
+                  </div>
+                  {selectedTaskForAction.notes && (
+                    <div className="pt-1.5 border-t border-teal-800/60 text-teal-200/90 text-[11px]">
+                      {selectedTaskForAction.notes}
                     </div>
-                  </div>
-
-                  {/* Mobile Bottom Action Row */}
-                  <div className={`flex items-center justify-end gap-1.5 pt-1.5 border-t ${
-                    isDueNow ? 'border-[#FF7A59]/30' : 'border-teal-800/40'
-                  }`}>
-                    {!isDone ? (
-                      <button
-                        type="button"
-                        onClick={() => onConvertTaskToExpense(task)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                          isDueNow
-                            ? 'bg-[#FF7A59] hover:bg-[#e86848] text-white'
-                            : 'bg-teal-500 hover:bg-teal-400 text-teal-950'
-                        }`}
-                      >
-                        <Zap className="w-3 h-3" />
-                        <span>Pay Now</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateTask({ ...task, status: 'pending' })}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-teal-300 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Unpaid</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => openFormModal(task)}
-                      className="p-2 rounded-lg border cursor-pointer bg-[#062423] text-teal-200 border-teal-700/70"
-                      title="Edit"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTaskToDelete(task)}
-                      className="p-2 rounded-lg border cursor-pointer bg-rose-950/70 text-rose-300 border-rose-800/70"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  )}
                 </div>
 
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {selectedTaskForAction.status === 'pending' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tObj = selectedTaskForAction;
+                        setSelectedTaskForAction(null);
+                        onConvertTaskToExpense(tObj);
+                      }}
+                      className="py-2 px-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-teal-950 font-black text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Pay Now</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tObj = selectedTaskForAction;
+                        setSelectedTaskForAction(null);
+                        onUpdateTask({ ...tObj, status: 'pending' });
+                      }}
+                      className="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-200 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Unpaid</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tObj = selectedTaskForAction;
+                      setSelectedTaskForAction(null);
+                      openFormModal(tObj);
+                    }}
+                    className="py-2 px-2 rounded-xl bg-[#062423] hover:bg-teal-900 text-teal-100 border border-teal-700/80 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tObj = selectedTaskForAction;
+                      setSelectedTaskForAction(null);
+                      setTaskToDelete(tObj);
+                    }}
+                    className="py-2 px-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       {/* ADD / EDIT TASK MODAL */}

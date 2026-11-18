@@ -159,25 +159,25 @@ export const EntryTab: React.FC<EntryTabProps> = ({
     if (evaluated > 0) {
       setCalcDisplay(String(evaluated));
     }
-    await onSubmit(evaluated > 0 ? evaluated : undefined);
     setIsCalculatorOpen(false);
+    await onSubmit(evaluated > 0 ? evaluated : undefined);
   };
 
   const containerVariants = {
-    hidden: { opacity: 0, y: 10 },
+    hidden: { opacity: 0, y: 4 },
     show: {
       opacity: 1,
       y: 0,
       transition: {
-        staggerChildren: 0.03,
-        delayChildren: 0.05
+        staggerChildren: 0.008,
+        delayChildren: 0
       }
     }
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, scale: 0.85 },
-    show: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 350, damping: 25 } }
+    hidden: { opacity: 0, scale: 0.94 },
+    show: { opacity: 1, scale: 1, transition: { duration: 0.12 } }
   };
 
   return (

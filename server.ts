@@ -34,8 +34,39 @@ async function startServer() {
   const GOOGLE_SCRIPT_TARGET = process.env.VITE_GOOGLE_SCRIPT_URL ||
     'https://script.google.com/macros/s/AKfycbwdR3oDJiUFWFopvUeLI-8r92-9uS-jRUdRKFW3CghmmIy84sQZjNEeEkY6yboG8g4z/exec';
 
+  async function enrichUsersWithRecordCounts(users: any[]): Promise<any[]> {
+    if (!Array.isArray(users) || users.length === 0) return users;
+    const needsEnrichment = users.some(
+      (u) => typeof u?.recordCount !== 'number' && typeof u?.recordsCount !== 'number' && typeof u?.txCount !== 'number'
+    );
+    if (!needsEnrichment) return users;
+
+    const enriched = await Promise.all(
+      users.map(async (u) => {
+        if (typeof u?.recordCount === 'number') return u;
+        const tabName = String(u?.sheetTab || u?.username || '').trim();
+        if (!tabName) return { ...u, recordCount: 0 };
+        try {
+          const url = `${GOOGLE_SCRIPT_TARGET}?action=getDetails&sheetTab=${encodeURIComponent(tabName)}`;
+          const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+          if (!r.ok) return u;
+          const txt = await r.text();
+          const d = JSON.parse(txt);
+          if (d && d.result === 'success') {
+            const count = Array.isArray(d.transactions)
+              ? d.transactions.length
+              : (typeof d.count === 'number' ? d.count : Number(d.count) || 0);
+            return { ...u, recordCount: count };
+          }
+        } catch {}
+        return u;
+      })
+    );
+    return enriched;
+  }
+
   app.all('/api/sheet-proxy', async (req, res) => {
-    const action = req.query.action || req.body.action;
+    const action = String(req.query.action || req.body?.action || '').toLowerCase();
     console.log(`[PROXY] Request: ${req.method} | Action: ${action} | Target: ${GOOGLE_SCRIPT_TARGET.slice(0, 45)}...`);
     
     try {
@@ -55,6 +86,7 @@ async function startServer() {
 
         if (action === 'getusers' || action === 'users') {
           if (json && Array.isArray(json.users)) {
+            json.users = await enrichUsersWithRecordCounts(json.users);
             return res.json(json);
           }
           return res.json({
@@ -80,6 +112,7 @@ async function startServer() {
 
         if (action === 'getusers' || action === 'users') {
           if (json && Array.isArray(json.users)) {
+            json.users = await enrichUsersWithRecordCounts(json.users);
             return res.json(json);
           }
           return res.json({

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import {
   Calendar,
   ChevronLeft,
@@ -611,54 +610,44 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
         </div>
       </div>
 
-      {/* CATEGORY-WISE BUDGET LIST */}
-      <div className="space-y-3">
-        {/* Top Action Bar */}
-        <div className="flex items-center justify-between px-1 pb-1 border-b border-teal-800/60 gap-2 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-xl bg-[#062423] text-emerald-400 flex items-center justify-center shrink-0 border border-teal-700/60 shadow-xs">
-              <Sliders className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs font-extrabold text-[#F0FDFA] uppercase tracking-tight truncate">
-                {t('Costing Expense Categories', 'এই মাসে খরচ হওয়া ক্যাটাগরি')}
-              </h3>
-              <p className="text-[10px] text-teal-300/80 font-mono">
-                {sortedSelectedCategories.length} {t('categories with cost this month', 'টি ক্যাটাগরিতে এই মাসে খরচ হয়েছে')}
-              </p>
-            </div>
+      {/* CATEGORY-WISE BUDGET TABLE (100% Mobile Fit matching Upcoming 3 Month) */}
+      <div className="bg-[#0B3C39] rounded-2xl border border-teal-800/80 shadow-md overflow-hidden">
+        <div className="px-2.5 sm:px-3.5 py-2 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+            <h3 className="text-[11px] sm:text-sm font-black text-[#F0FDFA] truncate">
+              {t('Category Budget', 'ক্যাটাগরি বাজেট')}
+            </h3>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="px-2.5 py-1 bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
-            >
-              <Plus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{t('Add Category', 'ক্যাটাগরি যোগ')}</span>
-            </button>
-
+          <div className="flex items-center gap-1.5 shrink-0">
             {saveStatus === 'saving' && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[11px] font-semibold">
-                <div className="w-2.5 h-2.5 border-2 border-amber-300/30 border-t-amber-300 rounded-full animate-spin" />
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-[10px] font-semibold">
+                <div className="w-2 h-2 border-2 border-amber-300/30 border-t-amber-300 rounded-full animate-spin" />
                 <span>{t('Saving...', 'সেভ হচ্ছে...')}</span>
               </div>
             )}
             {saveStatus === 'saved' && (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-[11px] font-semibold animate-fadeIn">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t('Saved ✓', 'সেভ হয়েছে ✓')}</span>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-[10px] font-semibold animate-fadeIn">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>{t('Saved ✓', 'সেভ ✓')}</span>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="px-2 py-1 bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+            >
+              <Plus className="w-3 h-3 text-emerald-400" />
+              <span>{t('Category', 'ক্যাটাগরি')}</span>
+            </button>
           </div>
         </div>
 
-        {/* ACTIVE BUDGET ITEMS - 2-ROW COMPACT CARDS */}
         {sortedSelectedCategories.length === 0 ? (
-          <div className="text-center py-8 px-4 space-y-3 bg-[#0B3C39] rounded-2xl border border-teal-800/80">
+          <div className="text-center py-8 px-4 space-y-3">
             <p className="text-xs text-teal-200/90 font-medium">
-              {t('No expenses recorded for this month yet. Only categories with costing will appear.', 'এই মাসে এখনো কোনো খরচ লিপিবদ্ধ করা হয়নি। শুধুমাত্র যেসব ক্যাটাগরিতে খরচ হবে সেগুলোই এখানে আসবে।')}
+              {t('No expense categories found for this month.', 'এই মাসের কোনো খরচের ক্যাটাগরি পাওয়া যায়নি।')}
             </p>
             <button
               type="button"
@@ -666,49 +655,65 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{t('Set Budget / Add Category', 'ক্যাটাগরি বাছুন ও বাজেট দিন')}</span>
+              <span>{t('Select Category', 'ক্যাটাগরি বাছুন')}</span>
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pt-0.5">
-            {sortedSelectedCategories.map(catClean => {
-              const budgetVal = getBudgetVal(catClean);
-              const spentVal = getSpendVal(catClean);
-              const pct = budgetVal > 0 ? Math.min(100, (spentVal / budgetVal) * 100) : 0;
-              const isOver = budgetVal > 0 && spentVal > budgetVal;
-
-              return (
-                <motion.div
-                  key={catClean}
-                  whileHover={{ scale: 1.01, y: -1 }}
-                  className="bg-[#0B3C39] border border-teal-800/80 hover:border-teal-700/90 rounded-2xl p-3 transition-all shadow-xs space-y-2.5 group"
+          <table className="w-full table-fixed text-left border-collapse">
+            <thead>
+              <tr className="bg-[#062423]/90 text-teal-300/90 border-b border-teal-800/80">
+                <th
+                  scope="col"
+                  className="w-[28%] py-1.5 px-1.5 sm:px-3 text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider border-r border-teal-800/60"
                 >
-                  {/* ROW 1: CATEGORY NAME & REMOVE BUTTON */}
-                  <div className="flex items-center justify-between gap-2 border-b border-teal-800/60 pb-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <CategoryIcon category={catClean} withBadge size="sm" />
-                      <span className="font-extrabold text-[#F0FDFA] text-xs sm:text-sm truncate">
-                        {cleanCategoryName(catClean, lang)}
-                      </span>
-                    </div>
+                  {t('Category', 'ক্যাটাগরি')}
+                </th>
+                <th
+                  scope="col"
+                  className="w-[21%] py-1.5 px-1 sm:px-2 text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                >
+                  {t('Budget', 'বাজেট')}
+                </th>
+                <th
+                  scope="col"
+                  className="w-[18%] py-1.5 px-1 sm:px-2 text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                >
+                  {t('Spend', 'খরচ')}
+                </th>
+                <th
+                  scope="col"
+                  className="w-[20%] py-1.5 px-1 sm:px-2 text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                >
+                  {t('Remain', 'অবশিষ্ট')}
+                </th>
+                <th
+                  scope="col"
+                  className="w-[13%] py-1.5 px-1 sm:px-3 text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                >
+                  %
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-teal-800/50 text-[10px] sm:text-xs text-[#F0FDFA]">
+              {sortedSelectedCategories.map(catClean => {
+                const budgetVal = getBudgetVal(catClean);
+                const spentVal = getSpendVal(catClean);
+                const remainVal = budgetVal - spentVal;
+                const pct = budgetVal > 0 ? Math.min(999, (spentVal / budgetVal) * 100) : 0;
+                const isOver = budgetVal > 0 && spentVal > budgetVal;
 
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCategory(catClean)}
-                      className="w-6 h-6 rounded-lg text-teal-300/60 hover:text-[#FF7A59] hover:bg-rose-950/40 flex items-center justify-center cursor-pointer transition-colors shrink-0"
-                      title={t('Remove from budget', 'বাজেট থেকে বাদ দিন')}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                return (
+                  <tr key={catClean} className="hover:bg-teal-900/30 transition-colors">
+                    <td className="py-1.5 px-1.5 sm:px-3 border-r border-teal-800/60">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CategoryIcon category={catClean} size="xs" className="hidden sm:block text-teal-300/80 shrink-0" />
+                        <span className="font-semibold text-[#F0FDFA] text-[10px] sm:text-xs leading-tight break-words">
+                          {cleanCategoryName(catClean, lang)}
+                        </span>
+                      </div>
+                    </td>
 
-                  {/* ROW 2: BUDGET INPUT, SPENT, REMAIN, % */}
-                  <div className="grid grid-cols-4 gap-2 items-center text-center">
-                    {/* 1. Budget Input */}
-                    <div className="flex flex-col items-center">
-                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
-                        {t('Budget', 'বাজেট')}
-                      </span>
+                    <td className="py-1 px-0.5 sm:px-2 text-right">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -722,63 +727,75 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                           handlePerformSave();
                         }}
                         placeholder="0"
-                        className="w-full max-w-[80px] bg-white border border-teal-700/70 rounded-lg px-2 py-1 text-xs text-slate-900 text-right font-bold focus:outline-none focus:border-teal-400 tabular-nums"
+                        className="w-full h-6 sm:h-7 bg-white border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-right text-[10px] sm:text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums"
                       />
-                    </div>
+                    </td>
 
-                    {/* 2. Spent */}
-                    <div className="flex flex-col items-center">
-                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
-                        {t('Spent', 'খরচ')}
-                      </span>
-                      <span className="font-black text-[#FF7A59] text-xs tabular-nums truncate max-w-full">
-                        {formatNumberLocale(spentVal, lang)}
-                      </span>
-                    </div>
+                    <td className="py-1.5 px-1 sm:px-2 text-right font-extrabold text-[#FF7A59] tabular-nums truncate">
+                      {formatNumberLocale(spentVal, lang)}
+                    </td>
 
-                    {/* 3. Remaining */}
-                    <div className="flex flex-col items-center">
-                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
-                        {t('Remain', 'অবশিষ্ট')}
-                      </span>
-                      <span
-                        className={`font-black text-xs tabular-nums truncate max-w-full ${
-                          budgetVal - spentVal >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'
-                        }`}
-                      >
-                        {budgetVal > 0 ? (
-                          <>
-                            {budgetVal - spentVal >= 0 ? '+' : ''}
-                            {formatNumberLocale(budgetVal - spentVal, lang)}
-                          </>
-                        ) : (
-                          '-'
-                        )}
-                      </span>
-                    </div>
+                    <td
+                      className={`py-1.5 px-1 sm:px-2 text-right font-extrabold tabular-nums truncate ${
+                        budgetVal === 0
+                          ? 'text-teal-400/50'
+                          : remainVal >= 0
+                          ? 'text-[#34D399]'
+                          : 'text-[#FF7A59]'
+                      }`}
+                    >
+                      {budgetVal > 0 ? (
+                        <>
+                          {remainVal >= 0 ? '+' : ''}
+                          {formatNumberLocale(remainVal, lang)}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
 
-                    {/* 4. % Badge */}
-                    <div className="flex flex-col items-center">
-                      <span className="text-[9.5px] font-bold text-teal-300/80 uppercase block mb-1">
-                        %
-                      </span>
-                      <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 tabular-nums ${
-                          isOver
-                            ? 'bg-rose-950/80 text-rose-300 border-rose-700/80 font-black'
-                            : budgetVal > 0
-                            ? 'bg-teal-950/80 text-teal-200 border-teal-800/80'
-                            : 'text-teal-400/50 bg-[#062423] border-teal-800/40'
-                        }`}
-                      >
-                        {budgetVal > 0 ? `${pct.toFixed(0)}%` : `--%`}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                    <td
+                      className={`py-1.5 px-1 sm:px-3 text-right font-extrabold tabular-nums ${
+                        isOver
+                          ? 'text-rose-400'
+                          : budgetVal > 0
+                          ? 'text-teal-200'
+                          : 'text-teal-400/50'
+                      }`}
+                    >
+                      {budgetVal > 0 ? `${pct.toFixed(0)}%` : '--%'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-[#062423] border-t-2 border-teal-700/80 text-[10px] sm:text-xs font-black">
+                <td className="py-2 px-1.5 sm:px-3 border-r border-teal-800/60 text-[#F0FDFA] leading-tight">
+                  {t('Total', 'মোট')}
+                </td>
+                <td className="py-2 px-1 sm:px-2 text-right text-[#F0FDFA] tabular-nums">
+                  {formatNumberLocale(totalBudget, lang)}
+                </td>
+                <td className="py-2 px-1 sm:px-2 text-right text-[#FF7A59] tabular-nums">
+                  {formatNumberLocale(totalSpent, lang)}
+                </td>
+                <td className={`py-2 px-1 sm:px-2 text-right tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'}`}>
+                  {totalBudget > 0 ? (
+                    <>
+                      {remainingBudget >= 0 ? '+' : ''}
+                      {formatNumberLocale(remainingBudget, lang)}
+                    </>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+                <td className={`py-2 px-1 sm:px-3 text-right tabular-nums ${totalBudget > 0 && totalSpent > totalBudget ? 'text-rose-400' : 'text-teal-200'}`}>
+                  {totalBudget > 0 ? `${Math.min(999, (totalSpent / totalBudget) * 100).toFixed(0)}%` : '--%'}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         )}
       </div>
 
