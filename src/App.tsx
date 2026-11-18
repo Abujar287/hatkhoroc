@@ -17,7 +17,7 @@ import {
   setupWebPushSubscription,
   syncTasksToPushServer
 } from './utils/taskAlarmManager';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry, NoteEntry } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry, NoteEntry, AppNotification } from './types';
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES
@@ -541,9 +541,16 @@ export default function App() {
                 } catch {}
 
                 const prevSnapshot = usersRef.current;
-                let mappedUsers = data.users.map((rawU: any) =>
-                  mapUserFromSheet(rawU, prevSnapshot, activeTabKey, activeTxLen)
+                const pendingDeleteUsernames = new Set(
+                  getOfflineQueue()
+                    .filter(q => q.action === 'deleteuser' && q.payload?.username)
+                    .map(q => String(q.payload.username).trim().toLowerCase())
                 );
+                let mappedUsers = data.users
+                  .map((rawU: any) =>
+                    mapUserFromSheet(rawU, prevSnapshot, activeTabKey, activeTxLen)
+                  )
+                  .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
                 if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
                   const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
                   mappedUsers = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mappedUsers];
@@ -1518,12 +1525,41 @@ export default function App() {
     } catch {}
     return [];
   });
+  const [noteCategories, setNoteCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`app_note_categories_${currentTab}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [isSyncingNotes, setIsSyncingNotes] = useState(false);
   const pendingNoteMapRef = React.useRef<Map<string, { tab: string; note: NoteEntry }>>(new Map());
+
+  const extractNoteCategories = useCallback((rawCats: any, notesList: NoteEntry[]): string[] => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    const pushCat = (val: any) => {
+      const trimmed = String(val || '').trim();
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      if (lower === 'category' || lower === 'notepad' || lower === 'all') return;
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(trimmed);
+      }
+    };
+    if (Array.isArray(rawCats)) rawCats.forEach(pushCat);
+    notesList.forEach(n => pushCat(n.category));
+    return result;
+  }, []);
 
   useEffect(() => {
     if (!hasNotepadAccess) {
       setNotes([]);
+      setNoteCategories([]);
       return;
     }
     try {
@@ -1531,6 +1567,12 @@ export default function App() {
       setNotes(saved ? (JSON.parse(saved) || []) : []);
     } catch {
       setNotes([]);
+    }
+    try {
+      const savedCats = localStorage.getItem(`app_note_categories_${currentTab}`);
+      setNoteCategories(savedCats ? (JSON.parse(savedCats) || []) : []);
+    } catch {
+      setNoteCategories([]);
     }
   }, [hasNotepadAccess, currentTab]);
 
@@ -1623,9 +1665,12 @@ export default function App() {
       if (data && data.result === 'success' && Array.isArray(data.notes)) {
         const mapped = mapRawNotes(data.notes);
         const merged = mergeNotesWithPending(mapped, targetTab);
+        const nextCats = extractNoteCategories(data.noteCategories, merged);
         setNotes(merged);
+        setNoteCategories(nextCats);
         try {
           localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(merged));
+          localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(nextCats));
         } catch {}
         if (silent !== true) {
           showToast(`Synced ${merged.length} notes from ${targetTab} BB:BF`, 'success');
@@ -1636,7 +1681,13 @@ export default function App() {
     } finally {
       setIsSyncingNotes(false);
     }
-  }, [currentTab, hasNotepadAccess, mergeNotesWithPending, showToast]);
+  }, [currentTab, hasNotepadAccess, mergeNotesWithPending, extractNoteCategories, showToast]);
+
+  useEffect(() => {
+    if (isAuthenticated && hasNotepadAccess && activeTab === 'notepad') {
+      handleSyncNotes(true);
+    }
+  }, [isAuthenticated, hasNotepadAccess, activeTab, handleSyncNotes]);
 
   const handleAddNote = useCallback(async (input: { notename: string; category: string; note: string }) => {
     if (!hasNotepadAccess) return;
@@ -1658,6 +1709,13 @@ export default function App() {
         localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(appended));
       } catch {}
       return appended;
+    });
+    setNoteCategories(prev => {
+      const updatedCats = extractNoteCategories([...prev, newNote.category], []);
+      try {
+        localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(updatedCats));
+      } catch {}
+      return updatedCats;
     });
     playSound('success');
 
@@ -1732,6 +1790,13 @@ export default function App() {
         localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(nextList));
       } catch {}
       return nextList;
+    });
+    setNoteCategories(prev => {
+      const updatedCats = extractNoteCategories([...prev, updatedNote.category], []);
+      try {
+        localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(updatedCats));
+      } catch {}
+      return updatedCats;
     });
 
     const payload = {
@@ -2057,11 +2122,21 @@ export default function App() {
         if (hasNotepadAccess) {
           if (Array.isArray(data.notes)) {
             const mappedNotes = mergeNotesWithPending(mapRawNotes(data.notes), tabToSync);
+            const nextCats = extractNoteCategories(data.noteCategories, mappedNotes);
             setNotes(mappedNotes);
+            setNoteCategories(nextCats);
             try {
               localStorage.setItem(`app_notes_${tabToSync}`, JSON.stringify(mappedNotes));
+              localStorage.setItem(`app_note_categories_${tabToSync}`, JSON.stringify(nextCats));
             } catch {}
           } else {
+            if (Array.isArray(data.noteCategories)) {
+              const nextCats = extractNoteCategories(data.noteCategories, []);
+              setNoteCategories(nextCats);
+              try {
+                localStorage.setItem(`app_note_categories_${tabToSync}`, JSON.stringify(nextCats));
+              } catch {}
+            }
             handleSyncNotes(true, tabToSync);
           }
         }
@@ -2659,22 +2734,223 @@ export default function App() {
   };
 
   const handleToggleActiveUser = (user: AppUser) => {
-    setUsers(users.map(u => u.username === user.username ? { ...u, isActive: !u.isActive } : u));
+    const updatedUsers = users.map(u => u.username === user.username ? { ...u, isActive: !u.isActive } : u);
+    setUsers(updatedUsers);
+    try {
+      localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
+    } catch {}
   };
 
   const handleConfirmDeleteUser = async (user: AppUser) => {
-    setUsers(users.filter(u => u.username !== user.username));
+    const updatedUsers = users.filter(u => u.username !== user.username);
+    setUsers(updatedUsers);
     try {
-      await fetchSheetApi('/api/sheet-proxy', {
+      localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
+    } catch {}
+    setUserToDelete(null);
+
+    const payload = {
+      action: 'deleteuser',
+      sheetTab: 'abujar287',
+      username: user.username
+    };
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
+      showToast(
+        lang === 'en'
+          ? `User ${user.username} removed locally; queued for Sheet deletion when online.`
+          : `ইউজার ${user.username} রিমুভ হয়েছে; অনলাইনে আসলে শিট থেকে ডিলিট হবে।`,
+        'info'
+      );
+      return;
+    }
+
+    try {
+      const res = await fetchSheetApi('/api/sheet-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deleteuser', username: user.username })
-      }).catch(() => {});
-    } catch {}
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      let resData: any = null;
+      try { resData = JSON.parse(text); } catch {}
 
-    setUserToDelete(null);
-    showToast(lang === 'en' ? `User ${user.username} deleted` : `ইউজার ${user.username} ডিলিট হয়েছে`, 'info');
+      if (resData?.result === 'unknown_action' || resData?.result === 'forbidden') {
+        showToast(
+          lang === 'en'
+            ? 'User removed from app. Please Deploy New Version of Apps Script from Settings to delete from Sheet AL:AQ.'
+            : 'অ্যাপ থেকে রিমুভ হয়েছে। শিট AL:AQ থেকে ডিলিট করতে Settings থেকে Apps Script আপডেট Deploy করুন।',
+          'info'
+        );
+        return;
+      }
+
+      if (!res.ok || (resData?.result && resData.result !== 'success')) {
+        addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
+        showToast(
+          lang === 'en'
+            ? `User ${user.username} removed from app (Sheet sync queued)`
+            : `ইউজার ${user.username} অ্যাপ থেকে ডিলিট হয়েছে (শিট সিঙ্ক কিউতে রাখা হয়েছে)`,
+          'info'
+        );
+        return;
+      }
+
+      showToast(
+        lang === 'en'
+          ? `User ${user.username} deleted from app & Google Sheet!`
+          : `ইউজার ${user.username} অ্যাপ এবং গুগল শিট থেকে ডিলিট হয়েছে!`,
+        'success'
+      );
+    } catch {
+      addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
+      showToast(
+        lang === 'en'
+          ? `User ${user.username} removed locally; Sheet deletion queued.`
+          : `ইউজার ${user.username} লোকালি ডিলিট হয়েছে; শিট থেকে ডিলিটের জন্য কিউতে আছে।`,
+        'info'
+      );
+    }
   };
+
+  const headerNotifications: AppNotification[] = useMemo(() => {
+    const items: AppNotification[] = [];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
+
+    tasks
+      .filter(task => task.status === 'pending')
+      .forEach(task => {
+        if (!task.dueDate) return;
+        if (task.dueDate === todayStr) {
+          items.push({
+            id: `due_today_${task.id}_${task.dueDate}`,
+            kind: 'due_today',
+            title: lang === 'en' ? `Due Today: ${task.title}` : `আজকের ডিউ: ${task.title}`,
+            message: `${task.dueTime || '09:00'}${task.amount > 0 ? ` • ৳${task.amount.toLocaleString()}` : ''}`,
+            badgeText: lang === 'en' ? 'Today' : 'আজ',
+            targetTab: 'upcoming_cost',
+            task,
+            actionType: 'pay_task'
+          });
+        } else if (task.dueDate < todayStr) {
+          items.push({
+            id: `overdue_${task.id}_${task.dueDate}`,
+            kind: 'overdue',
+            title: lang === 'en' ? `Overdue: ${task.title}` : `সময় উত্তীর্ণ: ${task.title}`,
+            message: `${task.dueDate}${task.dueTime ? ` • ${task.dueTime}` : ''}${task.amount > 0 ? ` • ৳${task.amount.toLocaleString()}` : ''}`,
+            badgeText: lang === 'en' ? 'Overdue' : 'বকেয়া',
+            targetTab: 'upcoming_cost',
+            task,
+            actionType: 'pay_task'
+          });
+        } else {
+          const dueMs = new Date(`${task.dueDate}T00:00:00`).getTime();
+          const diffDays = Math.ceil((dueMs - todayMs) / 86400000);
+          const reminderWindow = Math.max(1, Number(task.reminderDaysBefore ?? 1));
+          if (diffDays > 0 && diffDays <= reminderWindow) {
+            items.push({
+              id: `upcoming_${task.id}_${task.dueDate}`,
+              kind: 'upcoming',
+              title: lang === 'en' ? `Upcoming: ${task.title}` : `আসন্ন খরচ: ${task.title}`,
+              message: `${task.dueDate} (${diffDays === 1 ? (lang === 'en' ? 'Tomorrow' : 'আগামীকাল') : (lang === 'en' ? `In ${diffDays} days` : `${diffDays} দিন পর`)})${task.amount > 0 ? ` • ৳${task.amount.toLocaleString()}` : ''}`,
+              badgeText: diffDays === 1 ? (lang === 'en' ? '1d' : '১ দিন') : `${diffDays}d`,
+              targetTab: 'upcoming_cost',
+              task,
+              actionType: 'navigate'
+            });
+          }
+        }
+      });
+
+    // Monthly budget alert (>= 85% spent)
+    const activeMap = findMonthMapping(monthMappings, selectedMonth);
+    let totalBudget = Number(activeMap?.budget || 0);
+    if (!totalBudget || totalBudget <= 0) {
+      try {
+        const savedBudgets = localStorage.getItem(`app_category_budgets_${currentTab}_${selectedMonth}`);
+        if (savedBudgets) {
+          const parsed = JSON.parse(savedBudgets);
+          if (parsed && typeof parsed === 'object') {
+            totalBudget = Object.values(parsed).reduce((sum: number, val: any) => sum + (Number(val) > 0 ? Number(val) : 0), 0);
+          }
+        }
+      } catch {}
+    }
+
+    if (totalBudget > 0) {
+      const monthKey = getMonthKeyFromLabel(selectedMonth);
+      const monthExpense = transactions.reduce((sum, tx) => {
+        if (tx.type !== 'Expense') return sum;
+        const txDate = normalizeDate(tx.date);
+        const inMonth = activeMap
+          ? txDate >= activeMap.startDate && txDate <= activeMap.endDate
+          : txDate.startsWith(monthKey);
+        return inMonth ? sum + (Number(tx.value) || 0) : sum;
+      }, 0);
+
+      if (monthExpense >= totalBudget * 0.85) {
+        const pct = Math.round((monthExpense / totalBudget) * 100);
+        const exceeded = monthExpense >= totalBudget;
+        items.push({
+          id: `budget_${currentTab}_${selectedMonth}_${exceeded ? 'over' : 'warn'}`,
+          kind: 'budget',
+          title: exceeded
+            ? (lang === 'en' ? `Budget Exceeded (${selectedMonth})` : `বাজেট অতিক্রম করেছে (${selectedMonth})`)
+            : (lang === 'en' ? `Budget ${pct}% Used (${selectedMonth})` : `বাজেটের ${pct}% শেষ (${selectedMonth})`),
+          message: lang === 'en'
+            ? `Spent ৳${Math.round(monthExpense).toLocaleString()} of ৳${Math.round(totalBudget).toLocaleString()}`
+            : `৳${Math.round(totalBudget).toLocaleString()} এর মধ্যে ৳${Math.round(monthExpense).toLocaleString()} খরচ হয়েছে`,
+          badgeText: `${pct}%`,
+          targetTab: 'budget',
+          actionType: 'navigate'
+        });
+      }
+    }
+
+    const pendingOfflineCount = getOfflineQueue().length;
+    if (pendingOfflineCount > 0) {
+      items.push({
+        id: `offline_queue_${pendingOfflineCount}`,
+        kind: 'offline_sync',
+        title: lang === 'en' ? `${pendingOfflineCount} Offline Change(s) Pending` : `${pendingOfflineCount}টি অফলাইন সিঙ্ক বাকি`,
+        message: lang === 'en' ? 'Tap to sync pending data to Google Sheet' : 'গুগল শিটে পাঠাতে ট্যাপ করুন',
+        badgeText: String(pendingOfflineCount),
+        actionType: 'sync'
+      });
+    }
+
+    if (updateInfoModal?.hasUpdate) {
+      items.push({
+        id: `update_${updateInfoModal.latestSha || updateInfoModal.newVersion || 'new'}`,
+        kind: 'update',
+        title: lang === 'en' ? 'App Update Available' : 'অ্যাপের নতুন আপডেট এসেছে',
+        message: lang === 'en'
+          ? `New version ${updateInfoModal.newVersion || ''} is ready`
+          : `নতুন ভার্সন ${updateInfoModal.newVersion || ''} পাওয়া গেছে`,
+        badgeText: 'NEW',
+        actionType: 'update'
+      });
+    }
+
+    return items;
+  }, [tasks, transactions, monthMappings, selectedMonth, currentTab, updateInfoModal, lastSyncDate, lang]);
+
+  const handleNotificationAction = useCallback((notif: AppNotification) => {
+    if (notif.actionType === 'sync') {
+      handleManualSync(currentTab);
+      return;
+    }
+    if (notif.actionType === 'update') {
+      setShowUpdateModal(true);
+      return;
+    }
+    if (notif.targetTab && allowedTabs.includes(notif.targetTab)) {
+      setActiveTab(notif.targetTab);
+    }
+  }, [handleManualSync, currentTab, allowedTabs]);
 
   // ----------------------------------------------------
   // RENDER: LOGIN
@@ -2793,6 +3069,8 @@ export default function App() {
           onPayTask={handleConvertTaskToExpense}
           onProfileClick={() => setShowProfileModal(true)}
           onLogout={handleLogout}
+          notifications={headerNotifications}
+          onNotificationAction={handleNotificationAction}
         />
 
         <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
@@ -2899,6 +3177,7 @@ export default function App() {
               {activeTab === 'notepad' && hasNotepadAccess && (
                 <NotepadTab
                   notes={notes}
+                  sheetCategories={noteCategories}
                   isSyncing={isSyncingNotes || isSyncing}
                   onSyncNotes={() => handleSyncNotes(false)}
                   onAddNote={handleAddNote}
@@ -2927,9 +3206,16 @@ export default function App() {
                       .then(data => {
                         if (data && Array.isArray(data.users) && data.users.length > 0) {
                           const prevSnapshot = usersRef.current;
-                          let mapped = data.users.map((rawU: any) =>
-                            mapUserFromSheet(rawU, prevSnapshot, currentTab, transactions.length)
+                          const pendingDeleteUsernames = new Set(
+                            getOfflineQueue()
+                              .filter(q => q.action === 'deleteuser' && q.payload?.username)
+                              .map(q => String(q.payload.username).trim().toLowerCase())
                           );
+                          let mapped = data.users
+                            .map((rawU: any) =>
+                              mapUserFromSheet(rawU, prevSnapshot, currentTab, transactions.length)
+                            )
+                            .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
                           if (!mapped.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
                             const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
                             mapped = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mapped];

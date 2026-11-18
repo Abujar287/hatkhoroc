@@ -108,5 +108,16 @@ export interface Upcoming3MonthPlan {
   forceRebuild?: boolean;
 }
 
+export type NotificationKind = 'due_today' | 'overdue' | 'upcoming' | 'budget' | 'offline_sync' | 'update' | 'info';
 
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  badgeText?: string;
+  targetTab?: AppTab;
+  task?: CostTask;
+  actionType?: 'pay_task' | 'sync' | 'update' | 'navigate';
+}
 

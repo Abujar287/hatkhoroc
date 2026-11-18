@@ -22,6 +22,7 @@ import { NoteEntry } from '../types';
 
 interface NotepadTabProps {
   notes: NoteEntry[];
+  sheetCategories?: string[];
   isSyncing: boolean;
   onSyncNotes: () => Promise<void> | void;
   onAddNote: (note: { notename: string; category: string; note: string }) => Promise<void>;
@@ -32,6 +33,7 @@ interface NotepadTabProps {
 
 export const NotepadTab: React.FC<NotepadTabProps> = ({
   notes,
+  sheetCategories = [],
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -50,7 +52,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [bulkCategoryTarget, setBulkCategoryTarget] = useState('Uncategorized');
+  const [bulkCategoryTarget, setBulkCategoryTarget] = useState('');
 
   // Popup modal for viewing & editing note
   const [activeNote, setActiveNote] = useState<NoteEntry | null>(null);
@@ -75,19 +77,40 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const isScrollingRef = useRef<boolean>(false);
 
-  // Extract unique categories directly from Google Sheet notes (BD column)
+  // Extract unique categories directly from Google Sheet BD column (sheetCategories + synced notes)
   const categories = useMemo(() => {
-    const set = new Set<string>();
-    notes.forEach(n => {
-      const c = (n.category || '').trim();
-      if (c) set.add(c);
-    });
-    if (set.size === 0) {
-      set.add('Uncategorized');
-      set.add('Important');
+    const map = new Map<string, string>();
+    const pushCat = (raw?: string) => {
+      const c = String(raw || '').trim();
+      if (!c) return;
+      const key = c.toLowerCase();
+      if (key === 'category' || key === 'notepad') return;
+      if (!map.has(key)) {
+        map.set(key, c);
+      }
+    };
+    sheetCategories.forEach(pushCat);
+    notes.forEach(n => pushCat(n.category));
+    if (map.size === 0) {
+      map.set('uncategorized', 'Uncategorized');
     }
-    return Array.from(set);
-  }, [notes]);
+    return Array.from(map.values());
+  }, [sheetCategories, notes]);
+
+  React.useEffect(() => {
+    if (
+      selectedCategory !== 'All' &&
+      !categories.some(c => c.toLowerCase() === selectedCategory.toLowerCase())
+    ) {
+      setSelectedCategory('All');
+    }
+  }, [categories, selectedCategory]);
+
+  React.useEffect(() => {
+    if (categories.length > 0 && (!bulkCategoryTarget || !categories.includes(bulkCategoryTarget))) {
+      setBulkCategoryTarget(categories[0]);
+    }
+  }, [categories, bulkCategoryTarget]);
 
   const parseNoteDate = (dtStr: string): Date | null => {
     if (!dtStr) return null;
@@ -258,8 +281,9 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     touchStartPos.current = null;
   };
 
-  const handleBulkApplyCategory = async () => {
-    if (selectedNoteIds.length === 0) return;
+  const handleBulkApplyCategory = async (overrideCat?: string) => {
+    const targetCategory = (overrideCat ?? bulkCategoryTarget).trim();
+    if (selectedNoteIds.length === 0 || !targetCategory) return;
     setIsSaving(true);
     try {
       for (const id of selectedNoteIds) {
@@ -267,7 +291,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         if (target) {
           const updated: NoteEntry = {
             ...target,
-            category: bulkCategoryTarget,
+            category: targetCategory,
             action: 'SYNC'
           };
           await onUpdateNote(updated, {
@@ -276,7 +300,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           });
         }
       }
-      showToast(`Assigned category to ${selectedNoteIds.length} notes`, 'success');
+      showToast(`Assigned "${targetCategory}" to ${selectedNoteIds.length} notes`, 'success');
       setSelectedNoteIds([]);
       setIsSelectMode(false);
       setShowBulkCategoryModal(false);
@@ -392,15 +416,15 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           />
         </div>
 
-        {/* Filter Row: Category, Sort, Date (1 row on mobile) */}
+        {/* Filter Row: Category (Auto from Sheet BD), Sort, Date */}
         <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-          {/* 1. Category */}
+          {/* 1. Category (BD Column Auto Synced) */}
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
             className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
           >
-            <option value="All">Category</option>
+            <option value="All">All Category</option>
             {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -412,8 +436,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             onChange={e => setSortOrder(e.target.value as 'newest' | 'sheet' | 'az')}
             className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
           >
-            <option value="newest">Sort</option>
-            <option value="newest">Newest First</option>
+            <option value="newest">Newest</option>
             <option value="sheet">Sheet Order</option>
             <option value="az">Title A–Z</option>
           </select>
@@ -431,7 +454,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             }}
             className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
           >
-            <option value="all">Date</option>
+            <option value="all">All Date</option>
             <option value="today">Today</option>
             <option value="previous_day">Previous Day</option>
             <option value="last_7_days">Last 7 Days</option>
@@ -444,21 +467,21 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       </div>
 
-      {/* STICKY TOP MULTI-SELECT ACTION BAR (Stays pinned to top of the scroll container while scrolling) */}
+      {/* SINGLE SIMPLE STICKY SELECTION ACTION BAR */}
       {isSelectMode && (
-        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border-2 border-emerald-500/80 rounded-2xl px-3 py-2.5 shadow-2xl flex flex-wrap items-center justify-between gap-2 animate-fadeIn mb-2">
-          <div className="flex items-center gap-1.5 shrink-0">
+        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border border-emerald-500/80 rounded-xl px-2.5 py-2 shadow-xl flex items-center justify-between gap-2 animate-fadeIn">
+          <div className="flex items-center gap-1.5 min-w-0">
             <button
               type="button"
               onClick={handleToggleSelectAll}
-              className="px-2.5 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-xs cursor-pointer active:scale-95 transition-all"
+              className="px-2.5 py-1 rounded-lg bg-teal-900/90 hover:bg-teal-800 text-teal-100 border border-teal-700 font-bold text-[11px] cursor-pointer active:scale-95 transition-all whitespace-nowrap"
             >
               {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
-                ? 'Deselect All'
-                : 'Select All'}
+                ? 'None'
+                : 'All'}
             </button>
-            <span className="text-xs font-black text-emerald-300 tabular-nums">
-              ({selectedNoteIds.length})
+            <span className="text-[11px] font-bold text-emerald-300 tabular-nums whitespace-nowrap">
+              {selectedNoteIds.length} selected
             </span>
           </div>
 
@@ -466,21 +489,27 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             <button
               type="button"
               disabled={selectedNoteIds.length === 0}
-              onClick={() => setShowBulkCategoryModal(true)}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md text-xs transition-all active:scale-95"
+              onClick={() => {
+                if (!bulkCategoryTarget && categories.length > 0) {
+                  setBulkCategoryTarget(categories[0]);
+                }
+                setShowBulkCategoryModal(true);
+              }}
+              className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>Assign Category</span>
+              <span>Category</span>
             </button>
 
             <button
               type="button"
               disabled={selectedNoteIds.length === 0}
               onClick={() => setShowBulkDeleteConfirm(true)}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md text-xs transition-all active:scale-95"
+              className="h-8 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center justify-center cursor-pointer text-[11px] transition-all active:scale-95"
+              title="Delete selected"
+              aria-label="Delete selected"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
             </button>
 
             <button
@@ -489,15 +518,17 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 setIsSelectMode(false);
                 setSelectedNoteIds([]);
               }}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-xs transition-all active:scale-95"
+              className="w-8 h-8 rounded-lg bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer flex items-center justify-center transition-all active:scale-95"
+              title="Cancel selection"
+              aria-label="Cancel selection"
             >
-              Cancel
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* ALL NOTES LIST */}
+      {/* ALL NOTES LIST (Compact Auto-Adjust Multi-Column Grid: 2 cols on mobile, 3 on tablet, 4 on desktop) */}
       {filteredNotes.length === 0 ? (
         <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-10 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-[#062423] border border-teal-800/70 flex items-center justify-center mx-auto text-teal-400">
@@ -515,9 +546,10 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
         </div>
       ) : (
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all ${isSelectMode ? 'pb-36' : 'pb-20'}`}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 pb-20">
           {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
+            const shortDate = note.datetime ? note.datetime.split(',')[0].trim() : 'Synced';
             return (
               <div
                 key={note.id}
@@ -535,15 +567,15 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-2xl p-4 transition-colors cursor-pointer flex flex-col justify-between gap-3 group select-none ${
+                className={`border rounded-xl p-2.5 transition-colors cursor-pointer flex flex-col justify-between gap-1.5 group select-none min-w-0 ${
                   isSelected
-                    ? 'bg-teal-900/60 border-emerald-400'
+                    ? 'bg-teal-900/65 border-emerald-400 ring-1 ring-emerald-400/50'
                     : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/80 hover:border-teal-600/80'
                 }`}
               >
-                <div className="space-y-1.5 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1.5 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       {isSelectMode && (
                         <div
                           onClick={e => {
@@ -553,57 +585,51 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                           className="text-emerald-400 shrink-0 cursor-pointer"
                         >
                           {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-emerald-400" />
+                            <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
                           ) : (
-                            <Square className="w-4 h-4 text-teal-400/70" />
+                            <Square className="w-3.5 h-3.5 text-teal-400/70" />
                           )}
                         </div>
                       )}
-                      <h3 className="text-sm font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors">
+                      <h3 className="text-xs font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors">
                         {note.notename || 'Untitled'}
                       </h3>
                     </div>
 
-                    {/* Preview, Copy & Remove Buttons on Card (Always accessible) */}
+                    {/* Larger Copy Icon + Smaller Delete Icon (No left file icon) */}
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => handleOpenNoteModal(note)}
-                        className="w-7 h-7 rounded-lg bg-[#062423] text-teal-300 hover:text-white flex items-center justify-center border border-teal-800/60 cursor-pointer"
-                        title="Preview note"
-                      >
-                        <FolderOpen className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => handleCopy(note.note || note.notename, note.id)}
-                        className="w-7 h-7 rounded-lg bg-[#062423] text-teal-300 hover:text-white flex items-center justify-center border border-teal-800/60 cursor-pointer"
+                        className="w-8 h-8 rounded-lg bg-[#062423] hover:bg-emerald-900/60 text-emerald-300 hover:text-white flex items-center justify-center border border-teal-700/70 cursor-pointer active:scale-95 transition-all"
                         title="Copy note"
+                        aria-label="Copy note"
                       >
                         {copiedId === note.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
                         ) : (
-                          <Copy className="w-3.5 h-3.5" />
+                          <Copy className="w-4 h-4" />
                         )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteNote(note)}
-                        className="w-7 h-7 rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900 hover:text-white flex items-center justify-center border border-rose-800/60 cursor-pointer"
+                        className="w-6 h-6 rounded-md bg-rose-950/60 text-rose-300 hover:bg-rose-900 hover:text-white flex items-center justify-center border border-rose-800/60 cursor-pointer active:scale-95 transition-all"
                         title="Delete note"
+                        aria-label="Delete note"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11px] text-teal-300/80 truncate">
-                    <span className="font-semibold text-emerald-300">{note.category || 'Uncategorized'}</span>
+                  <div className="flex items-center gap-1 text-[10px] text-teal-300/80 min-w-0">
+                    <span className="font-semibold text-emerald-300 truncate">{note.category || 'Uncategorized'}</span>
                     <span aria-hidden="true">·</span>
-                    <span className="tabular-nums truncate">{note.datetime || 'Synced'}</span>
+                    <span className="tabular-nums shrink-0 text-teal-400/80">{shortDate}</span>
                   </div>
 
-                  <p className="text-xs text-teal-100/85 line-clamp-3 whitespace-pre-line leading-relaxed pt-1">
+                  <p className="text-[11px] text-teal-100/85 line-clamp-2 whitespace-pre-line leading-snug break-words">
                     {note.note || 'No content'}
                   </p>
                 </div>
@@ -612,62 +638,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           })}
         </div>
       )}
-
-      {/* VIEWPORT-ANCHORED FLOATING BOTTOM ACTION BAR (Portal to document.body, totally immune to container scrolling) */}
-      {typeof document !== 'undefined' &&
-        isSelectMode &&
-        createPortal(
-          <div className="fixed bottom-[74px] sm:bottom-20 left-1/2 -translate-x-1/2 z-[99999] w-[95%] max-w-lg bg-[#062423]/95 backdrop-blur-md border-2 border-emerald-500/80 rounded-2xl px-2.5 sm:px-3.5 py-2.5 shadow-2xl flex items-center justify-between gap-1.5 sm:gap-2 animate-fadeIn pointer-events-auto">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleSelectAll}
-                className="px-2.5 py-1.5 rounded-xl bg-teal-900/90 hover:bg-teal-800 text-teal-200 border border-teal-700 font-bold text-[11px] sm:text-xs cursor-pointer active:scale-95 transition-all"
-              >
-                {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
-                  ? 'Deselect All'
-                  : 'Select All'}
-              </button>
-              <span className="text-xs font-black text-emerald-300 tabular-nums">
-                ({selectedNoteIds.length})
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                disabled={selectedNoteIds.length === 0}
-                onClick={() => setShowBulkCategoryModal(true)}
-                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span className="truncate">Assign Category</span>
-              </button>
-
-              <button
-                type="button"
-                disabled={selectedNoteIds.length === 0}
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer shadow-md text-[11px] sm:text-xs transition-all active:scale-95"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSelectMode(false);
-                  setSelectedNoteIds([]);
-                }}
-                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer text-[11px] sm:text-xs transition-all active:scale-95"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
 
       {/* FLOATING ACTION BUTTON (FAB) FOR NEW NOTE AT BOTTOM RIGHT */}
       {typeof document !== 'undefined' &&
@@ -691,7 +661,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         )}
 
       {/* ======================================================== */}
-      {/* BULK CATEGORY ASSIGN MODAL                              */}
+      {/* SIMPLE BULK CATEGORY ASSIGN MODAL                       */}
       {/* ======================================================== */}
       {showBulkCategoryModal && (
         <div
@@ -699,12 +669,12 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           onClick={() => setShowBulkCategoryModal(false)}
         >
           <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-sm p-4 space-y-3.5 shadow-2xl animate-modalSpring"
+            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-xs p-4 space-y-3 shadow-2xl animate-modalSpring"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-[#F0FDFA]">
-                Assign Category to {selectedNoteIds.length} Notes
+                Category ({selectedNoteIds.length})
               </h3>
               <button
                 type="button"
@@ -715,34 +685,35 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
               </button>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-teal-200">Select Category from Sheet</label>
-              <select
-                value={bulkCategoryTarget}
-                onChange={e => setBulkCategoryTarget(e.target.value)}
-                className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-semibold focus:outline-none cursor-pointer"
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => handleBulkApplyCategory(cat)}
+                  className="px-3 py-1.5 rounded-xl bg-[#062423] hover:bg-emerald-600 text-teal-100 hover:text-white border border-teal-700/70 text-xs font-semibold cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-1">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-teal-800/70">
+              <input
+                type="text"
+                value={bulkCategoryTarget}
+                onChange={e => setBulkCategoryTarget(e.target.value)}
+                placeholder="Or type new category..."
+                className="flex-1 min-h-[34px] px-2.5 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none"
+              />
               <button
                 type="button"
-                onClick={() => setShowBulkCategoryModal(false)}
-                className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold cursor-pointer"
+                onClick={() => handleBulkApplyCategory()}
+                disabled={isSaving || !bulkCategoryTarget.trim()}
+                className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkApplyCategory}
-                disabled={isSaving}
-                className="min-h-[36px] px-4 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
-              >
-                {isSaving ? 'Applying...' : 'Apply Category'}
+                {isSaving ? '...' : 'Set'}
               </button>
             </div>
           </div>

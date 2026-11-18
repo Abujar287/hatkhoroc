@@ -196,6 +196,11 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ৫.৮.১ ইউজার ডিলিট করা (DELETE USER - শুধুমাত্র abujar287 এর AL:AQ কলাম থেকে)
+    if (action === 'deleteuser') {
+      return handleDeleteUserFromRange(ss, data, e ? e.parameter : null);
+    }
+
     // ৫.৭ টাস্ক আপডেট (UPDATE TASK - X-AJ কলামে আপডেট)
     if (action === 'updatetask') {
       return handleUpdateTaskRange(sheet, data);
@@ -281,12 +286,15 @@ function doGet(e) {
   var tabName = (params.sheetTab || params.sheet || 'abujar287').toString().trim();
   var action = (params.action || '').toString().toLowerCase().trim();
 
-  // ১.৫ ইউজার লিস্ট
+  // ১.৫ ইউজার লিস্ট ও ডিলিট
   if (action === 'getusers' || action === 'users') {
     return ContentService.createTextOutput(JSON.stringify({
       result: 'success',
       users: readUsersFromRange(ss, true)
     })).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (action === 'deleteuser') {
+    return handleDeleteUserFromRange(ss, params, params);
   }
 
   var isFullSync = (action === '' || action === 'getdetails');
@@ -305,10 +313,12 @@ function doGet(e) {
   // ১.৬ নোটপ্যাড লিস্ট (BB:BF - সংশ্লিষ্ট ইউজার ট্যাব থেকে)
   if (action === 'getnotes') {
     var notesOnly = readNotesFromRange(sheet);
+    var noteCatsOnly = readNoteCategoriesFromRange(sheet);
     return ContentService.createTextOutput(JSON.stringify({
       result: 'success',
       sheetTab: sheet.getName(),
-      notes: notesOnly
+      notes: notesOnly,
+      noteCategories: noteCatsOnly
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -403,6 +413,7 @@ function doGet(e) {
   var upcoming3MData = readUpcoming3MonthFromRange(sheet);
   var bouGiftData = readBouGiftFromRange(sheet);
   var notesData = readNotesFromRange(sheet);
+  var noteCategoriesData = readNoteCategoriesFromRange(sheet);
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -416,6 +427,7 @@ function doGet(e) {
     upcoming3Month: upcoming3MData,
     bouGift: bouGiftData,
     notes: notesData,
+    noteCategories: noteCategoriesData,
     count: txData.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -1255,6 +1267,60 @@ function saveUserToRange(ss, data) {
     } catch (e) {}
   }
 }
+
+// ইউজার ডিলিট করা (শুধুমাত্র abujar287 এর AL:AQ কলাম রেঞ্জ ডিলিট ও শিফট আপ)
+function handleDeleteUserFromRange(ss, data, params) {
+  var rawUsername = (data && data.username) ? data.username : (params && params.username ? params.username : '');
+  var targetUsername = String(rawUsername || '').trim().toLowerCase();
+
+  if (!targetUsername) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'error',
+      message: 'ইউজারনেম পাওয়া যায়নি'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (targetUsername === 'abujar287') {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'forbidden',
+      message: 'মেইন সুপার অ্যাডমিন ইউজার ডিলিট করা যাবে না'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var mainSheet = ss.getSheetByName('abujar287') || getTargetSheet(ss, 'abujar287', true);
+  if (!mainSheet) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: 'not_found',
+      message: 'মেইন শিট পাওয়া যায়নি'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var lastRow = mainSheet.getLastRow();
+  if (lastRow >= 3) {
+    var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues(); // AL:AQ
+    for (var i = vals.length - 1; i >= 0; i--) {
+      var colAL = String(vals[i][0] || '').trim().toLowerCase();
+      var colAM = String(vals[i][1] || '').trim().toLowerCase();
+      if ((colAM && colAM === targetUsername) || (!colAM && colAL && colAL === targetUsername)) {
+        var rowNumber = i + 3;
+        mainSheet.getRange(rowNumber, 38, 1, 6).deleteCells(SpreadsheetApp.Dimension.ROWS);
+        return ContentService.createTextOutput(JSON.stringify({
+          result: 'success',
+          username: targetUsername,
+          row: rowNumber,
+          message: 'ইউজার AL:AQ কলাম থেকে সফলভাবে ডিলিট হয়েছে'
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    result: 'not_found',
+    username: targetUsername,
+    message: 'শিটে ইউজারটি খুঁজে পাওয়া যায়নি'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 function readUsersFromRange(ss, includeCounts) {
   var mainSheet = getTargetSheet(ss, 'abujar287', true);
   if (!mainSheet) return [];
@@ -1815,6 +1881,27 @@ function readNotesFromRange(sheet) {
     });
   }
   return list;
+}
+
+function readNoteCategoriesFromRange(sheet) {
+  if (sheet.getMaxColumns() < 56) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return [];
+
+  var vals = sheet.getRange(3, 56, lastRow - 2, 1).getValues(); // Column BD (56)
+  var seen = {};
+  var cats = [];
+  for (var i = 0; i < vals.length; i++) {
+    var cat = String(vals[i][0] || '').trim();
+    if (!cat) continue;
+    var low = cat.toLowerCase();
+    if (low === 'category' || low === 'notepad') continue;
+    if (!seen[low]) {
+      seen[low] = true;
+      cats.push(cat);
+    }
+  }
+  return cats;
 }
 
 function getLastUsedRowInNotepad(sheet) {
