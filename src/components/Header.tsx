@@ -319,17 +319,19 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsNotifOpen(prev => !prev);
               }}
               className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-all cursor-pointer border shrink-0 active:scale-95 ${
-                isNotifOpen
-                  ? 'bg-teal-800 text-white border-emerald-400/70'
-                  : 'bg-[#0B3C39] hover:bg-teal-900/80 text-teal-200 hover:text-white border-teal-700/60'
+                notifications.length > 0
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-950/70'
+                  : isNotifOpen
+                    ? 'bg-teal-800 text-white border-emerald-400/70'
+                    : 'bg-[#0B3C39] hover:bg-teal-900/80 text-teal-200 hover:text-white border-teal-700/60'
               }`}
               title={t('Notifications', 'নোটিফিকেশন')}
               aria-label={t('Notifications', 'নোটিফিকেশন')}
             >
-              <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-amber-300' : 'text-teal-200'}`} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF5A36] text-white text-[9px] font-black flex items-center justify-center border border-[#042F2E] shadow-sm tabular-nums">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+              <Bell className={`w-4 h-4 ${notifications.length > 0 ? 'text-white' : 'text-teal-200'}`} />
+              {notifications.length > 0 && (
+                <span className={`absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#F0FDFA] text-rose-700 text-[9px] font-black flex items-center justify-center border border-rose-500 shadow-sm tabular-nums ${unreadCount > 0 ? 'animate-pulse' : ''}`}>
+                  {(unreadCount > 0 ? unreadCount : notifications.length) > 9 ? '9+' : (unreadCount > 0 ? unreadCount : notifications.length)}
                 </span>
               )}
             </button>
@@ -338,7 +340,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="absolute right-0 top-full mt-2 w-[calc(100vw-24px)] max-w-xs sm:w-80 bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
                 <div className="px-3.5 py-2.5 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-3.5 h-3.5 text-amber-300" />
+                    <Bell className={`w-3.5 h-3.5 ${notifications.length > 0 ? 'text-rose-400' : 'text-teal-300'}`} />
                     <span className="text-xs font-bold text-[#F0FDFA]">
                       {t('Notifications', 'নোটিফিকেশন')}
                     </span>

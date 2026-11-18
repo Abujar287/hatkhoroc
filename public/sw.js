@@ -1,5 +1,5 @@
 // Service Worker for হাত খরচ (Auto-Update & Push Notifications)
-const CACHE_NAME = 'hat-khoroch-v3';
+const CACHE_NAME = 'hat-khoroch-v4';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -25,8 +25,15 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   
   const url = new URL(event.request.url);
-  // Do not intercept API proxy requests
-  if (url.pathname.startsWith('/api/')) return;
+  // Do not intercept API proxy or Vite dev module requests
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/')
+  ) {
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)

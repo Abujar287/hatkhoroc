@@ -9,13 +9,13 @@ import {
   Edit3,
   Trash2,
   Save,
-  RotateCcw,
   FolderOpen,
   X,
   Calendar,
   Eye,
   Tag,
-  ArrowLeft
+  ArrowLeft,
+  SlidersHorizontal
 } from 'lucide-react';
 import { NoteEntry } from '../types';
 
@@ -45,6 +45,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   // Multi-select state (triggered by long press on note card)
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -113,19 +114,75 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
 
   const parseNoteDate = (dtStr: string): Date | null => {
     if (!dtStr) return null;
-    const d = new Date(dtStr);
-    if (!isNaN(d.getTime())) return d;
-    const parts = dtStr.split(',');
-    if (parts.length > 0) {
-      const d2 = new Date(parts[0].trim());
-      if (!isNaN(d2.getTime())) return d2;
+    const trimmed = String(dtStr).trim();
+    if (!trimmed) return null;
+
+    // 1. Try native Date parsing first (ISO, "Nov 15, 2026 8:27 AM", "M/d/yyyy, h:mm:ss a", etc.)
+    const nativeDate = new Date(trimmed);
+    if (!isNaN(nativeDate.getTime())) return nativeDate;
+
+    // 2. Parse DD/MM/YYYY or MM/DD/YYYY with optional time ("15/11/2026, 08:27:00 AM" or "15-11-2026 8:27 PM")
+    const slashMatch = trimmed.match(
+      /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?/i
+    );
+    if (slashMatch) {
+      const a = Number(slashMatch[1]);
+      const b = Number(slashMatch[2]);
+      let yr = Number(slashMatch[3]);
+      if (yr < 100) yr += 2000;
+
+      // If first token > 12, it's definitely DD/MM; otherwise assume M/D if <= 12 unless second > 12
+      let month = a - 1;
+      let day = b;
+      if (a > 12) {
+        day = a;
+        month = b - 1;
+      } else if (b > 12) {
+        month = a - 1;
+        day = b;
+      }
+
+      let hr = slashMatch[4] ? Number(slashMatch[4]) : 0;
+      const min = slashMatch[5] ? Number(slashMatch[5]) : 0;
+      const sec = slashMatch[6] ? Number(slashMatch[6]) : 0;
+      const ampm = slashMatch[7] ? slashMatch[7].toUpperCase() : '';
+      if (ampm === 'PM' && hr < 12) hr += 12;
+      if (ampm === 'AM' && hr === 12) hr = 0;
+
+      const parsed = new Date(yr, month, day, hr, min, sec);
+      if (!isNaN(parsed.getTime())) return parsed;
     }
+
+    // 3. Parse "15-Nov-26 08:27AM" or "15-Nov-2026"
+    const monMatch = trimmed.match(
+      /^(\d{1,2})[\-\s]([A-Za-z]{3})[\-\s](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})\s*(AM|PM)?)?/i
+    );
+    if (monMatch) {
+      const monthsMap: Record<string, number> = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      };
+      const mIdx = monthsMap[monMatch[2].toLowerCase()];
+      if (mIdx !== undefined) {
+        const day = Number(monMatch[1]);
+        let yr = Number(monMatch[3]);
+        if (yr < 100) yr += 2000;
+        let hr = monMatch[4] ? Number(monMatch[4]) : 0;
+        const min = monMatch[5] ? Number(monMatch[5]) : 0;
+        const ampm = monMatch[6] ? monMatch[6].toUpperCase() : '';
+        if (ampm === 'PM' && hr < 12) hr += 12;
+        if (ampm === 'AM' && hr === 12) hr = 0;
+        const parsed = new Date(yr, mIdx, day, hr, min);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    }
+
     return null;
   };
 
   const formatCompactNoteDateTime = (dtStr: string): string => {
     const d = parseNoteDate(dtStr);
-    if (!d) return dtStr ? dtStr.split(',')[0].trim() : 'Synced';
+    if (!d) return dtStr ? dtStr.split(',')[0].trim().slice(0, 18) : 'Synced';
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const day = String(d.getDate()).padStart(2, '0');
     const mon = months[d.getMonth()];
@@ -134,7 +191,12 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
     const mins = String(d.getMinutes()).padStart(2, '0');
-    return `${day}-${mon}-${yr} ${String(hours).padStart(2, '0')}:${mins}${ampm}`;
+    return `${day}-${mon}-${yr}  ${String(hours).padStart(2, '0')}:${mins}${ampm}`;
+  };
+
+  const formatCleanPreview = (body: string): string => {
+    const clean = String(body || '').replace(/\s+/g, ' ').trim();
+    return clean || 'No content';
   };
 
   const getCategoryDotClass = (cat: string): string => {
@@ -426,39 +488,31 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     }
   };
 
+  const hasExtraFilterActive = sortOrder !== 'newest' || dateFilter !== 'all';
+
   return (
-    <div className="w-full max-w-6xl mx-auto pb-28 space-y-4 animate-fadeIn relative">
-      {/* Top Header & Search & Filter Row */}
-      <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-        {/* Title & Count */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <NotebookPen className="w-5 h-5 text-emerald-400 shrink-0" />
-            <h2 className="text-base sm:text-lg font-bold text-[#F0FDFA] tracking-tight">
-              Notepad ({notes.length})
-            </h2>
+    <div className="w-full max-w-4xl mx-auto pb-20 space-y-2 animate-fadeIn relative">
+      {/* Minimal Single-Line Top Bar (Search + Sheet BD Category + Sort/Date Toggle) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-3.5 h-3.5 text-teal-400/75 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search notes..."
+              className="w-full h-8 pl-8 pr-2.5 rounded-xl bg-[#0B3C39] text-[#F0FDFA] border border-teal-800/70 text-xs font-medium placeholder:text-teal-400/55 focus:outline-none focus:border-emerald-400"
+            />
           </div>
-        </div>
 
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search notes by title, content, category, or date..."
-            className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium placeholder:text-slate-400 focus:outline-none focus:border-emerald-400"
-          />
-        </div>
-
-        {/* Filter Row: Category (Auto from Sheet BD), Sort, Date */}
-        <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-          {/* 1. Category (BD Column Auto Synced) */}
+          {/* Category Filter (Auto from Sheet BD) */}
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+            className="w-[100px] sm:w-[132px] h-8 px-2 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/70 text-[11px] font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate shrink-0"
+            aria-label="Category filter"
           >
             <option value="All">All Category</option>
             {categories.map(cat => (
@@ -466,46 +520,64 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             ))}
           </select>
 
-          {/* 2. Sort */}
-          <select
-            value={sortOrder}
-            onChange={e => setSortOrder(e.target.value as 'newest' | 'sheet' | 'az')}
-            className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+          {/* Toggle Sort & Date Drawer */}
+          <button
+            type="button"
+            onClick={() => setShowMoreFilters(prev => !prev)}
+            className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 cursor-pointer transition-colors active:scale-95 ${
+              showMoreFilters || hasExtraFilterActive
+                ? 'bg-emerald-600 text-white border-emerald-400'
+                : 'bg-[#0B3C39] hover:bg-[#0E4844] text-teal-200 border-teal-800/70'
+            }`}
+            title="Sort & Date Filters"
+            aria-label="Sort & Date Filters"
           >
-            <option value="newest">Newest</option>
-            <option value="sheet">Sheet Order</option>
-            <option value="az">Title A–Z</option>
-          </select>
-
-          {/* 3. Date */}
-          <select
-            value={dateFilter}
-            onChange={e => {
-              const val = e.target.value;
-              if (val === 'custom') {
-                setShowCustomDateModal(true);
-              } else {
-                setDateFilter(val);
-              }
-            }}
-            className="min-h-[36px] px-2 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-[11px] sm:text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
-          >
-            <option value="all">All Date</option>
-            <option value="today">Today</option>
-            <option value="previous_day">Previous Day</option>
-            <option value="last_7_days">Last 7 Days</option>
-            <option value="this_month">This Month</option>
-            <option value="previous_month">Previous Month</option>
-            <option value="this_year">This Year</option>
-            <option value="last_year">Last Year</option>
-            <option value="custom">Custom Range...</option>
-          </select>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+          </button>
         </div>
+
+        {/* Collapsible Sort & Date Row */}
+        {showMoreFilters && (
+          <div className="grid grid-cols-2 gap-1.5 animate-fadeIn">
+            <select
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as 'newest' | 'sheet' | 'az')}
+              className="h-9 px-2.5 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/80 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+            >
+              <option value="newest">Sort: Newest</option>
+              <option value="sheet">Sort: Sheet Order</option>
+              <option value="az">Sort: Title A–Z</option>
+            </select>
+
+            <select
+              value={dateFilter}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setShowCustomDateModal(true);
+                } else {
+                  setDateFilter(val);
+                }
+              }}
+              className="h-9 px-2.5 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/80 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+            >
+              <option value="all">Date: All</option>
+              <option value="today">Today</option>
+              <option value="previous_day">Previous Day</option>
+              <option value="last_7_days">Last 7 Days</option>
+              <option value="this_month">This Month</option>
+              <option value="previous_month">Previous Month</option>
+              <option value="this_year">This Year</option>
+              <option value="last_year">Last Year</option>
+              <option value="custom">Custom Range...</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* SINGLE SIMPLE STICKY SELECTION ACTION BAR */}
       {isSelectMode && (
-        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border border-emerald-500/80 rounded-xl px-2.5 py-2 shadow-xl flex items-center justify-between gap-2 animate-fadeIn">
+        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border border-emerald-500/80 rounded-xl px-2.5 py-1.5 shadow-xl flex items-center justify-between gap-2 animate-fadeIn">
           <div className="flex items-center gap-1.5 min-w-0">
             <button
               type="button"
@@ -579,7 +651,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       )}
 
-      {/* ALL NOTES LIST (1 Compact Row Per Note, Auto-Adjusting Width) */}
+      {/* ALL NOTES LIST (Demo Card Design in App Teal Palette) */}
       {filteredNotes.length === 0 ? (
         <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-10 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-[#062423] border border-teal-800/70 flex items-center justify-center mx-auto text-teal-400">
@@ -597,11 +669,12 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 pb-20">
+        <div className="flex flex-col gap-2 pb-16">
           {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
             const compactDt = formatCompactNoteDateTime(note.datetime);
             const catLabel = (note.category || 'Uncategorized').trim();
+            const previewText = formatCleanPreview(note.note);
             return (
               <div
                 key={note.id}
@@ -613,25 +686,25 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-xl px-3 py-2.5 transition-colors cursor-pointer flex flex-col gap-1 group select-none min-w-0 ${
+                className={`border rounded-2xl px-3.5 py-2 transition-colors cursor-pointer flex flex-col gap-1 group select-none min-w-0 ${
                   isSelected
                     ? 'bg-teal-900/65 border-emerald-400 ring-1 ring-emerald-400/50'
-                    : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/80 hover:border-teal-600/80'
+                    : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/75 hover:border-teal-600/80'
                 }`}
               >
-                {/* Row 1: Checkbox + Category Dot + Category + Date/Time + Right Action Icons */}
+                {/* Row 1: Checkbox + Category Dot + Uppercase Category + DateTime + Airy Action Icons */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <button
                       type="button"
                       onClick={e => {
                         e.stopPropagation();
                         toggleSelectNote(note.id);
                       }}
-                      className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                      className={`w-[15px] h-[15px] rounded-[3px] border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
                         isSelected
                           ? 'bg-emerald-500 border-emerald-400 text-[#042F2E]'
-                          : 'bg-[#F0FDFA]/90 border-teal-300/70 hover:border-emerald-300'
+                          : 'bg-white border-white/90 hover:border-emerald-300'
                       }`}
                       title={isSelected ? 'Deselect note' : 'Select note'}
                       aria-label={isSelected ? 'Deselect note' : 'Select note'}
@@ -641,61 +714,61 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
 
                     <span className={`w-2 h-2 rounded-full shrink-0 ${getCategoryDotClass(catLabel)}`} />
 
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-teal-200/90 truncate max-w-[78px]">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-teal-200/80 truncate max-w-[56px]">
                       {catLabel}
                     </span>
 
-                    <span className="text-[10px] font-medium tabular-nums text-teal-400/80 shrink-0 truncate">
+                    <span className="text-[10.5px] font-normal tabular-nums text-teal-300/65 shrink-0 whitespace-nowrap">
                       {compactDt}
                     </span>
                   </div>
 
-                  {/* Top-Right Action Icons: Larger Copy + Edit + Small Delete */}
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  {/* Top-Right Action Icons (Clean, airy spacing like demo: larger Copy, Edit, small Delete) */}
+                  <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => handleCopy(note.note || note.notename, note.id)}
-                      className="w-7 h-7 rounded-lg hover:bg-[#062423] text-emerald-300 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      className="text-teal-200/80 hover:text-emerald-300 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Copy note"
                       aria-label="Copy note"
                     >
                       {copiedId === note.id ? (
-                        <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                        <Check className="w-[18px] h-[18px] text-emerald-400" strokeWidth={2.4} />
                       ) : (
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-[18px] h-[18px]" strokeWidth={1.7} />
                       )}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleOpenNoteModal(note, true)}
-                      className="w-6 h-6 rounded-md hover:bg-[#062423] text-teal-300/85 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      className="text-teal-300/75 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Edit note"
                       aria-label="Edit note"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-[15px] h-[15px]" strokeWidth={1.6} />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteNote(note)}
-                      className="w-5 h-5 rounded-md hover:bg-rose-950/70 text-rose-300/85 hover:text-rose-200 flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      className="text-teal-300/65 hover:text-rose-300 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Delete note"
                       aria-label="Delete note"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-[13.5px] h-[13.5px]" strokeWidth={1.6} />
                     </button>
                   </div>
                 </div>
 
-                {/* Row 2: Bold Note Title */}
-                <h3 className="text-[13px] sm:text-sm font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors leading-snug">
+                {/* Row 2: Clean Bold Title */}
+                <h3 className="text-[14.5px] font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors leading-snug">
                   {note.notename || 'Untitled'}
                 </h3>
 
-                {/* Row 3: 1-Line Body Preview */}
-                <p className="text-[11px] sm:text-xs text-teal-200/75 truncate leading-snug">
-                  {note.note || 'No content'}
+                {/* Row 3: Clean 1-Line Body Preview */}
+                <p className="text-[12px] text-teal-200/70 truncate leading-snug">
+                  {previewText}
                 </p>
               </div>
             );
