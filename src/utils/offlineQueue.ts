@@ -67,7 +67,7 @@ export async function processOfflineQueue(onSuccessToast?: (count: number) => vo
       try {
         const res = await fetchSheetApi('/api/sheet-proxy', {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(item.payload)
         });
         if (res.ok) {

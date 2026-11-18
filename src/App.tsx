@@ -339,22 +339,98 @@ export default function App() {
   // ----------------------------------------------------
   // 3. USER MANAGEMENT & AUTHENTICATION STATE
   // ----------------------------------------------------
+  const DELETED_USERS_STORAGE_KEY = 'app_deleted_users_v1';
+
+  const getDeletedUsernamesSet = useCallback((): Set<string> => {
+    const set = new Set<string>();
+    try {
+      const raw = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(u => {
+            const clean = String(u || '').trim().toLowerCase();
+            if (clean) set.add(clean);
+          });
+        }
+      }
+    } catch {}
+    getOfflineQueue().forEach(q => {
+      if (q.action === 'deleteuser' && q.payload?.username) {
+        set.add(String(q.payload.username).trim().toLowerCase());
+      }
+    });
+    return set;
+  }, []);
+
+  const [pendingSheetDeletedUsers, setPendingSheetDeletedUsers] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map(u => String(u || '').trim().toLowerCase()).filter(Boolean);
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const markUserDeletedLocally = useCallback((username: string) => {
+    const clean = String(username || '').trim().toLowerCase();
+    if (!clean || clean === 'abujar287') return;
+    setPendingSheetDeletedUsers(prev => {
+      const next = prev.includes(clean) ? prev : [...prev, clean];
+      try {
+        localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const clearUserDeletedLocally = useCallback((username: string) => {
+    const clean = String(username || '').trim().toLowerCase();
+    if (!clean) return;
+    setPendingSheetDeletedUsers(prev => {
+      if (!prev.includes(clean)) return prev;
+      const next = prev.filter(u => u !== clean);
+      try {
+        localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   const [users, setUsers] = useState<AppUser[]>(() => {
     try {
+      const deletedSet = new Set<string>();
+      try {
+        const rawDel = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+        if (rawDel) {
+          const parsedDel = JSON.parse(rawDel);
+          if (Array.isArray(parsedDel)) {
+            parsedDel.forEach(u => {
+              const clean = String(u || '').trim().toLowerCase();
+              if (clean) deletedSet.add(clean);
+            });
+          }
+        }
+      } catch {}
       const saved = localStorage.getItem('app_registered_users_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((u: AppUser) => {
-            const isSuper = u.username === 'abujar287' || u.role === 'super_admin';
-            const role: UserRole = u.username === 'abujar287' ? 'super_admin' : (u.role || 'member');
-            return {
-              ...u,
-              role,
-              allowedTabs: normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]),
-              isReadOnly: u.username === 'abujar287' ? false : u.isReadOnly
-            };
-          });
+          return parsed
+            .filter((u: AppUser) => !deletedSet.has(String(u.username || '').trim().toLowerCase()))
+            .map((u: AppUser) => {
+              const role: UserRole = u.username === 'abujar287' ? 'super_admin' : (u.role || 'member');
+              return {
+                ...u,
+                role,
+                allowedTabs: normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]),
+                isReadOnly: u.username === 'abujar287' ? false : u.isReadOnly
+              };
+            });
         }
       }
     } catch {}
@@ -541,11 +617,7 @@ export default function App() {
                 } catch {}
 
                 const prevSnapshot = usersRef.current;
-                const pendingDeleteUsernames = new Set(
-                  getOfflineQueue()
-                    .filter(q => q.action === 'deleteuser' && q.payload?.username)
-                    .map(q => String(q.payload.username).trim().toLowerCase())
-                );
+                const pendingDeleteUsernames = getDeletedUsernamesSet();
                 let mappedUsers = data.users
                   .map((rawU: any) =>
                     mapUserFromSheet(rawU, prevSnapshot, activeTabKey, activeTxLen)
@@ -2632,6 +2704,7 @@ export default function App() {
       });
     } catch {}
 
+    clearUserDeletedLocally(cleanUname);
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     try {
@@ -2717,6 +2790,7 @@ export default function App() {
       });
     } catch {}
 
+    clearUserDeletedLocally(cleanUname);
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     try {
@@ -2741,12 +2815,69 @@ export default function App() {
     } catch {}
   };
 
-  const handleConfirmDeleteUser = async (user: AppUser) => {
-    const updatedUsers = users.filter(u => u.username !== user.username);
-    setUsers(updatedUsers);
+  const sendDeleteUserToSheet = useCallback(async (username: string): Promise<'deleted' | 'needs_deploy' | 'failed'> => {
+    const clean = String(username || '').trim();
+    if (!clean) return 'failed';
+    const payload = {
+      action: 'deleteuser',
+      sheetTab: 'abujar287',
+      username: clean
+    };
     try {
-      localStorage.setItem('app_registered_users_v2', JSON.stringify(updatedUsers));
-    } catch {}
+      const res = await fetchSheetApi('/api/sheet-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      let resData: any = null;
+      try { resData = JSON.parse(text); } catch {}
+
+      if (resData?.result === 'success' || resData?.result === 'not_found') {
+        return 'deleted';
+      }
+
+      if (resData?.result === 'unknown_action') {
+        // Fallback GET ping in case a proxy only routes GET action=deleteuser
+        try {
+          const getRes = await fetchSheetApi(
+            `/api/sheet-proxy?action=deleteuser&sheetTab=abujar287&username=${encodeURIComponent(clean)}`
+          );
+          const getText = await getRes.text();
+          let getData: any = null;
+          try { getData = JSON.parse(getText); } catch {}
+          if (getData?.result === 'success' || getData?.result === 'not_found') {
+            return 'deleted';
+          }
+        } catch {}
+        return 'needs_deploy';
+      }
+
+      if (resData?.result === 'forbidden') {
+        return 'needs_deploy';
+      }
+
+      return res.ok ? 'failed' : 'failed';
+    } catch {
+      return 'failed';
+    }
+  }, []);
+
+  const handleConfirmDeleteUser = async (user: AppUser) => {
+    const targetLower = String(user.username || '').trim().toLowerCase();
+    if (!targetLower || targetLower === 'abujar287') {
+      setUserToDelete(null);
+      return;
+    }
+
+    markUserDeletedLocally(targetLower);
+    setUsers(prev => {
+      const next = prev.filter(u => String(u.username || '').trim().toLowerCase() !== targetLower);
+      try {
+        localStorage.setItem('app_registered_users_v2', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     setUserToDelete(null);
 
     const payload = {
@@ -2759,60 +2890,80 @@ export default function App() {
       addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
       showToast(
         lang === 'en'
-          ? `User ${user.username} removed locally; queued for Sheet deletion when online.`
-          : `ইউজার ${user.username} রিমুভ হয়েছে; অনলাইনে আসলে শিট থেকে ডিলিট হবে।`,
+          ? `User ${user.username} removed from app; queued for Sheet deletion when online.`
+          : `ইউজার ${user.username} অ্যাপ থেকে রিমুভ হয়েছে; অনলাইনে আসলে শিট থেকে ডিলিট হবে।`,
         'info'
       );
       return;
     }
 
-    try {
-      const res = await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const text = await res.text();
-      let resData: any = null;
-      try { resData = JSON.parse(text); } catch {}
-
-      if (resData?.result === 'unknown_action' || resData?.result === 'forbidden') {
-        showToast(
-          lang === 'en'
-            ? 'User removed from app. Please Deploy New Version of Apps Script from Settings to delete from Sheet AL:AQ.'
-            : 'অ্যাপ থেকে রিমুভ হয়েছে। শিট AL:AQ থেকে ডিলিট করতে Settings থেকে Apps Script আপডেট Deploy করুন।',
-          'info'
-        );
-        return;
-      }
-
-      if (!res.ok || (resData?.result && resData.result !== 'success')) {
-        addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
-        showToast(
-          lang === 'en'
-            ? `User ${user.username} removed from app (Sheet sync queued)`
-            : `ইউজার ${user.username} অ্যাপ থেকে ডিলিট হয়েছে (শিট সিঙ্ক কিউতে রাখা হয়েছে)`,
-          'info'
-        );
-        return;
-      }
-
+    const status = await sendDeleteUserToSheet(user.username);
+    if (status === 'deleted') {
+      clearUserDeletedLocally(targetLower);
       showToast(
         lang === 'en'
           ? `User ${user.username} deleted from app & Google Sheet!`
           : `ইউজার ${user.username} অ্যাপ এবং গুগল শিট থেকে ডিলিট হয়েছে!`,
         'success'
       );
-    } catch {
-      addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
+      return;
+    }
+
+    if (status === 'needs_deploy') {
       showToast(
         lang === 'en'
-          ? `User ${user.username} removed locally; Sheet deletion queued.`
-          : `ইউজার ${user.username} লোকালি ডিলিট হয়েছে; শিট থেকে ডিলিটের জন্য কিউতে আছে।`,
+          ? `User ${user.username} removed from app. Deploy updated Apps Script (New version) in Settings to remove from Sheet AL:AQ.`
+          : `ইউজার ${user.username} অ্যাপ থেকে রিমুভ হয়েছে। শিট AL:AQ থেকে মুছতে Settings থেকে Apps Script (New version) Deploy করুন।`,
+        'info'
+      );
+      return;
+    }
+
+    addToOfflineQueue({ action: 'deleteuser', sheetTab: 'abujar287', payload });
+    showToast(
+      lang === 'en'
+        ? `User ${user.username} removed from app (Sheet delete queued)`
+        : `ইউজার ${user.username} অ্যাপ থেকে রিমুভ হয়েছে (শিট ডিলিট কিউতে আছে)`,
+      'info'
+    );
+  };
+
+  const handleRetryPendingSheetUserDeletes = useCallback(async () => {
+    if (pendingSheetDeletedUsers.length === 0) return;
+    let deletedCount = 0;
+    let needsDeploy = false;
+
+    for (const uname of pendingSheetDeletedUsers) {
+      const status = await sendDeleteUserToSheet(uname);
+      if (status === 'deleted') {
+        clearUserDeletedLocally(uname);
+        deletedCount++;
+      } else if (status === 'needs_deploy') {
+        needsDeploy = true;
+      }
+    }
+
+    if (deletedCount > 0 && !needsDeploy) {
+      showToast(
+        lang === 'en'
+          ? `Removed ${deletedCount} user(s) from Google Sheet AL:AQ!`
+          : `${deletedCount}টি ইউজার গুগল শিট AL:AQ থেকে ডিলিট হয়েছে!`,
+        'success'
+      );
+    } else if (needsDeploy) {
+      showToast(
+        lang === 'en'
+          ? 'Apps Script is still on old version. Copy updated script from Settings & Deploy > New version.'
+          : 'Apps Script এখনো পুরোনো ভার্সনে আছে। Settings থেকে নতুন স্ক্রিপ্ট কপি করে New version Deploy করুন।',
+        'error'
+      );
+    } else {
+      showToast(
+        lang === 'en' ? 'Could not connect to Sheet. Please try again.' : 'শিটের সাথে কানেক্ট করা যায়নি। আবার চেষ্টা করুন।',
         'info'
       );
     }
-  };
+  }, [pendingSheetDeletedUsers, sendDeleteUserToSheet, clearUserDeletedLocally, showToast, lang]);
 
   const headerNotifications: AppNotification[] = useMemo(() => {
     const items: AppNotification[] = [];
@@ -3196,6 +3347,9 @@ export default function App() {
                   onRequestDeleteUser={setUserToDelete}
                   onToggleActiveUser={handleToggleActiveUser}
                   syncStatus={userSyncStatus}
+                  pendingSheetDeletesCount={pendingSheetDeletedUsers.length}
+                  onRetrySheetDeletes={handleRetryPendingSheetUserDeletes}
+                  onOpenSettings={() => setActiveTab('settings')}
                   onManualSync={() => {
                     setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
                     fetchSheetApi(`/api/sheet-proxy?action=getusers`)
@@ -3206,11 +3360,7 @@ export default function App() {
                       .then(data => {
                         if (data && Array.isArray(data.users) && data.users.length > 0) {
                           const prevSnapshot = usersRef.current;
-                          const pendingDeleteUsernames = new Set(
-                            getOfflineQueue()
-                              .filter(q => q.action === 'deleteuser' && q.payload?.username)
-                              .map(q => String(q.payload.username).trim().toLowerCase())
-                          );
+                          const pendingDeleteUsernames = getDeletedUsernamesSet();
                           let mapped = data.users
                             .map((rawU: any) =>
                               mapUserFromSheet(rawU, prevSnapshot, currentTab, transactions.length)

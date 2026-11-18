@@ -13,8 +13,7 @@ import {
   FolderOpen,
   X,
   Calendar,
-  CheckSquare,
-  Square,
+  Eye,
   Tag,
   ArrowLeft
 } from 'lucide-react';
@@ -124,6 +123,37 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     return null;
   };
 
+  const formatCompactNoteDateTime = (dtStr: string): string => {
+    const d = parseNoteDate(dtStr);
+    if (!d) return dtStr ? dtStr.split(',')[0].trim() : 'Synced';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = String(d.getDate()).padStart(2, '0');
+    const mon = months[d.getMonth()];
+    const yr = String(d.getFullYear()).slice(-2);
+    let hours = d.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${day}-${mon}-${yr} ${String(hours).padStart(2, '0')}:${mins}${ampm}`;
+  };
+
+  const getCategoryDotClass = (cat: string): string => {
+    const lower = (cat || '').trim().toLowerCase();
+    const palette = [
+      'bg-amber-400',
+      'bg-emerald-400',
+      'bg-cyan-400',
+      'bg-teal-300',
+      'bg-violet-400',
+      'bg-rose-400'
+    ];
+    let hash = 0;
+    for (let i = 0; i < lower.length; i++) {
+      hash = (hash * 31 + lower.charCodeAt(i)) >>> 0;
+    }
+    return palette[hash % palette.length];
+  };
+
   const filteredNotes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const now = new Date();
@@ -202,7 +232,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     }
   };
 
-  const handleOpenNoteModal = (note: NoteEntry) => {
+  const handleOpenNoteModal = (note: NoteEntry, startInEdit = false) => {
     setActiveNote(note);
     setFormName(note.notename || '');
     const cat = (note.category || 'Uncategorized').trim();
@@ -214,13 +244,19 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       setFormCustomCat(cat);
     }
     setFormBody(note.note || '');
-    setIsEditingInPopup(false);
+    setIsEditingInPopup(startInEdit);
   };
 
   const toggleSelectNote = (id: string) => {
-    setSelectedNoteIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    setSelectedNoteIds(prev => {
+      const next = prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id];
+      if (!isSelectMode && next.length > 0) {
+        setIsSelectMode(true);
+      } else if (isSelectMode && next.length === 0) {
+        setIsSelectMode(false);
+      }
+      return next;
+    });
   };
 
   const handleToggleSelectAll = () => {
@@ -486,6 +522,21 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {selectedNoteIds.length === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const target = notes.find(n => n.id === selectedNoteIds[0]);
+                  if (target) handleOpenNoteModal(target);
+                }}
+                className="h-8 px-2.5 rounded-lg bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 font-bold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
+                title="Preview selected note"
+              >
+                <Eye className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Preview</span>
+              </button>
+            )}
+
             <button
               type="button"
               disabled={selectedNoteIds.length === 0}
@@ -528,7 +579,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </div>
       )}
 
-      {/* ALL NOTES LIST (Compact Auto-Adjust Multi-Column Grid: 2 cols on mobile, 3 on tablet, 4 on desktop) */}
+      {/* ALL NOTES LIST (1 Compact Row Per Note, Auto-Adjusting Width) */}
       {filteredNotes.length === 0 ? (
         <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-10 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-[#062423] border border-teal-800/70 flex items-center justify-center mx-auto text-teal-400">
@@ -546,20 +597,15 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 pb-20">
+        <div className="flex flex-col gap-2 pb-20">
           {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
-            const shortDate = note.datetime ? note.datetime.split(',')[0].trim() : 'Synced';
+            const compactDt = formatCompactNoteDateTime(note.datetime);
+            const catLabel = (note.category || 'Uncategorized').trim();
             return (
               <div
                 key={note.id}
-                onClick={() => {
-                  if (isSelectMode) {
-                    toggleSelectNote(note.id);
-                  } else {
-                    handleOpenNoteModal(note);
-                  }
-                }}
+                onClick={() => handleOpenNoteModal(note)}
                 onMouseDown={e => handleTouchStart(e, note.id)}
                 onMouseUp={handleTouchEnd}
                 onMouseLeave={handleTouchEnd}
@@ -567,72 +613,90 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-xl p-2.5 transition-colors cursor-pointer flex flex-col justify-between gap-1.5 group select-none min-w-0 ${
+                className={`border rounded-xl px-3 py-2.5 transition-colors cursor-pointer flex flex-col gap-1 group select-none min-w-0 ${
                   isSelected
                     ? 'bg-teal-900/65 border-emerald-400 ring-1 ring-emerald-400/50'
                     : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/80 hover:border-teal-600/80'
                 }`}
               >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1.5 min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      {isSelectMode && (
-                        <div
-                          onClick={e => {
-                            e.stopPropagation();
-                            toggleSelectNote(note.id);
-                          }}
-                          className="text-emerald-400 shrink-0 cursor-pointer"
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
-                          ) : (
-                            <Square className="w-3.5 h-3.5 text-teal-400/70" />
-                          )}
-                        </div>
+                {/* Row 1: Checkbox + Category Dot + Category + Date/Time + Right Action Icons */}
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleSelectNote(note.id);
+                      }}
+                      className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-500 border-emerald-400 text-[#042F2E]'
+                          : 'bg-[#F0FDFA]/90 border-teal-300/70 hover:border-emerald-300'
+                      }`}
+                      title={isSelected ? 'Deselect note' : 'Select note'}
+                      aria-label={isSelected ? 'Deselect note' : 'Select note'}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                    </button>
+
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${getCategoryDotClass(catLabel)}`} />
+
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-teal-200/90 truncate max-w-[78px]">
+                      {catLabel}
+                    </span>
+
+                    <span className="text-[10px] font-medium tabular-nums text-teal-400/80 shrink-0 truncate">
+                      {compactDt}
+                    </span>
+                  </div>
+
+                  {/* Top-Right Action Icons: Larger Copy + Edit + Small Delete */}
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(note.note || note.notename, note.id)}
+                      className="w-7 h-7 rounded-lg hover:bg-[#062423] text-emerald-300 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      title="Copy note"
+                      aria-label="Copy note"
+                    >
+                      {copiedId === note.id ? (
+                        <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
                       )}
-                      <h3 className="text-xs font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors">
-                        {note.notename || 'Untitled'}
-                      </h3>
-                    </div>
+                    </button>
 
-                    {/* Larger Copy Icon + Smaller Delete Icon (No left file icon) */}
-                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(note.note || note.notename, note.id)}
-                        className="w-8 h-8 rounded-lg bg-[#062423] hover:bg-emerald-900/60 text-emerald-300 hover:text-white flex items-center justify-center border border-teal-700/70 cursor-pointer active:scale-95 transition-all"
-                        title="Copy note"
-                        aria-label="Copy note"
-                      >
-                        {copiedId === note.id ? (
-                          <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteNote(note)}
-                        className="w-6 h-6 rounded-md bg-rose-950/60 text-rose-300 hover:bg-rose-900 hover:text-white flex items-center justify-center border border-rose-800/60 cursor-pointer active:scale-95 transition-all"
-                        title="Delete note"
-                        aria-label="Delete note"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenNoteModal(note, true)}
+                      className="w-6 h-6 rounded-md hover:bg-[#062423] text-teal-300/85 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      title="Edit note"
+                      aria-label="Edit note"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteNote(note)}
+                      className="w-5 h-5 rounded-md hover:bg-rose-950/70 text-rose-300/85 hover:text-rose-200 flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                      title="Delete note"
+                      aria-label="Delete note"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
-
-                  <div className="flex items-center gap-1 text-[10px] text-teal-300/80 min-w-0">
-                    <span className="font-semibold text-emerald-300 truncate">{note.category || 'Uncategorized'}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="tabular-nums shrink-0 text-teal-400/80">{shortDate}</span>
-                  </div>
-
-                  <p className="text-[11px] text-teal-100/85 line-clamp-2 whitespace-pre-line leading-snug break-words">
-                    {note.note || 'No content'}
-                  </p>
                 </div>
+
+                {/* Row 2: Bold Note Title */}
+                <h3 className="text-[13px] sm:text-sm font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors leading-snug">
+                  {note.notename || 'Untitled'}
+                </h3>
+
+                {/* Row 3: 1-Line Body Preview */}
+                <p className="text-[11px] sm:text-xs text-teal-200/75 truncate leading-snug">
+                  {note.note || 'No content'}
+                </p>
               </div>
             );
           })}

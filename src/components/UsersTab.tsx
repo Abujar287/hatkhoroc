@@ -23,6 +23,9 @@ interface UsersTabProps {
   onToggleActiveUser: (user: AppUser) => void;
   syncStatus?: { loading: boolean; error: string | null; lastSuccess: string | null };
   onManualSync?: () => void;
+  pendingSheetDeletesCount?: number;
+  onRetrySheetDeletes?: () => void;
+  onOpenSettings?: () => void;
   t: (en: string, bn: string) => string;
 }
 
@@ -34,6 +37,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   onRequestDeleteUser,
   onToggleActiveUser,
   syncStatus,
+  pendingSheetDeletesCount = 0,
+  onRetrySheetDeletes,
+  onOpenSettings,
   t
 }) => {
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -158,6 +164,37 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             </button>
           </div>
         </div>
+
+        {pendingSheetDeletesCount > 0 && (
+          <div className="px-3 sm:px-4 py-2 bg-amber-950/50 border-b border-amber-700/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-amber-200">
+            <span>
+              {t(
+                `${pendingSheetDeletesCount} deleted user(s) pending removal from Sheet AL:AQ. Deploy updated Apps Script (New Version) in Settings, then tap Retry.`,
+                `${pendingSheetDeletesCount}টি ইউজার অ্যাপ থেকে ডিলিট হয়েছে। গুগল শিট AL:AQ থেকে মুছতে Settings থেকে Apps Script (New Version) Deploy করে Retry চাপুন।`
+              )}
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="px-2.5 py-1 rounded-lg bg-[#062423] hover:bg-teal-900 text-teal-200 border border-teal-700/70 font-bold cursor-pointer active:scale-95"
+                >
+                  {t('Settings', 'সেটিংস')}
+                </button>
+              )}
+              {onRetrySheetDeletes && (
+                <button
+                  type="button"
+                  onClick={onRetrySheetDeletes}
+                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold cursor-pointer active:scale-95"
+                >
+                  {t('Retry Sheet Delete', 'আবার চেষ্টা করুন')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* DATA TABLE (Compact: Full Name | username | records | password | sheet tab name | role | access tab | edit | remove) */}
         <div className="w-full overflow-x-auto">
