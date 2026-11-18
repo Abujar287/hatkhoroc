@@ -659,7 +659,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
-    if (newRole === 'super_admin' || newRole === 'admin') {
+    if (newRole === 'super_admin') {
+      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'notepad', 'users', 'settings']);
+      setIsReadOnly(false);
+    } else if (newRole === 'admin') {
       setAllowedTabs(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings', 'users']);
       setIsReadOnly(false);
     } else if (newRole === 'super_admin_2') {
@@ -793,6 +796,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
                 { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
                 { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
+                { id: 'notepad' as AppTab, label: t('Notepad', 'নোটপ্যাড') },
                 { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                 { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
               ].map(tabItem => {
@@ -1221,7 +1225,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     if (newRole === 'super_admin_2') {
       setAllowedTabs(['summary', 'details']);
       setIsReadOnly(true);
-    } else if (newRole === 'super_admin' || newRole === 'admin') {
+    } else if (newRole === 'super_admin') {
+      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'notepad', 'users', 'settings']);
+      setIsReadOnly(false);
+    } else if (newRole === 'admin') {
       setAllowedTabs(['summary', 'entry', 'details', 'users', 'settings']);
       setIsReadOnly(false);
     }
@@ -1341,6 +1348,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
                     { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
                     { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
+                    { id: 'notepad' as AppTab, label: t('Notepad', 'নোটপ্যাড') },
                     { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                     { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
                   ].map(tabItem => {

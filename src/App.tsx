@@ -89,7 +89,7 @@ function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[
     if (!tabs.includes('upcoming_3_month')) tabs.push('upcoming_3_month');
     if (!tabs.includes('notepad')) tabs.push('notepad');
   } else {
-    tabs = tabs.filter(tab => tab !== 'upcoming_3_month' && tab !== 'notepad');
+    tabs = tabs.filter(tab => tab !== 'upcoming_3_month');
     if (role !== 'admin') {
       tabs = tabs.filter(tab => tab !== 'users');
     }
@@ -628,6 +628,10 @@ export default function App() {
     return normalizeUserTabs(currentUser?.role, currentUser?.username, currentUser?.allowedTabs);
   }, [currentUser]);
 
+  const hasNotepadAccess = useMemo(() => {
+    return isSuperAdmin || allowedTabs.includes('notepad');
+  }, [isSuperAdmin, allowedTabs]);
+
   // ----------------------------------------------------
   // 5. ISOLATED CATEGORIES STATE
   // ----------------------------------------------------
@@ -878,10 +882,12 @@ export default function App() {
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
 
   useEffect(() => {
-    if ((activeTab === 'upcoming_3_month' || activeTab === 'notepad') && !isSuperAdmin) {
+    if (activeTab === 'upcoming_3_month' && !isSuperAdmin) {
+      setActiveTab('summary');
+    } else if (activeTab === 'notepad' && !hasNotepadAccess) {
       setActiveTab('summary');
     }
-  }, [activeTab, isSuperAdmin]);
+  }, [activeTab, isSuperAdmin, hasNotepadAccess]);
 
   // Keep active user's recordCount synced with live transactions & refresh all user tab counts when opening Users tab
   useEffect(() => {
@@ -1500,11 +1506,11 @@ export default function App() {
   }, [currentTab]);
 
   // ----------------------------------------------------
-  // 8.5 NOTEPAD STATE & SYNC (BB:BF - abujar287 super_admin ONLY)
+  // 8.5 NOTEPAD STATE & SYNC (BB:BF - per user sheetTab)
   // ----------------------------------------------------
   const [notes, setNotes] = useState<NoteEntry[]>(() => {
     try {
-      const saved = localStorage.getItem('app_notes_abujar287');
+      const saved = localStorage.getItem(`app_notes_${currentTab}`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -1513,19 +1519,20 @@ export default function App() {
     return [];
   });
   const [isSyncingNotes, setIsSyncingNotes] = useState(false);
+  const pendingNoteMapRef = React.useRef<Map<string, { tab: string; note: NoteEntry }>>(new Map());
 
   useEffect(() => {
-    if (!isSuperAdmin) {
+    if (!hasNotepadAccess) {
       setNotes([]);
       return;
     }
     try {
-      const saved = localStorage.getItem('app_notes_abujar287');
+      const saved = localStorage.getItem(`app_notes_${currentTab}`);
       setNotes(saved ? (JSON.parse(saved) || []) : []);
     } catch {
       setNotes([]);
     }
-  }, [isSuperAdmin]);
+  }, [hasNotepadAccess, currentTab]);
 
   const formatNotepadDatetime = (d = new Date()) => {
     return d.toLocaleString('en-US', {
@@ -1553,13 +1560,50 @@ export default function App() {
       .filter((n: NoteEntry) => Boolean(n.notename || n.note));
   };
 
-  const handleSyncNotes = useCallback(async () => {
-    if (!isSuperAdmin) return;
+  const mergeNotesWithPending = useCallback((remoteNotes: NoteEntry[], targetTab: string): NoteEntry[] => {
+    const existingKeys = new Set(
+      remoteNotes.map(n => `${(n.notename || '').trim().toLowerCase()}___${(n.datetime || '').trim()}`)
+    );
+    const extra: NoteEntry[] = [];
+    pendingNoteMapRef.current.forEach((entry, tempId) => {
+      if (entry.tab !== targetTab) return;
+      const key = `${(entry.note.notename || '').trim().toLowerCase()}___${(entry.note.datetime || '').trim()}`;
+      if (existingKeys.has(key)) {
+        pendingNoteMapRef.current.delete(tempId);
+      } else {
+        extra.push(entry.note);
+        existingKeys.add(key);
+      }
+    });
+    getOfflineQueue().forEach(qItem => {
+      if (qItem.action === 'addnote' && qItem.sheetTab === targetTab && qItem.payload) {
+        const nName = String(qItem.payload.notename || 'Untitled').trim();
+        const nDt = String(qItem.payload.datetime || '').trim();
+        const key = `${nName.toLowerCase()}___${nDt}`;
+        if (!existingKeys.has(key)) {
+          extra.push({
+            id: String(qItem.id || `note_q_${Date.now()}`),
+            datetime: nDt,
+            notename: nName,
+            category: String(qItem.payload.category || 'Uncategorized').trim(),
+            note: String(qItem.payload.note || ''),
+            action: 'SYNC'
+          });
+          existingKeys.add(key);
+        }
+      }
+    });
+    return extra.length > 0 ? [...remoteNotes, ...extra] : remoteNotes;
+  }, []);
+
+  const handleSyncNotes = useCallback(async (silent = false, tabOverride?: string) => {
+    if (!hasNotepadAccess) return;
+    const targetTab = tabOverride || currentTab;
     setIsSyncingNotes(true);
     try {
       let data: any = null;
       try {
-        const res = await fetchSheetApi('/api/sheet-proxy?action=getnotes&sheetTab=abujar287');
+        const res = await fetchSheetApi(`/api/sheet-proxy?action=getnotes&sheetTab=${encodeURIComponent(targetTab)}`);
         if (res.ok) {
           const text = await res.text();
           try { data = JSON.parse(text); } catch {}
@@ -1568,7 +1612,7 @@ export default function App() {
 
       if (!data || data.result !== 'success') {
         try {
-          const directRes = await fetchSheetApi('?action=getnotes&sheetTab=abujar287');
+          const directRes = await fetchSheetApi(`?action=getnotes&sheetTab=${encodeURIComponent(targetTab)}`);
           if (directRes.ok) {
             const text = await directRes.text();
             try { data = JSON.parse(text); } catch {}
@@ -1578,21 +1622,25 @@ export default function App() {
 
       if (data && data.result === 'success' && Array.isArray(data.notes)) {
         const mapped = mapRawNotes(data.notes);
-        setNotes(mapped);
+        const merged = mergeNotesWithPending(mapped, targetTab);
+        setNotes(merged);
         try {
-          localStorage.setItem('app_notes_abujar287', JSON.stringify(mapped));
+          localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(merged));
         } catch {}
-        showToast(`Synced ${mapped.length} notes from Sheet BB:BF`, 'success');
-      } else {
+        if (silent !== true) {
+          showToast(`Synced ${merged.length} notes from ${targetTab} BB:BF`, 'success');
+        }
+      } else if (silent !== true) {
         showToast('Could not fetch notes from Sheet (check Apps Script deploy)', 'error');
       }
     } finally {
       setIsSyncingNotes(false);
     }
-  }, [isSuperAdmin, showToast]);
+  }, [currentTab, hasNotepadAccess, mergeNotesWithPending, showToast]);
 
   const handleAddNote = useCallback(async (input: { notename: string; category: string; note: string }) => {
-    if (!isSuperAdmin) return;
+    if (!hasNotepadAccess) return;
+    const targetTab = currentTab;
     const tempId = `note_local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const newNote: NoteEntry = {
       id: tempId,
@@ -1603,16 +1651,19 @@ export default function App() {
       action: 'SYNC'
     };
 
-    const appended = [...notes, newNote];
-    setNotes(appended);
-    try {
-      localStorage.setItem('app_notes_abujar287', JSON.stringify(appended));
-    } catch {}
+    pendingNoteMapRef.current.set(tempId, { tab: targetTab, note: newNote });
+    setNotes(prev => {
+      const appended = [...prev, newNote];
+      try {
+        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(appended));
+      } catch {}
+      return appended;
+    });
     playSound('success');
 
     const payload = {
       action: 'addnote',
-      sheetTab: 'abujar287',
+      sheetTab: targetTab,
       datetime: newNote.datetime,
       notename: newNote.notename,
       category: newNote.category,
@@ -1621,55 +1672,71 @@ export default function App() {
     };
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      addToOfflineQueue({ action: 'addnote', sheetTab: 'abujar287', payload });
+      pendingNoteMapRef.current.delete(tempId);
+      addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
       showToast('Note saved offline! Will append to Sheet BB:BF when online.', 'info');
       return;
     }
 
-    try {
-      const res = await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    showToast('Note saved!', 'success');
+
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error('Note sync failed');
+        const resText = await res.text();
+        let resData: any = null;
+        try { resData = JSON.parse(resText); } catch {}
+        if (resData?.result === 'forbidden') {
+          showToast('Sheet write blocked by old Apps Script deploy — please Deploy New Version from Settings Script!', 'error');
+          addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
+          return;
+        }
+        if (resData?.result && resData.result !== 'success') {
+          throw new Error(resData.message || 'Sheet save error');
+        }
+        if (resData?.note?.rowNumber) {
+          setNotes(prev => {
+            const next = prev.map(n =>
+              n.id === tempId
+                ? { ...n, id: String(resData.note.id || n.id), rowNumber: Number(resData.note.rowNumber) }
+                : n
+            );
+            try {
+              localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
+      })
+      .finally(() => {
+        pendingNoteMapRef.current.delete(tempId);
       });
-      if (!res.ok) throw new Error('Note sync failed');
-      const resText = await res.text();
-      let resData: any = null;
-      try { resData = JSON.parse(resText); } catch {}
-      if (resData?.note?.rowNumber) {
-        setNotes(prev => {
-          const next = prev.map(n =>
-            n.id === tempId
-              ? { ...n, id: String(resData.note.id || n.id), rowNumber: Number(resData.note.rowNumber) }
-              : n
-          );
-          try {
-            localStorage.setItem('app_notes_abujar287', JSON.stringify(next));
-          } catch {}
-          return next;
-        });
-      }
-      showToast('Note saved below existing notes in Sheet BB:BF!', 'success');
-    } catch {
-      addToOfflineQueue({ action: 'addnote', sheetTab: 'abujar287', payload });
-      showToast('Note saved locally; queued for Google Sheet sync.', 'info');
-    }
-  }, [isSuperAdmin, notes, showToast]);
+  }, [currentTab, hasNotepadAccess, showToast]);
 
   const handleUpdateNote = useCallback(async (
     updatedNote: NoteEntry,
     original?: { notename: string; datetime: string }
   ) => {
-    if (!isSuperAdmin) return;
-    const nextList = notes.map(n => (n.id === updatedNote.id ? updatedNote : n));
-    setNotes(nextList);
-    try {
-      localStorage.setItem('app_notes_abujar287', JSON.stringify(nextList));
-    } catch {}
+    if (!hasNotepadAccess) return;
+    const targetTab = currentTab;
+    setNotes(prev => {
+      const nextList = prev.map(n => (n.id === updatedNote.id ? updatedNote : n));
+      try {
+        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(nextList));
+      } catch {}
+      return nextList;
+    });
 
     const payload = {
       action: 'updatenote',
-      sheetTab: 'abujar287',
+      sheetTab: targetTab,
       rowNumber: updatedNote.rowNumber,
       datetime: updatedNote.datetime,
       notename: updatedNote.notename,
@@ -1681,37 +1748,49 @@ export default function App() {
     };
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      addToOfflineQueue({ action: 'updatenote', sheetTab: 'abujar287', payload });
+      addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
       showToast('Note updated offline! Will sync when online.', 'info');
       return;
     }
 
-    try {
-      const res = await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    showToast('Note updated!', 'success');
+
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error('Update note failed');
+        const txt = await res.text();
+        let resData: any = null;
+        try { resData = JSON.parse(txt); } catch {}
+        if (resData?.result === 'forbidden') {
+          showToast('Sheet update blocked by old Apps Script deploy — please Deploy New Version!', 'error');
+          addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
+        }
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
       });
-      if (!res.ok) throw new Error('Update note failed');
-      showToast('Note updated in Google Sheet BB:BF!', 'success');
-    } catch {
-      addToOfflineQueue({ action: 'updatenote', sheetTab: 'abujar287', payload });
-      showToast('Note updated locally; queued for sync.', 'info');
-    }
-  }, [isSuperAdmin, notes, showToast]);
+  }, [currentTab, hasNotepadAccess, showToast]);
 
   const handleDeleteNote = useCallback(async (targetNote: NoteEntry) => {
-    if (!isSuperAdmin) return;
-    const nextList = notes.filter(n => n.id !== targetNote.id);
-    setNotes(nextList);
-    try {
-      localStorage.setItem('app_notes_abujar287', JSON.stringify(nextList));
-    } catch {}
+    if (!hasNotepadAccess) return;
+    const targetTab = currentTab;
+    setNotes(prev => {
+      const nextList = prev.filter(n => n.id !== targetNote.id);
+      try {
+        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(nextList));
+      } catch {}
+      return nextList;
+    });
+    pendingNoteMapRef.current.delete(targetNote.id);
     playSound('delete');
 
     const payload = {
       action: 'deletenote',
-      sheetTab: 'abujar287',
+      sheetTab: targetTab,
       rowNumber: targetNote.rowNumber,
       notename: targetNote.notename,
       datetime: targetNote.datetime,
@@ -1720,24 +1799,25 @@ export default function App() {
     };
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      addToOfflineQueue({ action: 'deletenote', sheetTab: 'abujar287', payload });
+      addToOfflineQueue({ action: 'deletenote', sheetTab: targetTab, payload });
       showToast('Note deleted offline; queued for sync.', 'info');
       return;
     }
 
-    try {
-      const res = await fetchSheetApi('/api/sheet-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    showToast('Note deleted', 'info');
+
+    fetchSheetApi('/api/sheet-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Delete note failed');
+      })
+      .catch(() => {
+        addToOfflineQueue({ action: 'deletenote', sheetTab: targetTab, payload });
       });
-      if (!res.ok) throw new Error('Delete note failed');
-      showToast('Note deleted from Google Sheet BB:BF', 'info');
-    } catch {
-      addToOfflineQueue({ action: 'deletenote', sheetTab: 'abujar287', payload });
-      showToast('Note removed locally; queued for sync.', 'info');
-    }
-  }, [isSuperAdmin, notes, showToast]);
+  }, [currentTab, hasNotepadAccess, showToast]);
 
   useEffect(() => {
     setLastSyncTime(formatSyncDateTime(lastSyncDate, lang));
@@ -1974,12 +2054,16 @@ export default function App() {
           setBouGiftVersion(v => v + 1);
         }
 
-        if (isSuperAdmin && tabToSync.toLowerCase() === 'abujar287' && Array.isArray(data.notes)) {
-          const mappedNotes = mapRawNotes(data.notes);
-          setNotes(mappedNotes);
-          try {
-            localStorage.setItem('app_notes_abujar287', JSON.stringify(mappedNotes));
-          } catch {}
+        if (hasNotepadAccess) {
+          if (Array.isArray(data.notes)) {
+            const mappedNotes = mergeNotesWithPending(mapRawNotes(data.notes), tabToSync);
+            setNotes(mappedNotes);
+            try {
+              localStorage.setItem(`app_notes_${tabToSync}`, JSON.stringify(mappedNotes));
+            } catch {}
+          } else {
+            handleSyncNotes(true, tabToSync);
+          }
         }
 
         // Load categories EXCLUSIVELY from Google Sheet (100% dynamic, zero hardcoding in codebase)
@@ -2126,7 +2210,7 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [currentTab, isSuperAdmin, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
+  }, [currentTab, handleSyncNotes, hasNotepadAccess, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
 
   // Initial sync on mount or auth
   useEffect(() => {
@@ -2812,11 +2896,11 @@ export default function App() {
                 />
               )}
 
-              {activeTab === 'notepad' && isSuperAdmin && (
+              {activeTab === 'notepad' && hasNotepadAccess && (
                 <NotepadTab
                   notes={notes}
                   isSyncing={isSyncingNotes || isSyncing}
-                  onSyncNotes={handleSyncNotes}
+                  onSyncNotes={() => handleSyncNotes(false)}
                   onAddNote={handleAddNote}
                   onUpdateNote={handleUpdateNote}
                   onDeleteNote={handleDeleteNote}
@@ -2949,7 +3033,7 @@ export default function App() {
       <CategoryManagerModal isOpen={showCategoryManager} onClose={() => setShowCategoryManager(false)} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onUpdateCategories={handleUpdateCategories} onOpenAddModal={t => { setCatModalType(t); setShowAddCatModal(true); }} lang={lang} t={t} />
       <ExportMonthModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} onExport={handlePerformExportZip} currentMonth={selectedMonth} monthMappings={monthMappings} lang={lang} t={t} />
       <MobileInstallModal isOpen={showMobileModal} onClose={() => setShowMobileModal(false)} isInstallable={isInstallable} onInstall={install} lang={lang} t={t} />
-      <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={currentUser?.role === 'super_admin'} lang={lang} t={t} />
+      <EditProfileModal user={editingUser} isOpen={editingUser !== null} onClose={() => setEditingUser(null)} onSave={handleSaveProfile} isAdmin={isSuperAdmin || currentUser?.role === 'admin'} lang={lang} t={t} />
       <ExitConfirmModal isOpen={showExitModal} onClose={handleCloseExitModal} onConfirm={handleConfirmExit} lang={lang} t={t} />
       <UserProfileModal user={currentUser} isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} lang={lang} t={t} onLogout={handleLogout} />
       <AppUpdateModal 

@@ -119,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
       baseTabs.push('users');
     }
 
-    return baseTabs.filter(tab => tab !== 'upcoming_3_month' && tab !== 'notepad');
+    return baseTabs.filter(tab => tab !== 'upcoming_3_month');
   }, [currentUser, isSuperAdmin]);
 
   const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }>; superAdminOnly?: boolean }[] = [

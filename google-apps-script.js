@@ -227,11 +227,8 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.১১ নোটপ্যাড নোট যোগ, আপডেট ও ডিলিট (BB:BF কলাম - শুধুমাত্র abujar287 সুপার এডমিন)
+    // ৫.১১ নোটপ্যাড নোট যোগ, আপডেট ও ডিলিট (BB:BF কলাম - প্রতিটি ইউজারের নিজস্ব শিট ট্যাবে)
     if (action === 'addnote' || action === 'insertnote') {
-      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
-        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
-      }
       var addedNote = insertNoteToRange(sheet, data);
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
@@ -242,16 +239,10 @@ function doPost(e) {
     }
 
     if (action === 'updatenote') {
-      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
-        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
-      }
       return handleUpdateNoteRange(sheet, data);
     }
 
     if (action === 'deletenote') {
-      if (sheet.getName().trim().toLowerCase() !== 'abujar287') {
-        return ContentService.createTextOutput(JSON.stringify({ result: 'forbidden', message: 'Super admin only' })).setMimeType(ContentService.MimeType.JSON);
-      }
       return handleDeleteNoteRange(sheet, data, e ? e.parameter : null);
     }
     
@@ -311,9 +302,9 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // ১.৬ নোটপ্যাড লিস্ট (BB:BF - শুধুমাত্র abujar287)
+  // ১.৬ নোটপ্যাড লিস্ট (BB:BF - সংশ্লিষ্ট ইউজার ট্যাব থেকে)
   if (action === 'getnotes') {
-    var notesOnly = (sheet.getName().trim().toLowerCase() === 'abujar287') ? readNotesFromRange(sheet) : [];
+    var notesOnly = readNotesFromRange(sheet);
     return ContentService.createTextOutput(JSON.stringify({
       result: 'success',
       sheetTab: sheet.getName(),
@@ -411,7 +402,7 @@ function doGet(e) {
   var userData = readUsersFromRange(ss, false);
   var upcoming3MData = readUpcoming3MonthFromRange(sheet);
   var bouGiftData = readBouGiftFromRange(sheet);
-  var notesData = (sheet.getName().trim().toLowerCase() === 'abujar287') ? readNotesFromRange(sheet) : [];
+  var notesData = readNotesFromRange(sheet);
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -461,8 +452,8 @@ function getTargetSheet(ss, tabName, skipHeaderCheck) {
 }
 
 function createUnifiedTemplate(sheet) {
-  if (sheet.getMaxColumns() < 52) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 52 - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < 58) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 58 - sheet.getMaxColumns());
   }
 
   // Row 1: Merged Section Headers
@@ -500,12 +491,14 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 1, 2, 43).setBorder(true, true, true, true, true, true);
   sheet.getRange(1, 45, 2, 4).setBorder(true, true, true, true, true, true);
   ensureBouGiftHeaders(sheet);
+  ensureNotepadHeaders(sheet);
   
   try {
     sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(1, 5, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(1, 24, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(1, 26, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
+    sheet.getRange(3, 54, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
   } catch (e) {}
 
   var defaultCats = [
@@ -574,6 +567,7 @@ function ensureUnifiedTemplateHeaders(sheet) {
     } catch (e) {}
   }
   ensureBouGiftHeaders(sheet);
+  ensureNotepadHeaders(sheet);
 }
 
 function getNextEmptyRowInRange(sheet, startCol, numCols) {
@@ -1838,8 +1832,37 @@ function getLastUsedRowInNotepad(sheet) {
 }
 
 function insertNoteToRange(sheet, data) {
-  ensureNotepadHeaders(sheet);
-  var lastUsed = getLastUsedRowInNotepad(sheet);
+  if (sheet.getMaxColumns() < 58) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 58 - sheet.getMaxColumns());
+  }
+
+  var lastRow = Math.max(sheet.getLastRow(), 2);
+  var vals = sheet.getRange(1, 54, lastRow, 5).getValues();
+
+  var r1 = String(vals[0] && vals[0][0] ? vals[0][0] : '').trim();
+  var r2 = String(vals[1] && vals[1][0] ? vals[1][0] : '').trim();
+  var r2Name = String(vals[1] && vals[1][1] ? vals[1][1] : '').trim();
+  if (!r1 && !r2 && !r2Name) {
+    try { sheet.getRange(1, 54, 1, 5).breakApart(); } catch (e) {}
+    sheet.getRange(1, 54, 1, 5).merge().setValue('Notepad').setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(2, 54, 1, 5).setValues([['Datetime', 'Notename', 'Category', 'Note', 'Action']])
+      .setFontWeight('bold').setHorizontalAlignment('center');
+  }
+
+  var lastUsed = 2;
+  for (var r = vals.length - 1; r >= 2; r--) {
+    var row = vals[r];
+    if (
+      (row[0] !== '' && row[0] !== null && row[0] !== undefined) ||
+      (row[1] !== '' && row[1] !== null && row[1] !== undefined) ||
+      (row[2] !== '' && row[2] !== null && row[2] !== undefined) ||
+      (row[3] !== '' && row[3] !== null && row[3] !== undefined) ||
+      (row[4] !== '' && row[4] !== null && row[4] !== undefined)
+    ) {
+      lastUsed = r + 1;
+      break;
+    }
+  }
   var targetRow = Math.max(lastUsed + 1, 3);
 
   var dt = String(data.datetime || '').trim();
@@ -1855,11 +1878,7 @@ function insertNoteToRange(sheet, data) {
   var noteBody = String(data.note || data.content || '');
   var actionVal = String(data.actionLabel || 'SYNC').trim() || 'SYNC';
 
-  sheet.getRange(targetRow, 54).setNumberFormat('@');
   sheet.getRange(targetRow, 54, 1, 5).setValues([[dt, notename, category, noteBody, actionVal]]);
-  try {
-    sheet.getRange(targetRow, 54, 1, 5).setBorder(true, true, true, true, true, true);
-  } catch (e) {}
 
   return {
     id: 'note_' + targetRow,
