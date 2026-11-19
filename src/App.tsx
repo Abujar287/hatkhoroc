@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { App as CapApp } from '@capacitor/app';
 import {
-  PlusCircle,
   ListOrdered,
   Lock,
   Eye,
@@ -10,7 +9,8 @@ import {
   BarChart3,
   Sliders,
   CalendarClock,
-  Settings
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 import {
   initAudioUnlock,
@@ -2366,6 +2366,73 @@ export default function App() {
     }
   }, [isAuthenticated, currentTab, handleManualSync]);
 
+  // Universal Pull-Down-To-Sync across all tabs
+  const [pullDistance, setPullDistance] = useState<number>(0);
+  const [isPulling, setIsPulling] = useState<boolean>(false);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  const pullStartXRef = useRef<number | null>(null);
+  const isPullActiveRef = useRef<boolean>(false);
+  const pullDistanceRef = useRef<number>(0);
+
+  const handleMainTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (isSyncing || e.touches.length !== 1) return;
+    const el = mainScrollRef.current;
+    if (el && el.scrollTop > 2) return;
+    pullStartYRef.current = e.touches[0].clientY;
+    pullStartXRef.current = e.touches[0].clientX;
+    isPullActiveRef.current = false;
+  }, [isSyncing]);
+
+  const handleMainTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (pullStartYRef.current === null || isSyncing || e.touches.length !== 1) return;
+    const el = mainScrollRef.current;
+    if (el && el.scrollTop > 2) {
+      pullStartYRef.current = null;
+      isPullActiveRef.current = false;
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      setIsPulling(false);
+      return;
+    }
+
+    const dy = e.touches[0].clientY - pullStartYRef.current;
+    const dx = Math.abs(e.touches[0].clientX - (pullStartXRef.current ?? e.touches[0].clientX));
+
+    if (!isPullActiveRef.current) {
+      if (dy <= 10 || dx > dy) {
+        if (dy < -4) pullStartYRef.current = null;
+        return;
+      }
+      isPullActiveRef.current = true;
+      setIsPulling(true);
+    }
+
+    if (dy <= 0) {
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      return;
+    }
+
+    const damped = Math.min(72, Math.round(dy * 0.42));
+    pullDistanceRef.current = damped;
+    setPullDistance(damped);
+  }, [isSyncing]);
+
+  const handleMainTouchEnd = useCallback(() => {
+    const shouldSync = isPullActiveRef.current && pullDistanceRef.current >= 46 && !isSyncing;
+    pullStartYRef.current = null;
+    pullStartXRef.current = null;
+    isPullActiveRef.current = false;
+    pullDistanceRef.current = 0;
+    setIsPulling(false);
+    setPullDistance(0);
+
+    if (shouldSync) {
+      handleManualSync(currentTab);
+    }
+  }, [isSyncing, handleManualSync, currentTab]);
+
   // Offline queue listener & auto-sync when back online
   useEffect(() => {
     const triggerQueueSync = async () => {
@@ -3195,14 +3262,22 @@ export default function App() {
     <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
       <div className="w-full flex flex-col h-full bg-transparent relative overflow-hidden">
         
-        {toast.show && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#0B3C39] rounded-xl shadow-2xl border border-teal-600/60 animate-fadeIn text-xs font-bold text-[#F0FDFA] flex items-center gap-2 max-w-[90vw]">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${
-              toast.type === 'error' ? 'bg-rose-400' : toast.type === 'info' ? 'bg-amber-300' : 'bg-emerald-400'
-            }`} />
-            <span className="truncate">{toast.message}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {toast.show && (
+            <motion.div
+              initial={{ opacity: 0, y: -14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.96 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[#0B3C39] rounded-xl shadow-2xl border border-teal-600/60 text-xs font-bold text-[#F0FDFA] flex items-center gap-2 max-w-[90vw]"
+            >
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                toast.type === 'error' ? 'bg-rose-400' : toast.type === 'info' ? 'bg-amber-300' : 'bg-emerald-400'
+              }`} />
+              <span className="truncate">{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <Header
           currentUser={currentUser}
@@ -3224,9 +3299,53 @@ export default function App() {
           onNotificationAction={handleNotificationAction}
         />
 
-        <main id="main-scroll-container" className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch]">
-          <div className="w-full max-w-7xl mx-auto space-y-4">
-            <div className="w-full">
+        <main
+          id="main-scroll-container"
+          ref={mainScrollRef}
+          onTouchStart={handleMainTouchStart}
+          onTouchMove={handleMainTouchMove}
+          onTouchEnd={handleMainTouchEnd}
+          onTouchCancel={handleMainTouchEnd}
+          className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch] relative"
+        >
+          {/* Pull-to-Sync Visual Indicator */}
+          {(pullDistance > 0 || isSyncing) && (
+            <div
+              className="w-full flex items-center justify-center overflow-hidden transition-all duration-150 mb-2"
+              style={{ height: isSyncing ? 36 : Math.max(24, Math.round(pullDistance * 0.65)) }}
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0B3C39] border border-teal-700/70 text-[11px] font-semibold text-emerald-300 shadow-sm">
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : 'text-teal-200'}`}
+                  style={!isSyncing ? { transform: `rotate(${pullDistance * 4}deg)` } : undefined}
+                />
+                <span>
+                  {isSyncing
+                    ? t('Syncing...', 'সিঙ্ক হচ্ছে...')
+                    : pullDistance >= 46
+                    ? t('Release to sync', 'ছেড়ে দিন সিঙ্ক হবে')
+                    : t('Pull down to sync', 'সিঙ্ক করতে নিচে টানুন')}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div
+            className="w-full max-w-7xl mx-auto space-y-4"
+            style={{
+              transform: pullDistance > 0 ? `translateY(${Math.round(pullDistance * 0.35)}px)` : undefined,
+              transition: isPulling ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full"
+              >
               {activeTab === 'summary' && (
                 <SummaryTab
                   transactions={transactions}
@@ -3416,15 +3535,15 @@ export default function App() {
                   appLastUpdateTime={appLastUpdateTime}
                 />
               )}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[64px] border-t border-teal-800/60">
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[64px] border-t border-teal-800/50">
           <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
               { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
-              { id: 'entry' as const, label: 'Entry', icon: PlusCircle },
               { id: 'details' as const, label: 'Details', icon: ListOrdered },
               { id: 'budget' as const, label: 'Budget', icon: Sliders },
               { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
@@ -3445,7 +3564,13 @@ export default function App() {
                       transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                     />
                   )}
-                  <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 relative z-10 ${isActive ? 'text-white' : 'text-teal-300/75 hover:text-teal-100'}`} />
+                  <motion.div
+                    animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.06 : 1 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+                    className="relative z-10 flex items-center justify-center"
+                  >
+                    <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 ${isActive ? 'text-white' : 'text-teal-300/75 hover:text-teal-100'}`} />
+                  </motion.div>
                   <span className={`text-[10px] sm:text-[11px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-white' : 'text-teal-300/75'}`}>
                     {item.label}
                   </span>

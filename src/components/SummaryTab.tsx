@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Globe,
   ChevronLeft,
@@ -629,54 +629,59 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
         </div>
 
-        {/* Big Net Balance Display */}
-        <div className="mb-3 relative">
-          <span className="text-[10px] font-bold text-teal-300/80 uppercase tracking-wider block">
-            {globalFilterMode === 'all'
-              ? t('All-Time Balance', 'সর্বমোট অবশিষ্ট ব্যালেন্স')
-              : t('Monthly Balance', 'এই মাসের অবশিষ্ট')}
-          </span>
-          <div className="flex items-baseline gap-1.5 mt-0.5">
+        {/* Single-Line 3-Column KPI Row: Income | Expense | Balance (Center-aligned) */}
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ duration: 0.16 }}
+            className="bg-[#062423] rounded-xl p-2 sm:p-3 border border-emerald-700/50 min-w-0 flex flex-col items-center justify-center text-center"
+          >
+            <div className="flex items-center justify-center gap-1 mb-0.5">
+              <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[10px] sm:text-xs text-teal-200/85 font-semibold truncate">
+                {t('Income', 'আয়')}
+              </span>
+            </div>
+            <span className="text-sm sm:text-lg font-black text-emerald-400 tabular-nums truncate w-full">
+              +{formatNumberLocale(stats.inc, lang)}
+            </span>
+          </motion.div>
+
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ duration: 0.16 }}
+            className="bg-[#062423] rounded-xl p-2 sm:p-3 border border-[#FF7A59]/40 min-w-0 flex flex-col items-center justify-center text-center"
+          >
+            <div className="flex items-center justify-center gap-1 mb-0.5">
+              <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FF7A59] shrink-0" />
+              <span className="text-[10px] sm:text-xs text-teal-200/85 font-semibold truncate">
+                {t('Expense', 'খরচ')}
+              </span>
+            </div>
+            <span className="text-sm sm:text-lg font-black text-[#FF7A59] tabular-nums truncate w-full">
+              -{formatNumberLocale(stats.exp, lang)}
+            </span>
+          </motion.div>
+
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ duration: 0.16 }}
+            className={`bg-[#062423] rounded-xl p-2 sm:p-3 border min-w-0 flex flex-col items-center justify-center text-center ${
+              stats.net >= 0 ? 'border-teal-600/60' : 'border-rose-700/60'
+            }`}
+          >
+            <span className="text-[10px] sm:text-xs text-teal-200/85 font-semibold truncate block mb-0.5">
+              {t('Balance', 'ব্যালেন্স')}
+            </span>
             <span
-              className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums transition-colors duration-200 ${
+              className={`text-sm sm:text-lg font-black tabular-nums truncate w-full ${
                 stats.net >= 0 ? 'text-emerald-400' : 'text-[#FF7A59]'
               }`}
             >
               {stats.net >= 0 ? '+' : ''}
               {formatNumberLocale(stats.net, lang)}
             </span>
-          </div>
-        </div>
-
-        {/* 2-Column KPI Cards (Income vs Expense) */}
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="bg-[#062423] rounded-xl p-3 border border-emerald-700/50 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-950 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-700/60">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] text-teal-200/90 font-semibold block truncate">
-                {t('Income', 'আয়')}
-              </span>
-              <span className="text-sm font-black text-emerald-400 tabular-nums truncate block">
-                +{formatNumberLocale(stats.inc, lang)}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-[#062423] rounded-xl p-3 border border-[#FF7A59]/40 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#FF7A59]/15 text-[#FF7A59] flex items-center justify-center shrink-0 border border-[#FF7A59]/40">
-              <ArrowDownLeft className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] text-teal-200/90 font-semibold block truncate">
-                {t('Expense', 'খরচ')}
-              </span>
-              <span className="text-sm font-black text-[#FF7A59] tabular-nums truncate block">
-                -{formatNumberLocale(stats.exp, lang)}
-              </span>
-            </div>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -709,39 +714,47 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             </button>
           </div>
 
-          {showCalendarGrid && (
-            <div className="space-y-3 animate-fadeIn">
-              {/* Standard 7-Column (Sun - Sat) Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] font-bold text-teal-300/80 py-0.5">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                  <span key={d} className="tracking-tight">{d}</span>
-                ))}
-              </div>
+          <AnimatePresence initial={false}>
+            {showCalendarGrid && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-3 overflow-hidden"
+              >
+                {/* Standard 7-Column (Sun - Sat) Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] font-bold text-teal-300/80 py-0.5">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                    <span key={d} className="tracking-tight">{d}</span>
+                  ))}
+                </div>
 
-              <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                {calendarGrid.emptySlots.map((_, idx) => (
-                  <div key={`empty-${idx}`} className="min-h-[58px] sm:min-h-[64px]" />
-                ))}
-                {calendarGrid.days.map(d => renderDayCell(d.dateStr, d.isToday, d.displayLabel))}
-              </div>
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                  {calendarGrid.emptySlots.map((_, idx) => (
+                    <div key={`empty-${idx}`} className="min-h-[58px] sm:min-h-[64px]" />
+                  ))}
+                  {calendarGrid.days.map(d => renderDayCell(d.dateStr, d.isToday, d.displayLabel))}
+                </div>
 
-              {/* Bottom Legend */}
-              <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shrink-0" />
-                  <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
+                {/* Bottom Legend */}
+                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shrink-0" />
+                    <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shrink-0" />
+                    <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
+                    <span>{t('Today', 'আজ')}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shrink-0" />
-                  <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
-                  <span>{t('Today', 'আজ')}</span>
-                </div>
-              </div>
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

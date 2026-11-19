@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   NotebookPen,
   Plus,
@@ -131,7 +132,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       let yr = Number(slashMatch[3]);
       if (yr < 100) yr += 2000;
 
-      // If first token > 12, it's definitely DD/MM; otherwise assume M/D if <= 12 unless second > 12
       let month = a - 1;
       let day = b;
       if (a > 12) {
@@ -191,7 +191,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
     const mins = String(d.getMinutes()).padStart(2, '0');
-    return `${day}-${mon}-${yr}  ${String(hours).padStart(2, '0')}:${mins}${ampm}`;
+    return `${day} ${mon} ${yr} · ${String(hours).padStart(2, '0')}:${mins} ${ampm}`;
   };
 
   const formatCleanPreview = (body: string): string => {
@@ -331,7 +331,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
 
   // Long press handlers to enter select mode - scroll-proof!
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent, noteId: string) => {
-    if (isSelectMode) return; // In select mode, tap toggles immediately
+    if (isSelectMode) return;
 
     if ('touches' in e && e.touches.length > 0) {
       touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -359,7 +359,6 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
     if (e.touches.length > 0) {
       const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
       const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-      // If user moved more than 6px in any direction, they are scrolling! Cancel long press!
       if (dx > 6 || dy > 6) {
         isScrollingRef.current = true;
         if (pressTimerRef.current) {
@@ -489,196 +488,279 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   };
 
   const hasExtraFilterActive = sortOrder !== 'newest' || dateFilter !== 'all';
+  const isAnyFilterActive = searchQuery.trim() !== '' || selectedCategory !== 'All' || hasExtraFilterActive;
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('All');
+    setSortOrder('newest');
+    setDateFilter('all');
+    setCustomStart('');
+    setCustomEnd('');
+  };
 
   return (
-    <div className="w-full max-w-4xl mx-auto pb-20 space-y-2 animate-fadeIn relative">
-      {/* Minimal Single-Line Top Bar (Search + Sheet BD Category + Sort/Date Toggle) */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
+    <div className="w-full max-w-4xl mx-auto pb-24 space-y-3 relative">
+      {/* Clean, Minimal Toolbar Card */}
+      <div className="bg-[#0B3C39] border border-teal-800/70 rounded-2xl p-2.5 space-y-2 shadow-sm">
+        <div className="flex items-center gap-2">
           {/* Search Input */}
           <div className="relative flex-1 min-w-0">
-            <Search className="w-3.5 h-3.5 text-teal-400/75 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search notes..."
-              className="w-full h-8 pl-8 pr-2.5 rounded-xl bg-[#0B3C39] text-[#F0FDFA] border border-teal-800/70 text-xs font-medium placeholder:text-teal-400/55 focus:outline-none focus:border-emerald-400"
+              className="w-full h-9 pl-8.5 pr-7 rounded-xl border border-teal-700/50 text-xs font-medium focus:outline-none focus:border-emerald-400"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
           {/* Category Filter (Auto from Sheet BD) */}
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="w-[100px] sm:w-[132px] h-8 px-2 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/70 text-[11px] font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate shrink-0"
+            className="w-[104px] sm:w-[140px] h-9 px-2.5 rounded-xl border border-teal-700/50 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate shrink-0"
             aria-label="Category filter"
           >
-            <option value="All">All Category</option>
+            <option value="All">All Notes</option>
             {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
 
           {/* Toggle Sort & Date Drawer */}
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.94 }}
             onClick={() => setShowMoreFilters(prev => !prev)}
-            className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 cursor-pointer transition-colors active:scale-95 ${
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
               showMoreFilters || hasExtraFilterActive
-                ? 'bg-emerald-600 text-white border-emerald-400'
-                : 'bg-[#0B3C39] hover:bg-[#0E4844] text-teal-200 border-teal-800/70'
+                ? 'bg-[#0D9488] text-white border-emerald-400/70'
+                : 'bg-[#062423] hover:bg-teal-900/80 text-teal-200 border-teal-700/60'
             }`}
             title="Sort & Date Filters"
             aria-label="Sort & Date Filters"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-          </button>
+          </motion.button>
         </div>
 
-        {/* Collapsible Sort & Date Row */}
-        {showMoreFilters && (
-          <div className="grid grid-cols-2 gap-1.5 animate-fadeIn">
-            <select
-              value={sortOrder}
-              onChange={e => setSortOrder(e.target.value as 'newest' | 'sheet' | 'az')}
-              className="h-9 px-2.5 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/80 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+        {/* Animated Collapsible Sort & Date Row */}
+        <AnimatePresence>
+          {showMoreFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden"
             >
-              <option value="newest">Sort: Newest</option>
-              <option value="sheet">Sort: Sheet Order</option>
-              <option value="az">Sort: Title A–Z</option>
-            </select>
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-teal-800/50">
+                <select
+                  value={sortOrder}
+                  onChange={e => setSortOrder(e.target.value as 'newest' | 'sheet' | 'az')}
+                  className="h-9 px-2.5 rounded-xl border border-teal-700/50 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+                >
+                  <option value="newest">Sort: Newest</option>
+                  <option value="sheet">Sort: Sheet Order</option>
+                  <option value="az">Sort: Title A–Z</option>
+                </select>
 
-            <select
-              value={dateFilter}
-              onChange={e => {
-                const val = e.target.value;
-                if (val === 'custom') {
-                  setShowCustomDateModal(true);
-                } else {
-                  setDateFilter(val);
-                }
-              }}
-              className="h-9 px-2.5 rounded-xl bg-[#0B3C39] text-teal-100 border border-teal-800/80 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
-            >
-              <option value="all">Date: All</option>
-              <option value="today">Today</option>
-              <option value="previous_day">Previous Day</option>
-              <option value="last_7_days">Last 7 Days</option>
-              <option value="this_month">This Month</option>
-              <option value="previous_month">Previous Month</option>
-              <option value="this_year">This Year</option>
-              <option value="last_year">Last Year</option>
-              <option value="custom">Custom Range...</option>
-            </select>
-          </div>
+                <select
+                  value={dateFilter}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setShowCustomDateModal(true);
+                    } else {
+                      setDateFilter(val);
+                    }
+                  }}
+                  className="h-9 px-2.5 rounded-xl border border-teal-700/50 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer truncate"
+                >
+                  <option value="all">Date: All Time</option>
+                  <option value="today">Today</option>
+                  <option value="previous_day">Previous Day</option>
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="this_month">This Month</option>
+                  <option value="previous_month">Previous Month</option>
+                  <option value="this_year">This Year</option>
+                  <option value="last_year">Last Year</option>
+                  <option value="custom">Custom Range...</option>
+                </select>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Quiet Unboxed Summary Strip */}
+      <div className="flex items-center justify-between px-1.5 text-[11px] text-teal-300/80">
+        <div className="flex items-center gap-1.5 tabular-nums">
+          <span className="font-semibold text-teal-100">{filteredNotes.length}</span>
+          <span>{filteredNotes.length === 1 ? 'note' : 'notes'}</span>
+          {selectedCategory !== 'All' && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="text-emerald-300 font-medium">{selectedCategory}</span>
+            </>
+          )}
+          {dateFilter !== 'all' && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="capitalize">{dateFilter.replace(/_/g, ' ')}</span>
+            </>
+          )}
+        </div>
+        {isAnyFilterActive && (
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 cursor-pointer transition-colors"
+          >
+            Reset
+          </button>
         )}
       </div>
 
-      {/* SINGLE SIMPLE STICKY SELECTION ACTION BAR */}
-      {isSelectMode && (
-        <div className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border border-emerald-500/80 rounded-xl px-2.5 py-1.5 shadow-xl flex items-center justify-between gap-2 animate-fadeIn">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <button
-              type="button"
-              onClick={handleToggleSelectAll}
-              className="px-2.5 py-1 rounded-lg bg-teal-900/90 hover:bg-teal-800 text-teal-100 border border-teal-700 font-bold text-[11px] cursor-pointer active:scale-95 transition-all whitespace-nowrap"
-            >
-              {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
-                ? 'None'
-                : 'All'}
-            </button>
-            <span className="text-[11px] font-bold text-emerald-300 tabular-nums whitespace-nowrap">
-              {selectedNoteIds.length} selected
-            </span>
-          </div>
+      {/* STICKY MULTI-SELECT ACTION BAR */}
+      <AnimatePresence>
+        {isSelectMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.16 }}
+            className="sticky top-0 z-30 bg-[#062423]/95 backdrop-blur-md border border-emerald-500/70 rounded-2xl px-3 py-2 shadow-xl flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="px-2.5 py-1 rounded-lg bg-teal-900/90 hover:bg-teal-800 text-teal-100 border border-teal-700 font-semibold text-[11px] cursor-pointer active:scale-95 transition-all whitespace-nowrap"
+              >
+                {selectedNoteIds.length === filteredNotes.length && filteredNotes.length > 0
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </button>
+              <span className="text-xs font-bold text-emerald-300 tabular-nums whitespace-nowrap">
+                {selectedNoteIds.length} selected
+              </span>
+            </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {selectedNoteIds.length === 1 && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {selectedNoteIds.length === 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = notes.find(n => n.id === selectedNoteIds[0]);
+                    if (target) handleOpenNoteModal(target);
+                  }}
+                  className="h-8 px-2.5 rounded-lg bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 font-semibold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
+                  title="Preview selected note"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>View</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={selectedNoteIds.length === 0}
+                onClick={() => {
+                  if (!bulkCategoryTarget && categories.length > 0) {
+                    setBulkCategoryTarget(categories[0]);
+                  }
+                  setShowBulkCategoryModal(true);
+                }}
+                className="h-8 px-2.5 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] disabled:opacity-40 text-white font-semibold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>Category</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={selectedNoteIds.length === 0}
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="h-8 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-semibold flex items-center justify-center cursor-pointer text-[11px] transition-all active:scale-95"
+                title="Delete selected"
+                aria-label="Delete selected"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
-                  const target = notes.find(n => n.id === selectedNoteIds[0]);
-                  if (target) handleOpenNoteModal(target);
+                  setIsSelectMode(false);
+                  setSelectedNoteIds([]);
                 }}
-                className="h-8 px-2.5 rounded-lg bg-teal-800 hover:bg-teal-700 text-teal-100 border border-teal-600/80 font-bold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
-                title="Preview selected note"
+                className="w-8 h-8 rounded-lg bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer flex items-center justify-center transition-all active:scale-95"
+                title="Cancel selection"
+                aria-label="Cancel selection"
               >
-                <Eye className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Preview</span>
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <button
-              type="button"
-              disabled={selectedNoteIds.length === 0}
-              onClick={() => {
-                if (!bulkCategoryTarget && categories.length > 0) {
-                  setBulkCategoryTarget(categories[0]);
-                }
-                setShowBulkCategoryModal(true);
-              }}
-              className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold flex items-center gap-1 cursor-pointer text-[11px] transition-all active:scale-95 whitespace-nowrap"
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Category</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={selectedNoteIds.length === 0}
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              className="h-8 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold flex items-center justify-center cursor-pointer text-[11px] transition-all active:scale-95"
-              title="Delete selected"
-              aria-label="Delete selected"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsSelectMode(false);
-                setSelectedNoteIds([]);
-              }}
-              className="w-8 h-8 rounded-lg bg-[#042F2E] hover:bg-teal-950 text-teal-300 border border-teal-700/80 font-bold cursor-pointer flex items-center justify-center transition-all active:scale-95"
-              title="Cancel selection"
-              aria-label="Cancel selection"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ALL NOTES LIST (Demo Card Design in App Teal Palette) */}
+      {/* NOTES LIST */}
       {filteredNotes.length === 0 ? (
-        <div className="bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-10 text-center space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#0B3C39] border border-teal-800/70 rounded-2xl p-10 text-center space-y-3"
+        >
           <div className="w-12 h-12 rounded-2xl bg-[#062423] border border-teal-800/70 flex items-center justify-center mx-auto text-teal-400">
             <FolderOpen className="w-6 h-6" />
           </div>
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-[#F0FDFA]">
-              {notes.length === 0 ? 'No notes synced yet' : 'No matching notes found'}
+              {notes.length === 0 ? 'No notes yet' : 'No matching notes'}
             </h3>
             <p className="text-xs text-teal-300/75 max-w-sm mx-auto">
               {notes.length === 0
-                ? 'Tap the floating + button below to add a new note.'
-                : 'Try adjusting your search query, category, or date filter.'}
+                ? 'Tap the + button at the bottom right to create your first note.'
+                : 'Try adjusting your search or filters to find what you need.'}
             </p>
           </div>
-        </div>
+        </motion.div>
       ) : (
-        <div className="flex flex-col gap-2 pb-16">
-          {filteredNotes.map(note => {
+        <div className="flex flex-col gap-2">
+          {filteredNotes.map((note, idx) => {
             const isSelected = selectedNoteIds.includes(note.id);
             const compactDt = formatCompactNoteDateTime(note.datetime);
             const catLabel = (note.category || 'Uncategorized').trim();
             const previewText = formatCleanPreview(note.note);
+
             return (
-              <div
+              <motion.div
                 key={note.id}
-                onClick={() => handleOpenNoteModal(note)}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18, delay: Math.min(idx * 0.025, 0.18), ease: [0.16, 1, 0.3, 1] }}
+                whileTap={{ scale: 0.992 }}
+                onClick={() => {
+                  if (isSelectMode) {
+                    toggleSelectNote(note.id);
+                  } else {
+                    handleOpenNoteModal(note);
+                  }
+                }}
                 onMouseDown={e => handleTouchStart(e, note.id)}
                 onMouseUp={handleTouchEnd}
                 onMouseLeave={handleTouchEnd}
@@ -686,25 +768,25 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-2xl px-3.5 py-2 transition-colors cursor-pointer flex flex-col gap-1 group select-none min-w-0 ${
+                className={`border rounded-2xl px-3.5 py-3 transition-colors cursor-pointer flex flex-col gap-1.5 group select-none min-w-0 ${
                   isSelected
-                    ? 'bg-teal-900/65 border-emerald-400 ring-1 ring-emerald-400/50'
-                    : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/75 hover:border-teal-600/80'
+                    ? 'bg-teal-900/60 border-emerald-400 ring-1 ring-emerald-400/40'
+                    : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/70 hover:border-teal-600/70'
                 }`}
               >
-                {/* Row 1: Checkbox + Category Dot + Uppercase Category + DateTime + Airy Action Icons */}
+                {/* Row 1: Subtle Checkbox + Category + Date + Clean Action Icons */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 text-[11px] text-teal-300/75">
                     <button
                       type="button"
                       onClick={e => {
                         e.stopPropagation();
                         toggleSelectNote(note.id);
                       }}
-                      className={`w-[15px] h-[15px] rounded-[3px] border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                      className={`w-4 h-4 rounded-[5px] border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-emerald-500 border-emerald-400 text-[#042F2E]'
-                          : 'bg-white border-white/90 hover:border-emerald-300'
+                          ? 'bg-emerald-400 border-emerald-300 text-[#042F2E]'
+                          : 'bg-[#062423]/70 border-teal-600/60 hover:border-emerald-400 opacity-75 group-hover:opacity-100'
                       }`}
                       title={isSelected ? 'Deselect note' : 'Select note'}
                       aria-label={isSelected ? 'Deselect note' : 'Select note'}
@@ -712,65 +794,67 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                     </button>
 
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${getCategoryDotClass(catLabel)}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getCategoryDotClass(catLabel)}`} />
 
-                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-teal-200/80 truncate max-w-[56px]">
+                    <span className="font-semibold text-teal-100/90 truncate max-w-[90px] sm:max-w-[140px]">
                       {catLabel}
                     </span>
 
-                    <span className="text-[10.5px] font-normal tabular-nums text-teal-300/65 shrink-0 whitespace-nowrap">
+                    <span aria-hidden="true" className="text-teal-500/70">·</span>
+
+                    <span className="tabular-nums text-teal-300/65 shrink-0 whitespace-nowrap">
                       {compactDt}
                     </span>
                   </div>
 
-                  {/* Top-Right Action Icons (Clean, airy spacing like demo: larger Copy, Edit, small Delete) */}
-                  <div className="flex items-center gap-3 shrink-0" onClick={e => e.stopPropagation()}>
+                  {/* Clean Right Actions */}
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => handleCopy(note.note || note.notename, note.id)}
-                      className="text-teal-200/80 hover:text-emerald-300 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
+                      className="p-1.5 rounded-lg text-teal-200/75 hover:text-emerald-300 hover:bg-[#062423]/70 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Copy note"
                       aria-label="Copy note"
                     >
                       {copiedId === note.id ? (
-                        <Check className="w-[18px] h-[18px] text-emerald-400" strokeWidth={2.4} />
+                        <Check className="w-4 h-4 text-emerald-400" strokeWidth={2.4} />
                       ) : (
-                        <Copy className="w-[18px] h-[18px]" strokeWidth={1.7} />
+                        <Copy className="w-4 h-4" strokeWidth={1.8} />
                       )}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleOpenNoteModal(note, true)}
-                      className="text-teal-300/75 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
+                      className="p-1.5 rounded-lg text-teal-300/75 hover:text-white hover:bg-[#062423]/70 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Edit note"
                       aria-label="Edit note"
                     >
-                      <Edit3 className="w-[15px] h-[15px]" strokeWidth={1.6} />
+                      <Edit3 className="w-3.5 h-3.5" strokeWidth={1.8} />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteNote(note)}
-                      className="text-teal-300/65 hover:text-rose-300 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
+                      className="p-1.5 rounded-lg text-teal-300/60 hover:text-rose-300 hover:bg-rose-950/50 flex items-center justify-center cursor-pointer active:scale-95 transition-colors"
                       title="Delete note"
                       aria-label="Delete note"
                     >
-                      <Trash2 className="w-[13.5px] h-[13.5px]" strokeWidth={1.6} />
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.8} />
                     </button>
                   </div>
                 </div>
 
-                {/* Row 2: Clean Bold Title */}
-                <h3 className="text-[14.5px] font-bold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors leading-snug">
+                {/* Row 2: Crisp Title */}
+                <h3 className="text-[15px] font-semibold text-[#F0FDFA] truncate group-hover:text-emerald-300 transition-colors leading-snug tracking-tight">
                   {note.notename || 'Untitled'}
                 </h3>
 
-                {/* Row 3: Clean 1-Line Body Preview */}
-                <p className="text-[12px] text-teal-200/70 truncate leading-snug">
+                {/* Row 3: Calm Single-Line Preview */}
+                <p className="text-xs text-teal-200/65 truncate leading-relaxed">
                   {previewText}
                 </p>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -780,8 +864,12 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       {typeof document !== 'undefined' &&
         !isSelectMode &&
         createPortal(
-          <button
+          <motion.button
             type="button"
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => {
               setFormName('');
               setFormCategory(categories[0] || 'Uncategorized');
@@ -789,148 +877,171 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
               setFormBody('');
               setShowCreateModal(true);
             }}
-            className="fixed bottom-[74px] sm:bottom-20 right-5 z-[9999] w-14 h-14 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer transition-transform active:scale-95 border-2 border-white/20 pointer-events-auto"
+            className="fixed bottom-[76px] sm:bottom-20 right-5 z-[9999] w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer border border-emerald-400/40 pointer-events-auto"
             title="Add New Note"
+            aria-label="Add New Note"
           >
-            <Plus className="w-7 h-7 stroke-[3]" />
-          </button>,
+            <Plus className="w-6 h-6 stroke-[2.6]" />
+          </motion.button>,
           document.body
         )}
 
-      {/* ======================================================== */}
-      {/* SIMPLE BULK CATEGORY ASSIGN MODAL                       */}
-      {/* ======================================================== */}
-      {showBulkCategoryModal && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
-          onClick={() => setShowBulkCategoryModal(false)}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-xs p-4 space-y-3 shadow-2xl animate-modalSpring"
-            onClick={e => e.stopPropagation()}
+      {/* BULK CATEGORY ASSIGN MODAL */}
+      <AnimatePresence>
+        {showBulkCategoryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3"
+            onClick={() => setShowBulkCategoryModal(false)}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#F0FDFA]">
-                Category ({selectedNoteIds.length})
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowBulkCategoryModal(false)}
-                className="w-6 h-6 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
-              {categories.map(cat => (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-xs p-4 space-y-3 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#F0FDFA]">
+                  Assign Category ({selectedNoteIds.length})
+                </h3>
                 <button
-                  key={cat}
                   type="button"
-                  disabled={isSaving}
-                  onClick={() => handleBulkApplyCategory(cat)}
-                  className="px-3 py-1.5 rounded-xl bg-[#062423] hover:bg-emerald-600 text-teal-100 hover:text-white border border-teal-700/70 text-xs font-semibold cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                  onClick={() => setShowBulkCategoryModal(false)}
+                  className="w-7 h-7 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
                 >
-                  {cat}
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              ))}
-            </div>
+              </div>
 
-            <div className="flex items-center gap-1.5 pt-1 border-t border-teal-800/70">
-              <input
-                type="text"
-                value={bulkCategoryTarget}
-                onChange={e => setBulkCategoryTarget(e.target.value)}
-                placeholder="Or type new category..."
-                className="flex-1 min-h-[34px] px-2.5 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => handleBulkApplyCategory()}
-                disabled={isSaving || !bulkCategoryTarget.trim()}
-                className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
-              >
-                {isSaving ? '...' : 'Set'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => handleBulkApplyCategory(cat)}
+                    className="px-3 py-1.5 rounded-xl bg-[#062423] hover:bg-[#0D9488] text-teal-100 hover:text-white border border-teal-700/70 text-xs font-semibold cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
 
-      {/* ======================================================== */}
-      {/* BULK DELETE CONFIRM MODAL                               */}
-      {/* ======================================================== */}
-      {showBulkDeleteConfirm && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
-          onClick={() => setShowBulkDeleteConfirm(false)}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-sm p-4 space-y-3.5 shadow-2xl animate-modalSpring"
-            onClick={e => e.stopPropagation()}
+              <div className="flex items-center gap-1.5 pt-2 border-t border-teal-800/70">
+                <input
+                  type="text"
+                  value={bulkCategoryTarget}
+                  onChange={e => setBulkCategoryTarget(e.target.value)}
+                  placeholder="Or type new category..."
+                  className="flex-1 min-h-[36px] px-2.5 py-1 rounded-xl border border-teal-700/60 text-xs font-medium focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBulkApplyCategory()}
+                  disabled={isSaving || !bulkCategoryTarget.trim()}
+                  className="min-h-[36px] px-3 py-1 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
+                >
+                  {isSaving ? '...' : 'Set'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* BULK DELETE CONFIRM MODAL */}
+      <AnimatePresence>
+        {showBulkDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3"
+            onClick={() => setShowBulkDeleteConfirm(false)}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#F0FDFA]">
-                Delete {selectedNoteIds.length} Selected Notes
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                className="w-6 h-6 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <p className="text-xs text-teal-200/90 leading-relaxed">
-              Are you sure you want to delete {selectedNoteIds.length} notes? This will permanently remove them from Google Sheet (BB:BF).
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                disabled={isSaving}
-                className="min-h-[36px] px-4 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
-              >
-                {isSaving ? 'Deleting...' : 'Delete Notes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-sm p-4 space-y-3.5 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#F0FDFA]">
+                  Delete {selectedNoteIds.length} Selected Notes
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="w-7 h-7 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-xs text-teal-200/90 leading-relaxed">
+                Are you sure you want to delete {selectedNoteIds.length} notes? This will permanently remove them from Google Sheet (BB:BF).
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={isSaving}
+                  className="min-h-[36px] px-4 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
+                >
+                  {isSaving ? 'Deleting...' : 'Delete Notes'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ======================================================== */}
-      {/* NOTE FULL-SCREEN CONTENT EDITOR (WHEN EDITING)           */}
-      {/* ======================================================== */}
+      {/* NOTE FULL-SCREEN CONTENT EDITOR (WHEN EDITING) */}
       {activeNote && isEditingInPopup && createPortal(
-        <div className="fixed inset-0 z-[999999] bg-[#042F2E] text-[#F0FDFA] flex flex-col w-full h-full overflow-hidden animate-fadeIn">
-          {/* Full-screen Top Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 z-[999999] bg-[#042F2E] text-[#F0FDFA] flex flex-col w-full h-full overflow-hidden"
+        >
           <div className="px-3 sm:px-5 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <button
                 type="button"
                 onClick={() => setIsEditingInPopup(false)}
-                className="w-8 h-8 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-200 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60 shrink-0"
+                className="w-9 h-9 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-200 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60 shrink-0"
                 title="Back"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
-                Edit Content
-              </h3>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
+                  {activeNote.notename || 'Edit Content'}
+                </h3>
+                <span className="text-[10px] text-teal-300/75 block truncate">
+                  {activeNote.category || 'Uncategorized'}
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsEditingInPopup(false)}
-                className="min-h-[34px] px-3 py-1 rounded-xl bg-[#0B3C39] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
+                className="min-h-[36px] px-3 py-1 rounded-xl bg-[#0B3C39] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
               >
                 Cancel
               </button>
@@ -938,365 +1049,392 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 type="button"
                 disabled={isSaving}
                 onClick={handleSavePopupEdit}
-                className="min-h-[34px] px-3.5 py-1 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>{isSaving ? 'Saving...' : 'Save Note'}</span>
+                <span>{isSaving ? 'Saving...' : 'Save'}</span>
               </button>
             </div>
           </div>
 
-          {/* Full-screen Content Editor Only */}
-          <form onSubmit={handleSavePopupEdit} className="flex-1 flex flex-col p-3 sm:p-5 min-h-0">
+          <form onSubmit={handleSavePopupEdit} className="flex-1 flex flex-col p-3 sm:p-5 min-h-0 max-w-4xl w-full mx-auto">
             <textarea
               value={formBody}
               onChange={e => setFormBody(e.target.value)}
               placeholder="Write note content..."
               autoFocus
-              className="flex-1 w-full h-full min-h-0 p-3.5 sm:p-4 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-emerald-400 resize-none"
+              className="flex-1 w-full h-full min-h-0 p-4 rounded-2xl border border-teal-700/60 text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-emerald-400 resize-none"
             />
           </form>
-        </div>,
+        </motion.div>,
         document.body
       )}
 
-      {/* ======================================================== */}
-      {/* NOTE DETAILS POPUP MODAL (WHEN VIEWING)                  */}
-      {/* ======================================================== */}
-      {activeNote && !isEditingInPopup && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
-          onClick={() => {
-            setActiveNote(null);
-            setIsEditingInPopup(false);
-          }}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-modalSpring"
-            onClick={e => e.stopPropagation()}
+      {/* NOTE DETAILS POPUP MODAL (WHEN VIEWING) */}
+      <AnimatePresence>
+        {activeNote && !isEditingInPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3"
+            onClick={() => {
+              setActiveNote(null);
+              setIsEditingInPopup(false);
+            }}
           >
-            {/* Modal Header */}
-            <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <NotebookPen className="w-4 h-4 text-emerald-400 shrink-0" />
-                <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
-                  {activeNote.notename || 'Note Details'}
-                </h3>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <NotebookPen className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA] truncate">
+                    Note Details
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingInPopup(true)}
+                    className="min-h-[34px] px-3 py-1 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveNote(null);
+                      setIsEditingInPopup(false);
+                    }}
+                    className="w-8 h-8 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              {/* Modal Content */}
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                <div className="space-y-3">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-[#F0FDFA] leading-snug break-words">
+                      {activeNote.notename}
+                    </h2>
+                    <div className="flex items-center gap-2 text-[11px] text-teal-300/80 mt-1 flex-wrap">
+                      <span className="font-semibold text-emerald-300">{activeNote.category || 'Uncategorized'}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="tabular-nums">{activeNote.datetime || 'Synced'}</span>
+                    </div>
+                  </div>
+
+                  {/* Clicking directly on text switches to full-screen edit mode */}
+                  <div
+                    onClick={() => setIsEditingInPopup(true)}
+                    className="bg-[#062423] border border-teal-800/70 hover:border-emerald-500/60 rounded-2xl p-4 text-xs sm:text-sm text-[#F0FDFA] leading-relaxed whitespace-pre-wrap break-words min-h-[180px] cursor-pointer transition-colors group relative"
+                    title="Click anywhere to edit"
+                  >
+                    <span className="text-[10px] text-teal-400/70 group-hover:text-emerald-300 block mb-2 font-medium transition-colors">
+                      Tap content to edit
+                    </span>
+                    {activeNote.note || <span className="text-teal-400/60 italic">No content (click to add)</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer actions */}
+              <div className="px-4 py-3 bg-[#062423] border-t border-teal-800/80 flex items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsEditingInPopup(true)}
-                  className="min-h-[34px] px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  onClick={() => setConfirmDeleteNote(activeNote)}
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit</span>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(activeNote.note || activeNote.notename, activeNote.id)}
+                    className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-100 border border-teal-700/70 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedId === activeNote.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-teal-300" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveNote(null);
+                      setIsEditingInPopup(false);
+                    }}
+                    className="min-h-[36px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CREATE NOTE MODAL */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3">
+                <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA]">New Note</h3>
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveNote(null);
-                    setIsEditingInPopup(false);
-                  }}
-                  className="w-7 h-7 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-8 h-8 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-            </div>
 
-            {/* Modal Content */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-[#F0FDFA] leading-snug break-words">
-                    {activeNote.notename}
-                  </h2>
-                  <div className="flex items-center gap-2 text-[11px] text-teal-300/80 mt-1 flex-wrap">
-                    <span className="font-semibold text-emerald-300">{activeNote.category || 'Uncategorized'}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="tabular-nums">{activeNote.datetime || 'Synced'}</span>
-                  </div>
+              <form onSubmit={handleSaveNew} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-teal-200">Note Title</label>
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="Enter note name..."
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-teal-700/60 text-xs font-medium focus:outline-none focus:border-emerald-400"
+                    autoFocus
+                  />
                 </div>
 
-                {/* Clicking directly on text switches to full-screen edit mode */}
-                <div
-                  onClick={() => setIsEditingInPopup(true)}
-                  className="bg-[#062423] border border-teal-800/70 hover:border-emerald-500/60 rounded-xl p-4 text-xs sm:text-sm text-[#F0FDFA] leading-relaxed whitespace-pre-wrap break-words min-h-[180px] cursor-pointer transition-colors group relative"
-                  title="Click anywhere to edit"
-                >
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
-                    Click to edit
-                  </div>
-                  {activeNote.note || <span className="text-teal-400/60 italic">No content (click to add)</span>}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-teal-200">Category</label>
+                  <select
+                    value={formCategory}
+                    onChange={e => setFormCategory(e.target.value)}
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-teal-700/60 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer"
+                  >
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    <option value="__custom__">+ Custom Category...</option>
+                  </select>
                 </div>
-              </div>
-            </div>
 
-            {/* Modal Footer actions */}
-            <div className="px-4 py-3 bg-[#062423] border-t border-teal-800/80 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteNote(activeNote)}
-                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
+                {formCategory === '__custom__' && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-teal-200">Custom Category Name</label>
+                    <input
+                      type="text"
+                      value={formCustomCat}
+                      onChange={e => setFormCustomCat(e.target.value)}
+                      placeholder="e.g. Work, Ideas"
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-teal-700/60 text-xs font-medium focus:outline-none"
+                    />
+                  </div>
+                )}
 
-              <div className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-teal-200">Note Content</label>
+                  <textarea
+                    value={formBody}
+                    onChange={e => setFormBody(e.target.value)}
+                    rows={8}
+                    placeholder="Write your note here..."
+                    className="w-full p-3 rounded-xl border border-teal-700/60 text-xs leading-relaxed focus:outline-none resize-y"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#062423] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{isSaving ? 'Saving...' : 'Save Note'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM DATE RANGE MODAL */}
+      <AnimatePresence>
+        {showCustomDateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3"
+            onClick={() => setShowCustomDateModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#F0FDFA] flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-emerald-400" />
+                  <span>Custom Date Range</span>
+                </h3>
                 <button
                   type="button"
-                  onClick={() => handleCopy(activeNote.note || activeNote.notename, activeNote.id)}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#0B3C39] hover:bg-teal-900 text-teal-100 border border-teal-700/70 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setShowCustomDateModal(false)}
+                  className="w-7 h-7 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
                 >
-                  {copiedId === activeNote.id ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-teal-300" />
-                      <span>Copy</span>
-                    </>
-                  )}
+                  <X className="w-3.5 h-3.5" />
                 </button>
+              </div>
 
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-semibold text-teal-200 uppercase">Start Date</label>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={e => setCustomStart(e.target.value)}
+                    className="w-full min-h-[36px] px-2.5 py-1 rounded-xl border border-teal-700/60 text-xs font-semibold focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-teal-200 uppercase">End Date</label>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={e => setCustomEnd(e.target.value)}
+                    className="w-full min-h-[36px] px-2.5 py-1 rounded-xl border border-teal-700/60 text-xs font-semibold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveNote(null);
-                    setIsEditingInPopup(false);
+                    setDateFilter('all');
+                    setCustomStart('');
+                    setCustomEnd('');
+                    setShowCustomDateModal(false);
                   }}
-                  className="min-h-[36px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold cursor-pointer"
+                  className="min-h-[36px] px-3 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold cursor-pointer"
                 >
-                  Done
+                  Clear
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* CREATE NOTE MODAL                                       */}
-      {/* ======================================================== */}
-      {showCreateModal && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
-          onClick={() => setShowCreateModal(false)}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-modalSpring"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3">
-              <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA]">New Note</h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="w-7 h-7 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveNew} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-teal-200">Note Title</label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  placeholder="Enter note name..."
-                  className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none focus:border-emerald-400"
-                  autoFocus
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-teal-200">Category</label>
-                <select
-                  value={formCategory}
-                  onChange={e => setFormCategory(e.target.value)}
-                  className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-semibold focus:outline-none focus:border-emerald-400 cursor-pointer"
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                  <option value="__custom__">+ Custom Category...</option>
-                </select>
-              </div>
-
-              {formCategory === '__custom__' && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-teal-200">Custom Category Name</label>
-                  <input
-                    type="text"
-                    value={formCustomCat}
-                    onChange={e => setFormCustomCat(e.target.value)}
-                    placeholder="e.g. Work, Ideas"
-                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-medium focus:outline-none"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-teal-200">Note Content</label>
-                <textarea
-                  value={formBody}
-                  onChange={e => setFormBody(e.target.value)}
-                  rows={8}
-                  placeholder="Write your note here..."
-                  className="w-full p-3 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs leading-relaxed focus:outline-none resize-y"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#062423] text-teal-200 border border-teal-700/60 text-xs font-semibold cursor-pointer"
+                  onClick={() => {
+                    if (customStart && customEnd) {
+                      setDateFilter('custom');
+                    }
+                    setShowCustomDateModal(false);
+                  }}
+                  className="min-h-[36px] px-4 py-1 rounded-xl bg-[#0D9488] text-white text-xs font-bold cursor-pointer"
+                >
+                  Apply Range
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {confirmDeleteNote && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-4"
+            onClick={() => setConfirmDeleteNote(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl p-4 max-w-sm w-full space-y-3 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#F0FDFA]">Delete Note</h3>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteNote(null)}
+                  className="w-7 h-7 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-xs text-teal-200/90 leading-relaxed">
+                Are you sure you want to delete <span className="font-bold text-white">"{confirmDeleteNote.notename}"</span>? This will permanently remove it from Google Sheet (BB:BF).
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteNote(null)}
+                  className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold border border-teal-700/60 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="min-h-[38px] px-4 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="min-h-[36px] px-4 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{isSaving ? 'Saving...' : 'Save Note'}</span>
+                  Delete Note
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* CUSTOM DATE RANGE MODAL                                 */}
-      {/* ======================================================== */}
-      {showCustomDateModal && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-3 animate-fadeIn"
-          onClick={() => setShowCustomDateModal(false)}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl w-full max-w-sm p-4 space-y-3 shadow-2xl animate-modalSpring"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#F0FDFA] flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-emerald-400" />
-                <span>Custom Date Range</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCustomDateModal(false)}
-                className="w-6 h-6 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <div>
-                <label className="text-[10px] font-semibold text-teal-200 uppercase">Start Date</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={e => setCustomStart(e.target.value)}
-                  className="w-full min-h-[36px] px-2.5 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-semibold focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-teal-200 uppercase">End Date</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={e => setCustomEnd(e.target.value)}
-                  className="w-full min-h-[36px] px-2.5 py-1 rounded-xl bg-white text-slate-900 border border-teal-700/60 text-xs font-semibold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFilter('all');
-                  setCustomStart('');
-                  setCustomEnd('');
-                  setShowCustomDateModal(false);
-                }}
-                className="min-h-[36px] px-3 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold cursor-pointer"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (customStart && customEnd) {
-                    setDateFilter('custom');
-                  }
-                  setShowCustomDateModal(false);
-                }}
-                className="min-h-[36px] px-4 py-1 rounded-xl bg-[#0D9488] text-white text-xs font-bold cursor-pointer"
-              >
-                Apply Range
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* DELETE CONFIRMATION MODAL                               */}
-      {/* ======================================================== */}
-      {confirmDeleteNote && (
-        <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
-          onClick={() => setConfirmDeleteNote(null)}
-        >
-          <div
-            className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl p-4 max-w-sm w-full space-y-3 shadow-2xl animate-modalSpring"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#F0FDFA]">Delete Note</h3>
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteNote(null)}
-                className="w-6 h-6 rounded-full bg-[#062423] text-teal-300 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <p className="text-xs text-teal-200/90 leading-relaxed">
-              Are you sure you want to delete <span className="font-bold text-white">"{confirmDeleteNote.notename}"</span>? This will permanently remove it from Google Sheet (BB:BF).
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteNote(null)}
-                className="min-h-[36px] px-3.5 py-1 rounded-xl bg-[#062423] text-teal-200 text-xs font-semibold border border-teal-700/60 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="min-h-[36px] px-4 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer"
-              >
-                Delete Note
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
