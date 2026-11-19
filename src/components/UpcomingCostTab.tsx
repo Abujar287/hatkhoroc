@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock,
   Plus,
@@ -245,27 +246,27 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
 
       {/* Summary Statistics Card: Total Due, Due Today, Due Count in 1 Row */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col items-center justify-center text-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate w-full">
             Total Due
           </span>
-          <span className="text-xs sm:text-sm font-black text-amber-300 tabular-nums truncate">
+          <span className="text-xs sm:text-base font-black text-amber-300 tabular-nums truncate w-full mt-0.5">
             {formatNumberLocale(stats.totalPendingAmount, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col items-center justify-center text-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate w-full">
             Due Today
           </span>
-          <span className="text-xs sm:text-sm font-black text-[#FF7A59] tabular-nums truncate">
+          <span className="text-xs sm:text-base font-black text-[#FF7A59] tabular-nums truncate w-full mt-0.5">
             {formatNumberLocale(stats.dueTodayOrOverdueAmount, lang)}
           </span>
         </div>
-        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col justify-center">
-          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate">
+        <div className="bg-[#0B3C39] p-2.5 sm:p-3 rounded-2xl border border-teal-800/80 shadow-sm flex flex-col items-center justify-center text-center">
+          <span className="text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase tracking-tight truncate w-full">
             Due Count
           </span>
-          <span className="text-xs sm:text-sm font-black text-emerald-400 tabular-nums truncate">
+          <span className="text-xs sm:text-base font-black text-emerald-400 tabular-nums truncate w-full mt-0.5">
             {formatNumberLocale(stats.pendingCount, lang)}
           </span>
         </div>
@@ -420,14 +421,23 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
       )}
 
       {/* TASK CLICK ACTION POPUP (Edit / Delete / Pay Now) */}
+      <AnimatePresence>
       {selectedTaskForAction && (
         <ModalPortal>
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.14 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4"
             onClick={() => setSelectedTaskForAction(null)}
           >
-            <div
-              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-xs sm:max-w-sm rounded-2xl shadow-2xl border border-teal-700/80 overflow-hidden animate-modalSpring"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-xs sm:max-w-sm rounded-2xl shadow-2xl border border-teal-700/80 overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-2">
@@ -536,16 +546,32 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </ModalPortal>
       )}
+      </AnimatePresence>
 
       {/* ADD / EDIT TASK MODAL */}
+      <AnimatePresence>
       {showAddModal && (
         <ModalPortal>
-          <div className="fixed inset-0 z-[999999] flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs animate-fadeIn">
-            <div className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-modalSpring">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.14 }}
+            onClick={() => setShowAddModal(false)}
+            className="fixed inset-0 z-[999999] flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#0B3C39] border border-teal-700/80 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
             
             {/* Modal Header */}
             <div className="px-5 py-4 bg-teal-900/90 border-b border-teal-800 flex items-center justify-between text-white">
@@ -649,9 +675,9 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
                     onChange={e => setPriority(e.target.value as any)}
                     className="w-full px-3 py-2 text-sm bg-white text-slate-900 rounded-xl border border-teal-600 focus:outline-none font-medium"
                   >
-                    <option value="high">🔴 High</option>
-                    <option value="medium">🟡 Medium</option>
-                    <option value="low">🔵 Low</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
                   </select>
                 </div>
 
@@ -705,20 +731,30 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
               </div>
 
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
         </ModalPortal>
       )}
+      </AnimatePresence>
 
       {/* DELETE CONFIRMATION MODAL */}
+      <AnimatePresence>
       {taskToDelete && (
         <ModalPortal>
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 animate-fadeIn"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.14 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999999] p-4"
             onClick={() => setTaskToDelete(null)}
           >
-            <div
-              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-4 shadow-2xl relative border border-teal-800 animate-modalSpring text-center space-y-3 my-auto"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-[320px] rounded-2xl p-4 shadow-2xl relative border border-teal-800 text-center space-y-3 my-auto"
               onClick={e => e.stopPropagation()}
             >
               <div className="w-10 h-10 rounded-2xl bg-rose-950/80 text-rose-300 border border-rose-800 flex items-center justify-center mx-auto shadow-md">
@@ -754,10 +790,11 @@ export const UpcomingCostTab: React.FC<TaskTabProps> = ({
                   Delete
                 </button>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </ModalPortal>
       )}
+      </AnimatePresence>
 
     </div>
   );

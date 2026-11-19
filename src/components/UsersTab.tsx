@@ -9,7 +9,6 @@ import {
   Search, 
   Shield, 
   Layers,
-  FileSpreadsheet,
   FileText
 } from 'lucide-react';
 import { AppUser } from '../types';
@@ -121,11 +120,8 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                   <h2 className="text-sm sm:text-base font-black text-[#F0FDFA] tracking-tight">
                     {t('Users Management', 'ইউজার তালিকা')}
                   </h2>
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 text-[10px] font-bold">
-                    {users.length} {t('Users', 'জন')}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-teal-950/90 text-teal-300 border border-teal-700/60 text-[10px] font-black font-mono shadow-xs">
-                    {totalRecords} {t('total records', 'মোট রেকর্ডস')}
+                  <span className="text-[11px] font-bold text-teal-300/85 tabular-nums">
+                    · {users.length} {t('Users', 'জন')} · {totalRecords} {t('records', 'রেকর্ড')}
                   </span>
                 </div>
               </div>
@@ -297,9 +293,8 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 
                     {/* 3. records count column */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 font-mono text-[11px] font-black shadow-xs">
-                        <FileText className="w-3 h-3 text-emerald-400 shrink-0" />
-                        <span>{recordVal} {t('records', 'রেকর্ডস')}</span>
+                      <span className="text-emerald-300 font-mono text-[11px] font-bold tabular-nums">
+                        {recordVal}
                       </span>
                     </td>
 
@@ -320,11 +315,10 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       </div>
                     </td>
 
-                    {/* 5. sheet tab name (Compact Pill) */}
+                    {/* 5. sheet tab name */}
                     <td className="py-1.5 px-2.5 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-800/60 text-amber-300 font-mono text-[11px] font-bold shadow-xs">
-                        <FileSpreadsheet className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                        <span className="truncate max-w-[110px]">{u.sheetTab || u.username}</span>
+                      <span className="text-amber-300/95 font-mono text-[11px] font-semibold truncate max-w-[110px] inline-block align-middle">
+                        {u.sheetTab || u.username}
                       </span>
                     </td>
 

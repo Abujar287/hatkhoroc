@@ -190,7 +190,12 @@ interface EditTransactionModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
+export const EditTransactionModal: React.FC<EditTransactionModalProps> = (props) => {
+  if (!props.tx) return null;
+  return <EditTransactionModalInner key={props.tx.id || `${props.tx.date}_${props.tx.category}_${props.tx.value}`} {...props} tx={props.tx} />;
+};
+
+const EditTransactionModalInner: React.FC<Omit<EditTransactionModalProps, 'tx'> & { tx: Transaction }> = ({
   tx,
   onClose,
   onSave,
@@ -199,8 +204,6 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   lang,
   t
 }) => {
-  if (!tx) return null;
-
   const [type, setType] = useState<TransactionType>(tx.type);
   const [category, setCategory] = useState<string>(tx.category);
   const [date, setDate] = useState<string>(tx.date);
@@ -379,15 +382,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               </div>
 
               <div className="relative flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
+                <button
+                  type="button"
                   onClick={() => setIsCalcOpen(true)}
-                  value={amountInput}
-                  onChange={e => setAmountInput(e.target.value)}
-                  placeholder="0"
-                  className="w-full bg-[#042F2E] border border-teal-700/70 hover:border-teal-400 focus:border-teal-400 rounded-xl px-3 py-2 text-lg font-black text-amber-300 tracking-tight focus:outline-none shadow-xs cursor-pointer"
-                />
+                  className="w-full text-left bg-[#042F2E] border border-teal-700/70 hover:border-teal-400 rounded-xl px-3 py-2 text-lg font-black text-amber-300 tracking-tight shadow-xs cursor-pointer truncate tabular-nums"
+                >
+                  {amountInput || '0'}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsCalcOpen(true)}
@@ -484,10 +485,10 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-xs"
+                className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer shadow-xs"
               >
                 {categories.map(c => (
-                  <option key={c} value={c} className="bg-[#062423] text-[#F0FDFA]">
+                  <option key={c} value={c}>
                     {cleanCategoryName(c, lang)}
                   </option>
                 ))}
@@ -503,7 +504,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-semibold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-xs"
+                className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer shadow-xs"
                 required
               />
             </div>
@@ -518,7 +519,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 placeholder={t('Add description...', 'বিবরণ লিখুন...')}
-                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400 placeholder:text-teal-500 shadow-xs"
+                className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-400 placeholder:text-slate-400 shadow-xs"
               />
             </div>
 
@@ -639,15 +640,16 @@ interface CreateUserModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const CreateUserModal: React.FC<CreateUserModalProps> = ({
-  isOpen,
+export const CreateUserModal: React.FC<CreateUserModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <CreateUserModalInner {...props} />;
+};
+
+const CreateUserModalInner: React.FC<CreateUserModalProps> = ({
   onClose,
   onCreate,
-  lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -741,7 +743,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400"
               required
             />
           </div>
@@ -752,7 +754,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400"
               required
             />
           </div>
@@ -763,7 +765,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400"
               required
             />
           </div>
@@ -773,13 +775,13 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             <select
               value={role}
               onChange={e => handleRoleChange(e.target.value as any)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer"
             >
-              <option value="super_admin" className="bg-[#062423] text-[#F0FDFA]">{t('Super Admin', 'সুপার অ্যাডমিন')}</option>
-              <option value="super_admin_2" className="bg-[#062423] text-[#F0FDFA]">{t('Super Admin 2 (Viewer @abujar287)', 'সুপার অ্যাডমিন ২ (আবুজারের হিসাব दर्शक)')}</option>
-              <option value="admin" className="bg-[#062423] text-[#F0FDFA]">{t('Admin', 'অ্যাডমিন')}</option>
-              <option value="senior_member" className="bg-[#062423] text-[#F0FDFA]">{t('Senior Member', 'সিনিয়র মেম্বার')}</option>
-              <option value="member" className="bg-[#062423] text-[#F0FDFA]">{t('Member', 'মেম্বার')}</option>
+              <option value="super_admin">{t('Super Admin', 'সুপার অ্যাডমিন')}</option>
+              <option value="super_admin_2">{t('Super Admin 2 (Viewer @abujar287)', 'সুপার অ্যাডমিন ২ (আবুজারের হিসাব দর্শক)')}</option>
+              <option value="admin">{t('Admin', 'অ্যাডমিন')}</option>
+              <option value="senior_member">{t('Senior Member', 'সিনিয়র মেম্বার')}</option>
+              <option value="member">{t('Member', 'মেম্বার')}</option>
             </select>
           </div>
 
@@ -924,16 +926,18 @@ interface AddCategoryModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
-  isOpen,
+export const AddCategoryModal: React.FC<AddCategoryModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <AddCategoryModalInner key={props.type} {...props} />;
+};
+
+const AddCategoryModalInner: React.FC<AddCategoryModalProps> = ({
   type,
   onClose,
   onAdd,
   lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState('');
   const [selectedIconId, setSelectedIconId] = useState<DailyIconId>('wallet_cash');
   const [hasManualIcon, setHasManualIcon] = useState(false);
@@ -992,7 +996,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
                 value={name}
                 onChange={e => handleNameChange(e.target.value)}
                 placeholder={t('e.g., Room Rent, Bajar, Electricity', 'যেমন: রুম ভাড়া, বাজার, বিদ্যুৎ')}
-                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-[#F0FDFA] placeholder:text-teal-500 focus:outline-none focus:border-teal-400"
+                className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-teal-400"
                 required
                 autoFocus
               />
@@ -1061,16 +1065,17 @@ interface MobileInstallModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
-  isOpen,
+export const MobileInstallModal: React.FC<MobileInstallModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <MobileInstallModalInner {...props} />;
+};
+
+const MobileInstallModalInner: React.FC<MobileInstallModalProps> = ({
   onClose,
   isInstallable,
   onInstall,
-  lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [copied, setCopied] = useState(false);
   const [showManualGuide, setShowManualGuide] = useState(false);
 
@@ -1196,17 +1201,18 @@ interface EditProfileModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const EditProfileModal: React.FC<EditProfileModalProps> = ({
+export const EditProfileModal: React.FC<EditProfileModalProps> = (props) => {
+  if (!props.isOpen || !props.user) return null;
+  return <EditProfileModalInner key={props.user.username} {...props} user={props.user} />;
+};
+
+const EditProfileModalInner: React.FC<Omit<EditProfileModalProps, 'user'> & { user: AppUser }> = ({
   user,
-  isOpen,
   onClose,
   onSave,
   isAdmin = false,
-  lang,
   t
 }) => {
-  if (!isOpen || !user) return null;
-
   const [displayName, setDisplayName] = useState(user.displayName);
   const [password, setPassword] = useState(user.password);
   const [role, setRole] = useState<UserRole>(user.role || 'member');
@@ -1285,7 +1291,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               type="text"
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400"
               required
             />
           </div>
@@ -1298,7 +1304,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               type="text"
               value={user.username}
               disabled
-              className="w-full bg-[#042F2E] border border-teal-800/60 rounded-lg px-2.5 py-1.5 text-xs text-teal-400/60 cursor-not-allowed"
+              className="w-full bg-slate-100 border border-teal-800/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 cursor-not-allowed"
             />
           </div>
 
@@ -1310,7 +1316,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+              className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400"
               required
             />
           </div>
@@ -1325,13 +1331,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <select
                   value={role}
                   onChange={e => handleRoleChange(e.target.value as UserRole)}
-                  className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer"
+                  className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer"
                 >
-                  <option value="super_admin" className="bg-[#062423] text-[#F0FDFA]">{t('Super Admin', 'সুপার অ্যাডমিন')}</option>
-                  <option value="super_admin_2" className="bg-[#062423] text-[#F0FDFA]">{t('Super Admin 2 (Viewer @abujar287)', 'সুপার অ্যাডমিন ২ (আবুজারের হিসাব दर्शक)')}</option>
-                  <option value="admin" className="bg-[#062423] text-[#F0FDFA]">{t('Admin', 'অ্যাডমিন')}</option>
-                  <option value="senior_member" className="bg-[#062423] text-[#F0FDFA]">{t('Senior Member', 'সিনিয়র মেম্বার')}</option>
-                  <option value="member" className="bg-[#062423] text-[#F0FDFA]">{t('Member', 'মেম্বার')}</option>
+                  <option value="super_admin">{t('Super Admin', 'সুপার অ্যাডমিন')}</option>
+                  <option value="super_admin_2">{t('Super Admin 2 (Viewer @abujar287)', 'সুপার অ্যাডমিন ২ (আবুজারের হিসাব দর্শক)')}</option>
+                  <option value="admin">{t('Admin', 'অ্যাডমিন')}</option>
+                  <option value="senior_member">{t('Senior Member', 'সিনিয়র মেম্বার')}</option>
+                  <option value="member">{t('Member', 'মেম্বার')}</option>
                 </select>
               </div>
 
@@ -1566,14 +1572,15 @@ interface AppsScriptModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const AppsScriptModal: React.FC<AppsScriptModalProps> = ({
-  isOpen,
+export const AppsScriptModal: React.FC<AppsScriptModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <AppsScriptModalInner {...props} />;
+};
+
+const AppsScriptModalInner: React.FC<AppsScriptModalProps> = ({
   onClose,
-  lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [copied, setCopied] = useState(false);
 
   const appsScriptCode = GOOGLE_APPS_SCRIPT_CODE_V7;
@@ -1657,8 +1664,12 @@ interface CategoryManagerModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
-  isOpen,
+export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <CategoryManagerModalInner {...props} />;
+};
+
+const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
   onClose,
   expenseCategories,
   incomeCategories,
@@ -1667,8 +1678,6 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
   lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [activeType, setActiveType] = useState<TransactionType>('Expense');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -1802,7 +1811,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                           type="text"
                           value={editValue}
                           onChange={e => setEditValue(e.target.value)}
-                          className="flex-1 min-w-0 bg-[#0B3C39] border border-emerald-500/70 rounded-lg px-2 py-1 text-xs font-bold text-[#F0FDFA] focus:outline-none"
+                          className="flex-1 min-w-0 bg-white border border-emerald-500/70 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 focus:outline-none"
                           autoFocus
                         />
                       ) : (
@@ -1929,8 +1938,12 @@ interface ExportMonthModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
-  isOpen,
+export const ExportMonthModal: React.FC<ExportMonthModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <ExportMonthModalInner key={props.currentMonth} {...props} />;
+};
+
+const ExportMonthModalInner: React.FC<ExportMonthModalProps> = ({
   onClose,
   onExport,
   currentMonth,
@@ -1938,8 +1951,6 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
   lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   // 'month' | 'custom' | 'all'
   const [exportScope, setExportScope] = useState<'month' | 'custom' | 'all'>(() => {
     if (currentMonth === 'all') return 'all';
@@ -2030,11 +2041,11 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
               <select
                 value={exportScope}
                 onChange={e => setExportScope(e.target.value as any)}
-                className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
+                className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
               >
-                <option value="month" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Specific Month', 'নির্দিষ্ট মাস অনুযায়ী')}</option>
-                <option value="custom" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী')}</option>
-                <option value="all" className="bg-[#0B3C39] text-[#F0FDFA]">{t('Full History (All-Time)', 'শুরু থেকে আজ পর্যন্ত')}</option>
+                <option value="month">{t('Specific Month', 'নির্দিষ্ট মাস অনুযায়ী')}</option>
+                <option value="custom">{t('Custom Date Range', 'কাস্টম তারিখ অনুযায়ী')}</option>
+                <option value="all">{t('Full History (All-Time)', 'শুরু থেকে আজ পর্যন্ত')}</option>
               </select>
             </div>
 
@@ -2048,10 +2059,10 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
                   <select
                     value={selectedMonth}
                     onChange={e => setSelectedMonth(e.target.value)}
-                    className="w-full bg-[#062423] border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
+                    className="w-full bg-white border border-teal-700/70 rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-900 focus:outline-none focus:border-teal-400 cursor-pointer shadow-sm"
                   >
                     {monthOptions.map(m => (
-                      <option key={m.val} value={m.val} className="bg-[#0B3C39] text-[#F0FDFA]">{m.label}</option>
+                      <option key={m.val} value={m.val}>{m.label}</option>
                     ))}
                   </select>
                 </div>
@@ -2069,7 +2080,7 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
                         type="date"
                         value={startDate}
                         onChange={e => setStartDate(e.target.value)}
-                        className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+                        className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-400"
                       />
                     </div>
                     <div className="space-y-1">
@@ -2078,7 +2089,7 @@ export const ExportMonthModal: React.FC<ExportMonthModalProps> = ({
                         type="date"
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
-                        className="w-full bg-[#062423] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-teal-400"
+                        className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-400"
                       />
                     </div>
                   </div>
@@ -2198,15 +2209,16 @@ interface SelfSignupModalProps {
   t: (en: string, bn: string) => string;
 }
 
-export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
-  isOpen,
+export const SelfSignupModal: React.FC<SelfSignupModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <SelfSignupModalInner {...props} />;
+};
+
+const SelfSignupModalInner: React.FC<SelfSignupModalProps> = ({
   onClose,
   onSignup,
-  lang,
   t
 }) => {
-  if (!isOpen) return null;
-
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -2261,7 +2273,7 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
                 placeholder="Enter Your Full Name"
-                className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
+                className="w-full p-2.5 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-slate-400"
                 required
               />
             </div>
@@ -2275,7 +2287,7 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
                 value={username}
                 onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
                 placeholder="Enter Your Username"
-                className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600"
+                className="w-full p-2.5 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-slate-400"
                 required
               />
             </div>
@@ -2290,7 +2302,7 @@ export const SelfSignupModal: React.FC<SelfSignupModalProps> = ({
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter your Password"
-                  className="w-full p-2.5 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-teal-600 pr-9"
+                  className="w-full p-2.5 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 text-xs font-medium placeholder:text-slate-400 pr-9"
                   required
                 />
                 <button

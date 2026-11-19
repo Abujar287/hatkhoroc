@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar,
   ChevronLeft,
@@ -581,30 +582,30 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       </div>
 
       {/* BUDGET OVERVIEW CARDS */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-teal-800/80 shadow-sm hover:border-teal-700/80 transition-all">
-          <span className="text-[10px] sm:text-xs text-teal-300/80 font-semibold block mb-1">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
+        <div className="bg-[#0B3C39] rounded-2xl p-2.5 sm:p-3.5 border border-teal-800/80 shadow-sm flex flex-col items-center justify-center text-center min-w-0">
+          <span className="text-[10px] sm:text-xs text-teal-300/80 font-semibold block mb-0.5 truncate w-full">
             {t('Total Budget', 'মোট বাজেট')}
           </span>
-          <span className="text-sm sm:text-base md:text-xl font-extrabold text-[#F0FDFA] tabular-nums">
+          <span className="text-sm sm:text-lg font-extrabold text-[#F0FDFA] tabular-nums truncate w-full">
             {formatNumberLocale(totalBudget, lang)}
           </span>
         </div>
 
-        <div className="bg-[#0B3C39] rounded-2xl p-3 sm:p-4 border border-[#FF7A59]/40 shadow-sm transition-colors">
-          <span className="text-[10px] sm:text-xs text-teal-200 font-bold block mb-1">
+        <div className="bg-[#0B3C39] rounded-2xl p-2.5 sm:p-3.5 border border-[#FF7A59]/40 shadow-sm flex flex-col items-center justify-center text-center min-w-0">
+          <span className="text-[10px] sm:text-xs text-teal-200 font-bold block mb-0.5 truncate w-full">
             {t('Total Spent', 'মোট খরচ')}
           </span>
-          <span className="text-sm sm:text-base md:text-xl font-black text-[#FF7A59] tabular-nums">
+          <span className="text-sm sm:text-lg font-black text-[#FF7A59] tabular-nums truncate w-full">
             {formatNumberLocale(totalSpent, lang)}
           </span>
         </div>
 
-        <div className="bg-emerald-950/50 rounded-2xl p-3 sm:p-4 border border-emerald-800/60 shadow-sm hover:border-emerald-700/80 transition-all">
-          <span className="text-[10px] sm:text-xs text-emerald-200 font-semibold block mb-1">
+        <div className="bg-emerald-950/50 rounded-2xl p-2.5 sm:p-3.5 border border-emerald-800/60 shadow-sm flex flex-col items-center justify-center text-center min-w-0">
+          <span className="text-[10px] sm:text-xs text-emerald-200 font-semibold block mb-0.5 truncate w-full">
             {t('Remaining', 'অবশিষ্ট')}
           </span>
-          <span className={`text-sm sm:text-base md:text-xl font-black tabular-nums ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'}`}>
+          <span className={`text-sm sm:text-lg font-black tabular-nums truncate w-full ${remainingBudget >= 0 ? 'text-[#34D399]' : 'text-[#FF7A59]'}`}>
             {remainingBudget >= 0 ? '+' : ''}{formatNumberLocale(remainingBudget, lang)}
           </span>
         </div>
@@ -800,10 +801,24 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       </div>
 
       {/* CATEGORY SELECTION MODAL - ONLY EXPENSE CATEGORIES & SELECT ALL OPTION */}
-      {/* CATEGORY SELECTION MODAL - ONLY EXPENSE CATEGORIES & SELECT ALL OPTION */}
+      <AnimatePresence>
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl shadow-2xl border border-teal-800/90 flex flex-col max-h-[85vh] overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.14 }}
+          onClick={() => setIsCategoryModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            onClick={e => e.stopPropagation()}
+            className="bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md rounded-2xl shadow-2xl border border-teal-800/90 flex flex-col max-h-[85vh] overflow-hidden"
+          >
             {/* MODAL HEADER */}
             <div className="p-4 border-b border-teal-800/80 flex items-center justify-between gap-3 bg-teal-950/40">
               <div className="min-w-0">
@@ -933,9 +948,10 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
                 {t('Done', 'সম্পন্ন')}
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

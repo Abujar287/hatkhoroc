@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { App as CapApp } from '@capacitor/app';
 import {
   ListOrdered,
@@ -36,21 +36,29 @@ import { cleanCategoryName } from './utils/categoryUtils';
 import { evaluateExpression } from './utils/calcUtils';
 import { fetchSheetApi } from './utils/sheetApi';
 import { processOfflineQueue, addToOfflineQueue, getOfflineQueue } from './utils/offlineQueue';
-import { exportMonthlyReportZip } from './utils/exportZipReport';
 import { ExportMonthModal } from './components/Modals';
 
 // Modular Components
 import { Header } from './components/Header';
 import { SummaryTab } from './components/SummaryTab';
-import { MonthlySummaryTab } from './components/MonthlySummaryTab';
 import { EntryTab } from './components/EntryTab';
 import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
-import { Upcoming3MonthTab } from './components/Upcoming3MonthTab';
-import { NotepadTab } from './components/NotepadTab';
-import { UsersTab } from './components/UsersTab';
 import { SettingsTab } from './components/SettingsTab';
+
+const MonthlySummaryTab = React.lazy(() =>
+  import('./components/MonthlySummaryTab').then(m => ({ default: m.MonthlySummaryTab }))
+);
+const Upcoming3MonthTab = React.lazy(() =>
+  import('./components/Upcoming3MonthTab').then(m => ({ default: m.Upcoming3MonthTab }))
+);
+const NotepadTab = React.lazy(() =>
+  import('./components/NotepadTab').then(m => ({ default: m.NotepadTab }))
+);
+const UsersTab = React.lazy(() =>
+  import('./components/UsersTab').then(m => ({ default: m.UsersTab }))
+);
 import {
   DayDetailsModal,
   EditTransactionModal,
@@ -188,6 +196,7 @@ export default function App() {
     setShowExportModal(false);
     setIsExportingZip(true);
     try {
+      const { exportMonthlyReportZip } = await import('./utils/exportZipReport');
       await exportMonthlyReportZip({
         month: params.month,
         startDate: params.startDate,
@@ -3188,7 +3197,7 @@ export default function App() {
               value={loginUsername}
               onChange={e => setLoginUsername(e.target.value)}
               placeholder="Username"
-              className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium"
+              className="w-full p-3 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-slate-400 font-medium"
               required
             />
             <div className="relative">
@@ -3197,13 +3206,13 @@ export default function App() {
                 value={loginPassword}
                 onChange={e => setLoginPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full p-3 bg-[#062423] border border-teal-700/70 text-[#F0FDFA] rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-teal-500 font-medium pr-10"
+                className="w-full p-3 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-slate-400 font-medium pr-10"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 hover:text-white cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -3259,6 +3268,7 @@ export default function App() {
   // RENDER: APP
   // ----------------------------------------------------
   return (
+    <MotionConfig reducedMotion="user">
     <div className="fixed inset-0 h-full w-full overflow-hidden bg-[#042F2E] flex flex-col items-center">
       <div className="w-full flex flex-col h-full bg-transparent relative overflow-hidden">
         
@@ -3337,13 +3347,20 @@ export default function App() {
               transition: isPulling ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
+            <Suspense
+              fallback={
+                <div className="py-16 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-teal-600/30 border-t-emerald-400 rounded-full animate-spin" />
+                </div>
+              }
+            >
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full"
               >
               {activeTab === 'summary' && (
@@ -3537,6 +3554,7 @@ export default function App() {
               )}
               </motion.div>
             </AnimatePresence>
+            </Suspense>
           </div>
         </main>
 
@@ -3637,5 +3655,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </MotionConfig>
   );
 }

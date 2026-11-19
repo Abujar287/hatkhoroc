@@ -193,22 +193,22 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
 
         {/* 2 Summary Cards (Income & Expense) */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-emerald-700/50 min-w-0">
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
+          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-emerald-700/50 min-w-0 flex flex-col items-center justify-center text-center">
+            <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
               <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0" />
               <span className="truncate">{t('Total Income', 'মোট আয়')}</span>
             </div>
-            <span className="text-xs sm:text-base font-black text-emerald-400 tabular-nums mt-0.5 block truncate">
+            <span className="text-sm sm:text-base font-black text-emerald-400 tabular-nums mt-0.5 block truncate w-full">
               {formatNumberLocale(grandTotals.income, lang)}
             </span>
           </div>
 
-          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-[#FF7A59]/40 min-w-0">
-            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
+          <div className="bg-[#062423] rounded-xl p-2.5 sm:p-3 border border-[#FF7A59]/40 min-w-0 flex flex-col items-center justify-center text-center">
+            <div className="flex items-center justify-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-teal-300/80 uppercase">
               <ArrowDownLeft className="w-3 h-3 text-[#FF7A59] shrink-0" />
               <span className="truncate">{t('Total Expense', 'মোট খরচ')}</span>
             </div>
-            <span className="text-xs sm:text-base font-black text-[#FF7A59] tabular-nums mt-0.5 block truncate">
+            <span className="text-sm sm:text-base font-black text-[#FF7A59] tabular-nums mt-0.5 block truncate w-full">
               {formatNumberLocale(grandTotals.expense, lang)}
             </span>
           </div>
@@ -254,7 +254,7 @@ export const MonthlySummaryTab: React.FC<MonthlySummaryTabProps> = ({
                   <tr
                     key={row.key}
                     onClick={() => onSelectMonth?.(row.monthLabel)}
-                    className={`transition-colors hover:bg-teal-900/40 ${onSelectMonth ? 'cursor-pointer' : ''}`}
+                    className={`transition-colors hover:bg-teal-900/40 active:bg-teal-900/60 ${onSelectMonth ? 'cursor-pointer' : ''}`}
                   >
                     <td className="py-2.5 px-2 sm:px-4 align-middle min-w-0">
                       <span className="font-extrabold text-[#F0FDFA] block truncate leading-tight">

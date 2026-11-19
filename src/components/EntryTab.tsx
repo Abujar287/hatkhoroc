@@ -163,25 +163,8 @@ export const EntryTab: React.FC<EntryTabProps> = ({
     await onSubmit(evaluated > 0 ? evaluated : undefined);
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 4 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        staggerChildren: 0.008,
-        delayChildren: 0
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, scale: 0.94 },
-    show: { opacity: 1, scale: 1, transition: { duration: 0.12 } }
-  };
-
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16 select-none pt-1 px-0.5 sm:px-3 animate-fadeIn">
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16 select-none pt-1 px-0.5 sm:px-3">
       {/* 1. Sleek Animated Type Selector Tabs: Expense | Income */}
       <div className="w-full max-w-md mx-auto bg-[#0B3C39] border border-teal-800/80 p-1.5 rounded-2xl grid grid-cols-2 gap-1.5 shadow-sm relative overflow-hidden">
         <button
@@ -285,26 +268,23 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* 3. Full-Width Aligned Single-Line Category Pills */}
+      {/* 3. Full-Width Aligned Single-Line Category Pills (Fast single-layer transition) */}
       <motion.div
         key={entryType}
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
         className="flex flex-wrap items-stretch gap-1.5 sm:gap-2.5 pt-1 w-full"
       >
         {currentCategories.map(cat => {
           const isSelected = entryCategory === cat;
           const label = cleanCategoryName(cat, lang);
           return (
-            <motion.button
+            <button
               key={cat}
-              variants={itemVariants}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={() => handleSelectCategory(cat)}
-              className={`flex-auto inline-flex flex-col items-center justify-center px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition-all cursor-pointer shadow-xs min-h-[54px] sm:min-h-[62px] ${
+              className={`flex-auto inline-flex flex-col items-center justify-center px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition-all duration-100 active:scale-95 cursor-pointer shadow-xs min-h-[54px] sm:min-h-[62px] ${
                 isSelected
                   ? 'bg-emerald-600 text-white border-emerald-400 ring-1 ring-emerald-300'
                   : 'bg-[#0B3C39] hover:bg-teal-900/90 text-[#F0FDFA] border-teal-700/80 hover:border-emerald-500/70'
@@ -314,38 +294,44 @@ export const EntryTab: React.FC<EntryTabProps> = ({
               <span className="text-[11px] sm:text-xs font-bold text-center leading-none tracking-tight whitespace-nowrap">
                 {label}
               </span>
-            </motion.button>
+            </button>
           );
         })}
 
         {/* Plus / Add Category Button at the end */}
-        <motion.button
-          variants={itemVariants}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.96 }}
+        <button
           type="button"
           onClick={onOpenCategoryManager}
-          className="flex-auto inline-flex flex-col items-center justify-center px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-dashed border-amber-400/80 transition-all cursor-pointer shadow-sm min-h-[54px] sm:min-h-[62px]"
+          className="flex-auto inline-flex flex-col items-center justify-center px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-dashed border-amber-400/80 transition-all duration-100 active:scale-95 cursor-pointer shadow-sm min-h-[54px] sm:min-h-[62px]"
         >
           <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0 text-amber-300" />
           <span className="text-[11px] sm:text-xs font-extrabold text-center leading-none tracking-tight whitespace-nowrap">
             {t('Add', 'যোগ')}
           </span>
-        </motion.button>
+        </button>
       </motion.div>
 
       {/* 4. Compact Calculator Bottom Sheet Modal via ModalPortal */}
-      {isCalculatorOpen && (
-        <ModalPortal>
-          <div
-            data-calc-modal="true"
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center z-[999999] p-0 sm:p-4 select-none animate-fadeIn"
-            onClick={() => setIsCalculatorOpen(false)}
-          >
-            <div
-              className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md md:max-w-lg rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10 animate-modalSpring max-h-[92vh] overflow-y-auto overscroll-contain"
-              onClick={e => e.stopPropagation()}
+      <AnimatePresence>
+        {isCalculatorOpen && (
+          <ModalPortal>
+            <motion.div
+              data-calc-modal="true"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14 }}
+              className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center z-[999999] p-0 sm:p-4 select-none"
+              onClick={() => setIsCalculatorOpen(false)}
             >
+              <motion.div
+                initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                className="relative bg-[#0B3C39] text-[#F0FDFA] w-full max-w-md md:max-w-lg rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 border-t sm:border border-teal-800/90 shadow-2xl space-y-3 overflow-hidden z-10 max-h-[92vh] overflow-y-auto overscroll-contain"
+                onClick={e => e.stopPropagation()}
+              >
               {/* Header: Category + Date + Close */}
               <div className="flex items-center justify-between gap-2 border-b border-teal-800/80 pb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -452,10 +438,11 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                   );
                 })}
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </ModalPortal>
       )}
+      </AnimatePresence>
     </div>
   );
 };

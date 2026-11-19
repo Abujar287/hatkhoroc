@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
   FileSpreadsheet,
@@ -411,8 +412,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
 
         {/* Collapsable Content Body */}
+        <AnimatePresence initial={false}>
         {isMonthMappingExpanded && (
-          <div className="p-4 sm:p-5 pt-0 border-t border-teal-800/80 space-y-3.5 animate-fadeIn">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden border-t border-teal-800/80"
+          >
+          <div className="p-4 sm:p-5 pt-0 space-y-3.5">
             {/* Top Action Bar inside Accordion: Add Range Button */}
             <div className="flex items-center justify-between pt-3 pb-1">
               <span className="text-xs font-bold text-teal-300/80 uppercase tracking-wider">
@@ -454,8 +463,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
 
             {/* Add / Edit Form */}
+            <AnimatePresence initial={false}>
             {isAddingMapping && (
-              <div className="p-3.5 bg-[#062423] rounded-xl border border-teal-700/70 space-y-3 transition-all animate-fadeIn">
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.16 }}
+                className="p-3.5 bg-[#062423] rounded-xl border border-teal-700/70 space-y-3"
+              >
                 <div className="flex items-center justify-between border-b border-teal-800/80 pb-2">
                   <span className="text-xs font-black text-emerald-400 uppercase tracking-wide">
                     {editingMappingId ? t('Edit Range Mapping', 'রেঞ্জ ম্যপিং এডিট') : t('New Range Mapping', 'নতুন রেঞ্জ ম্যাপিং')}
@@ -477,7 +493,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       value={newMappingLabel}
                       onChange={e => setNewMappingLabel(e.target.value)}
                       placeholder="e.g. Oct-2026"
-                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400"
                     />
                   </div>
                   <div>
@@ -486,7 +502,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       type="date"
                       value={newMappingStart}
                       onChange={e => setNewMappingStart(e.target.value)}
-                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
+                      className="w-full bg-white border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -495,7 +511,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       type="date"
                       value={newMappingEnd}
                       onChange={e => setNewMappingEnd(e.target.value)}
-                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
+                      className="w-full bg-white border border-teal-700/70 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -505,7 +521,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                       value={newMappingBudget}
                       onChange={e => setNewMappingBudget(e.target.value)}
                       placeholder="e.g. 50000"
-                      className="w-full bg-[#0B3C39] border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#F0FDFA] focus:outline-none"
+                      className="w-full bg-white border border-teal-700/70 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -535,8 +551,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     {t('Save Range', 'সংরক্ষণ করুন')}
                   </button>
                 </div>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* List of Mappings (Filtered to previous 1 + current + next 2 months) */}
             <div className="space-y-2">
@@ -615,7 +632,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               )}
             </div>
           </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
 
       {/* 2. ACTIONS & TOOLS (SCRIPT, UPDATE) */}

@@ -158,9 +158,9 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-6 py-1.5 sm:py-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+      <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-6 py-1.5 sm:py-2 flex items-center justify-between gap-2 sm:gap-6">
         {/* Left Zone: 3-line Menu, Logo & Stacked App Name + User Name */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 justify-self-start w-full">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink">
           <div className="relative shrink-0" ref={menuRef}>
             <motion.button
               type="button"
@@ -250,28 +250,28 @@ export const Header: React.FC<HeaderProps> = ({
             <img
               src="/logo.png"
               alt="হাত খরচ Logo"
-              className="w-6.5 h-6.5 sm:w-8 sm:h-8 object-contain rounded-lg shrink-0 border border-teal-700/50 bg-[#062423] p-0.5 transition-transform duration-150 group-hover:scale-105"
+              className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shrink-0 border border-teal-700/50 bg-[#062423] p-0.5 transition-transform duration-150 group-hover:scale-105"
             />
             <div className="min-w-0">
-              <h1 className="text-[12px] sm:text-sm font-bold tracking-tight leading-tight text-white whitespace-nowrap">
+              <h1 className="text-[12.5px] sm:text-sm font-bold tracking-tight leading-tight text-white whitespace-nowrap">
                 হাত খরচ
               </h1>
-              <p className="text-[9.5px] sm:text-[11px] font-medium text-teal-300/80 truncate leading-tight mt-0.5 max-w-[96px] sm:max-w-[180px]">
+              <p className="text-[9.5px] sm:text-[11px] font-medium text-teal-300/80 truncate leading-tight mt-0.5 max-w-[115px] sm:max-w-[180px]">
                 {userDisplayName}
               </p>
             </div>
           </button>
         </div>
 
-        {/* Center Zone: Month Name dead center in Header */}
-        <div className="justify-self-center flex items-center justify-center shrink-0">
-          <span className="text-[10.5px] sm:text-xs font-bold text-teal-100 px-2 sm:px-3 py-1 rounded-lg sm:rounded-xl bg-[#0B3C39] border border-teal-700/70 whitespace-nowrap tabular-nums">
+        {/* Center Breathing Space */}
+        <div className="flex-1 min-w-[16px] sm:min-w-[32px]" aria-hidden="true" />
+
+        {/* Right Zone: Month Name (left of Entry) + Strongly Highlighted Entry CTA */}
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+          <span className="h-7 sm:h-8 inline-flex items-center text-[10.5px] sm:text-xs font-bold text-teal-100 px-2 sm:px-2.5 rounded-lg sm:rounded-xl bg-[#0B3C39] border border-teal-700/70 whitespace-nowrap tabular-nums">
             {formatMonth2DigitYear(activeMonthLabel) || activeMonthLabel}
           </span>
-        </div>
 
-        {/* Right Zone: Strongly Highlighted Entry CTA (No Sync Button) */}
-        <div className="justify-self-end flex items-center justify-end shrink-0">
           {canShowEntry && (
             <motion.button
               type="button"

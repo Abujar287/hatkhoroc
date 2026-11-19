@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CalendarClock,
   Shield,
@@ -11,7 +12,9 @@ import {
   Calculator,
   CloudCheck,
   RefreshCw,
-  Gift
+  Gift,
+  Edit3,
+  X
 } from 'lucide-react';
 import { BouGiftEntry, MonthMapping, Upcoming3MonthPlan } from '../types';
 import {
@@ -191,7 +194,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
   });
 
   const [newCategoryInput, setNewCategoryInput] = useState('');
-  const [copiedCategory, setCopiedCategory] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+  const [editCategoryValues, setEditCategoryValues] = useState<[string, string, string]>(['', '', '']);
+  const [editCategoryError, setEditCategoryError] = useState('');
+  const [copiedInModal, setCopiedInModal] = useState(false);
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'queued'>('idle');
 
   const isDirtyRef = useRef(false);
@@ -458,20 +465,78 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
     });
   };
 
-  const handleCopyFirstMonthToAll = (cat: string) => {
+  const openCategoryModal = (cat: string) => {
+    const vals = plan.categoryValues[cat] || [0, 0, 0];
+    setEditingCategory(cat);
+    setEditCategoryName(cat);
+    setEditCategoryValues([
+      vals[0] > 0 ? String(vals[0]) : '',
+      vals[1] > 0 ? String(vals[1]) : '',
+      vals[2] > 0 ? String(vals[2]) : ''
+    ]);
+    setEditCategoryError('');
+    setCopiedInModal(false);
+  };
+
+  const closeCategoryModal = () => {
+    setEditingCategory(null);
+    setEditCategoryError('');
+    setCopiedInModal(false);
+  };
+
+  const handleCopyFirstInModal = () => {
+    const first = editCategoryValues[0];
+    setEditCategoryValues([first, first, first]);
+    setCopiedInModal(true);
+    setTimeout(() => setCopiedInModal(false), 1200);
+  };
+
+  const handleSaveCategoryModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+
+    const cleaned = cleanCategoryName(editCategoryName, 'en').trim();
+    if (!cleaned) {
+      setEditCategoryError(t('Category name cannot be empty', 'ক্যাটাগরির নাম খালি রাখা যাবে না'));
+      return;
+    }
+
+    const duplicateExists = plan.categories.some(
+      c => c !== editingCategory && c.toLowerCase() === cleaned.toLowerCase()
+    );
+    if (duplicateExists) {
+      setEditCategoryError(t('This category already exists', 'এই ক্যাটাগরি ইতিমধ্যে আছে'));
+      return;
+    }
+
+    const isRenamed = cleaned !== editingCategory;
+    const nextTuple: [number, number, number] = [
+      parseNumericInput(editCategoryValues[0]),
+      parseNumericInput(editCategoryValues[1]),
+      parseNumericInput(editCategoryValues[2])
+    ];
+
+    if (isRenamed) {
+      structureDirtyRef.current = true;
+    }
+
     updatePlan(prev => {
-      const row = prev.categoryValues[cat] || [0, 0, 0];
-      const v = row[0] || 0;
+      const nextVals = { ...prev.categoryValues };
+      if (isRenamed) {
+        delete nextVals[editingCategory];
+      }
+      nextVals[cleaned] = nextTuple;
+
       return {
         ...prev,
-        categoryValues: {
-          ...prev.categoryValues,
-          [cat]: [v, v, v]
-        }
+        categories: isRenamed
+          ? prev.categories.map(c => (c === editingCategory ? cleaned : c))
+          : prev.categories,
+        categoryValues: nextVals
       };
     });
-    setCopiedCategory(cat);
-    setTimeout(() => setCopiedCategory(null), 1400);
+
+    closeCategoryModal();
   };
 
   const handleAddCategoryRow = (e: React.FormEvent) => {
@@ -658,7 +723,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   <th
                     key={slot.key}
                     scope="col"
-                    className="w-[22%] py-1.5 px-1 sm:px-3 text-[9.5px] sm:text-xs font-black text-right text-[#F0FDFA] truncate"
+                    className="w-[22%] py-1.5 px-1 sm:px-3 text-[9.5px] sm:text-xs font-black text-center text-[#F0FDFA] truncate"
                   >
                     {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                   </th>
@@ -671,7 +736,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   {t('Total Income', 'মোট আয়')}
                 </td>
                 {calc.fundingTotals.map((income, idx) => (
-                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-right font-extrabold text-emerald-400 tabular-nums">
+                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-center font-extrabold text-emerald-400 tabular-nums">
                     {formatNumberLocale(income, lang)}
                   </td>
                 ))}
@@ -682,7 +747,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   {t('Expense', 'খরচ')}
                 </td>
                 {calc.categoryTotals.map((exp, idx) => (
-                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-right font-extrabold text-[#FF7A59] tabular-nums">
+                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-center font-extrabold text-[#FF7A59] tabular-nums">
                     {formatNumberLocale(exp, lang)}
                   </td>
                 ))}
@@ -695,7 +760,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 {calc.arrears.map((arrear, idx) => (
                   <td
                     key={idx}
-                    className={`py-1.5 px-1 sm:px-3 text-right font-extrabold tabular-nums ${
+                    className={`py-1.5 px-1 sm:px-3 text-center font-extrabold tabular-nums ${
                       arrear >= 0 ? 'text-emerald-300' : 'text-rose-400'
                     }`}
                   >
@@ -710,7 +775,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   {t('Bkash Paid', 'বিকাশ পেইড')}
                 </td>
                 {calc.bkashPayments.map((paid, idx) => (
-                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-right font-extrabold text-emerald-400 tabular-nums">
+                  <td key={idx} className="py-1.5 px-1 sm:px-3 text-center font-extrabold text-emerald-400 tabular-nums">
                     {formatNumberLocale(paid, lang)}
                   </td>
                 ))}
@@ -723,7 +788,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 {calc.bkashFinalDue.map((due, idx) => (
                   <td
                     key={idx}
-                    className={`py-1.5 px-1 sm:px-3 text-right font-extrabold tabular-nums ${
+                    className={`py-1.5 px-1 sm:px-3 text-center font-extrabold tabular-nums ${
                       due <= 0 ? 'text-emerald-300' : 'text-amber-300'
                     }`}
                   >
@@ -765,7 +830,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 <th
                   key={slot.key}
                   scope="col"
-                  className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                  className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center"
                 >
                   <div className="text-[#F0FDFA] min-h-[13px] truncate">
                     {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
@@ -779,7 +844,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               ))}
               <th
                 scope="col"
-                className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right"
+                className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center"
               >
                 {t('Total', 'মোট')}
               </th>
@@ -789,9 +854,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
             {plan.categories.map(cat => {
               const vals = plan.categoryValues[cat] || [0, 0, 0];
               const rowTotal = (Number(vals[0]) || 0) + (Number(vals[1]) || 0) + (Number(vals[2]) || 0);
-              const isCopied = copiedCategory === cat;
               const isBkash = isBkashLoanCategory(cat);
-              const isExtra = !DEFAULT_CORE_SET.has(cat.toLowerCase());
 
               return (
                 <tr
@@ -801,45 +864,23 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   }`}
                 >
                   <td className="py-1 px-1.5 sm:px-3 border-r border-teal-800/60">
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <CategoryIcon category={cat} size="xs" className="hidden sm:block text-teal-300/80 shrink-0" />
-                        <span className="font-semibold text-[#F0FDFA] text-[10px] sm:text-xs leading-tight break-words">
-                          {cat}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleCopyFirstMonthToAll(cat)}
-                          title={t('Copy 1st value to all 3 columns', '১ম মান ৩ কলামে কপি করুন')}
-                          className="p-0.5 rounded bg-[#062423] hover:bg-teal-800 text-teal-300/75 hover:text-white border border-teal-700/50 cursor-pointer transition-colors"
-                        >
-                          {isCopied ? (
-                            <Check className="w-2.5 h-2.5 text-emerald-400" />
-                          ) : (
-                            <Copy className="w-2.5 h-2.5" />
-                          )}
-                        </button>
-                        {isExtra && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExtraCategory(cat)}
-                            title={t('Remove row', 'সরিয়ে ফেলুন')}
-                            className="p-0.5 rounded bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/60 cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openCategoryModal(cat)}
+                      title={t('Tap to edit or remove category', 'এডিট বা রিমুভ করতে ট্যাপ করুন')}
+                      className="w-full text-left flex items-center gap-1.5 min-w-0 py-0.5 rounded-md cursor-pointer group active:scale-[0.99] transition-transform"
+                    >
+                      <CategoryIcon category={cat} size="xs" className="hidden sm:block text-teal-300/80 group-hover:text-emerald-300 shrink-0 transition-colors" />
+                      <span className="font-semibold text-[#F0FDFA] group-hover:text-emerald-300 text-[10px] sm:text-xs leading-tight break-words transition-colors">
+                        {cat}
+                      </span>
+                    </button>
                   </td>
 
                   {[0, 1, 2].map(monthIdx => {
                     const val = Number(vals[monthIdx]) || 0;
                     return (
-                      <td key={monthIdx} className="py-0.5 px-0.5 sm:px-2 text-right">
+                      <td key={monthIdx} className="py-0.5 px-0.5 sm:px-2 text-center">
                         <input
                           type="text"
                           inputMode="numeric"
@@ -848,13 +889,13 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                             handleCategoryAmountChange(cat, monthIdx as 0 | 1 | 2, e.target.value)
                           }
                           placeholder="0"
-                          className="w-full h-6 sm:h-7 bg-[#062423] border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-right text-[10px] sm:text-xs font-bold text-amber-300 placeholder:text-teal-600 focus:outline-none focus:border-emerald-400 tabular-nums"
+                          className="w-full h-6 sm:h-7 bg-white border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-center text-[10px] sm:text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums"
                         />
                       </td>
                     );
                   })}
 
-                  <td className="py-1 px-1 sm:px-3 text-right font-extrabold text-[10px] sm:text-xs text-emerald-300 tabular-nums">
+                  <td className="py-1 px-1 sm:px-3 text-center font-extrabold text-[10px] sm:text-xs text-emerald-300 tabular-nums">
                     {rowTotal > 0 ? formatNumberLocale(rowTotal, lang) : '0'}
                   </td>
                 </tr>
@@ -867,11 +908,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 {t('Total Expense', 'মোট খরচ')}
               </td>
               {calc.categoryTotals.map((total, idx) => (
-                <td key={idx} className="py-2 px-0.5 sm:px-2 text-right text-[#FF7A59] tabular-nums">
+                <td key={idx} className="py-2 px-0.5 sm:px-2 text-center text-[#FF7A59] tabular-nums">
                   {formatNumberLocale(total, lang)}
                 </td>
               ))}
-              <td className="py-2 px-1 sm:px-3 text-right text-[#FF7A59] tabular-nums">
+              <td className="py-2 px-1 sm:px-3 text-center text-[#FF7A59] tabular-nums">
                 {formatNumberLocale(calc.sum3MExpense, lang)}
               </td>
             </tr>
@@ -889,7 +930,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
             value={newCategoryInput}
             onChange={e => setNewCategoryInput(e.target.value)}
             placeholder={t('Add extra category row...', 'নতুন ক্যাটাগরি যোগ করুন...')}
-            className="flex-1 min-w-0 bg-[#0B3C39] border border-teal-700/70 rounded-xl px-2.5 py-1.5 text-xs text-[#F0FDFA] placeholder:text-teal-400/60 focus:outline-none focus:border-emerald-400"
+            className="flex-1 min-w-0 bg-white border border-teal-700/70 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400"
           />
           <datalist id="upcoming-3m-cat-suggestions">
             {suggestedExtraCats.map(c => (
@@ -929,11 +970,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 {t('Income / Funds', 'আয় / ফান্ড')}
               </th>
               {upcomingMonths.map(slot => (
-                <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right truncate">
+                <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center truncate">
                   {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                 </th>
               ))}
-              <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right">
+              <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center">
                 {t('Total', 'মোট')}
               </th>
             </tr>
@@ -956,7 +997,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   {[0, 1, 2].map(idx => {
                     const val = Number(rowVals[idx]) || 0;
                     return (
-                      <td key={idx} className="py-0.5 px-0.5 sm:px-2 text-right">
+                      <td key={idx} className="py-0.5 px-0.5 sm:px-2 text-center">
                         <input
                           type="text"
                           inputMode="numeric"
@@ -965,12 +1006,12 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                             handleFundingChange(row.key, idx as 0 | 1 | 2, e.target.value)
                           }
                           placeholder="0"
-                          className="w-full h-6 sm:h-7 bg-[#062423] border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-right text-[10px] sm:text-xs font-bold text-emerald-300 placeholder:text-teal-600 focus:outline-none focus:border-emerald-400 tabular-nums"
+                          className="w-full h-6 sm:h-7 bg-white border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-center text-[10px] sm:text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums"
                         />
                       </td>
                     );
                   })}
-                  <td className="py-1 px-1 sm:px-3 text-right font-extrabold text-emerald-300 tabular-nums">
+                  <td className="py-1 px-1 sm:px-3 text-center font-extrabold text-emerald-300 tabular-nums">
                     {formatNumberLocale(rowSum, lang)}
                   </td>
                 </tr>
@@ -983,11 +1024,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 Total Income
               </td>
               {calc.fundingTotals.map((total, idx) => (
-                <td key={idx} className="py-2 px-0.5 sm:px-2 text-right text-emerald-400 tabular-nums">
+                <td key={idx} className="py-2 px-0.5 sm:px-2 text-center text-emerald-400 tabular-nums">
                   {formatNumberLocale(total, lang)}
                 </td>
               ))}
-              <td className="py-2 px-1 sm:px-3 text-right text-emerald-300 tabular-nums">
+              <td className="py-2 px-1 sm:px-3 text-center text-emerald-300 tabular-nums">
                 {formatNumberLocale(calc.sum3MFunds, lang)}
               </td>
             </tr>
@@ -1000,7 +1041,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               {calc.arrears.map((val, idx) => (
                 <td
                   key={idx}
-                  className={`py-2 px-0.5 sm:px-2 text-right tabular-nums ${
+                  className={`py-2 px-0.5 sm:px-2 text-center tabular-nums ${
                     val >= 0 ? 'text-emerald-300' : 'text-rose-400'
                   }`}
                 >
@@ -1009,7 +1050,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 </td>
               ))}
               <td
-                className={`py-2 px-1 sm:px-3 text-right tabular-nums ${
+                className={`py-2 px-1 sm:px-3 text-center tabular-nums ${
                   calc.sum3MArrear >= 0 ? 'text-emerald-300' : 'text-rose-400'
                 }`}
               >
@@ -1044,11 +1085,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 Bkash Loan
               </th>
               {upcomingMonths.map(slot => (
-                <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right truncate">
+                <th key={slot.key} className="w-[17%] py-1.5 px-0.5 sm:px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center truncate">
                   {slot.displayLabel || formatMonth2DigitYear(slot.label) || '\u00A0'}
                 </th>
               ))}
-              <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-right">
+              <th className="w-[17%] py-1.5 px-1 sm:px-3 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-center">
                 {t('Total', 'মোট')}
               </th>
             </tr>
@@ -1058,19 +1099,19 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               <td className="py-1 px-1.5 sm:px-3 font-bold border-r border-teal-800/60 leading-tight">
                 Bkash Loan Total
               </td>
-              <td className="py-0.5 px-0.5 sm:px-2 text-right">
+              <td className="py-0.5 px-0.5 sm:px-2 text-center">
                 <input
                   type="text"
                   inputMode="numeric"
                   value={plan.bkashLoanTotal > 0 ? String(plan.bkashLoanTotal) : ''}
                   onChange={e => handleBkashTotalChange(e.target.value)}
                   placeholder="0"
-                  className="w-full h-6 sm:h-7 bg-[#062423] border border-amber-500/60 rounded-md px-1 sm:px-1.5 text-right text-[10px] sm:text-xs font-black text-amber-300 placeholder:text-teal-600 focus:outline-none focus:border-amber-400 tabular-nums"
+                  className="w-full h-6 sm:h-7 bg-white border border-amber-500/60 rounded-md px-1 sm:px-1.5 text-center text-[10px] sm:text-xs font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-400 tabular-nums"
                 />
               </td>
-              <td className="py-1 px-0.5 sm:px-2 text-right text-teal-500/60 font-semibold">—</td>
-              <td className="py-1 px-0.5 sm:px-2 text-right text-teal-500/60 font-semibold">—</td>
-              <td className="py-1 px-1 sm:px-3 text-right font-extrabold text-amber-300 tabular-nums">
+              <td className="py-1 px-0.5 sm:px-2 text-center text-teal-500/60 font-semibold">—</td>
+              <td className="py-1 px-0.5 sm:px-2 text-center text-teal-500/60 font-semibold">—</td>
+              <td className="py-1 px-1 sm:px-3 text-center font-extrabold text-amber-300 tabular-nums">
                 {formatNumberLocale(plan.bkashLoanTotal, lang)}
               </td>
             </tr>
@@ -1080,11 +1121,11 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                 Bkash Loan Payment
               </td>
               {calc.bkashPayments.map((paid, idx) => (
-                <td key={idx} className="py-1.5 px-0.5 sm:px-2 text-right text-emerald-400 font-extrabold tabular-nums">
+                <td key={idx} className="py-1.5 px-0.5 sm:px-2 text-center text-emerald-400 font-extrabold tabular-nums">
                   {formatNumberLocale(paid, lang)}
                 </td>
               ))}
-              <td className="py-1.5 px-1 sm:px-3 text-right text-emerald-300 font-black tabular-nums">
+              <td className="py-1.5 px-1 sm:px-3 text-center text-emerald-300 font-black tabular-nums">
                 {formatNumberLocale(calc.sum3MBkashPaid, lang)}
               </td>
             </tr>
@@ -1096,14 +1137,14 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               {calc.bkashFinalDue.map((due, idx) => (
                 <td
                   key={idx}
-                  className={`py-2 px-0.5 sm:px-2 text-right tabular-nums ${
+                  className={`py-2 px-0.5 sm:px-2 text-center tabular-nums ${
                     due <= 0 ? 'text-emerald-300' : 'text-amber-300'
                   }`}
                 >
                   {formatNumberLocale(due, lang)}
                 </td>
               ))}
-              <td className="py-2 px-1 sm:px-3 text-right text-teal-300/80 text-[9px] sm:text-[11px] font-bold leading-tight">
+              <td className="py-2 px-1 sm:px-3 text-center text-teal-300/80 text-[9px] sm:text-[11px] font-bold leading-tight">
                 {plan.bkashLoanTotal > 0
                   ? calc.bkashFinalDue[2] <= 0
                     ? t('Paid Off', 'পরিশোধিত')
@@ -1176,13 +1217,13 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               </th>
               <th
                 scope="col"
-                className="w-[33%] py-2 px-2.5 sm:px-4 text-right"
+                className="w-[33%] py-2 px-2.5 sm:px-4 text-center"
               >
                 {t('Budget', 'বাজেট')}
               </th>
               <th
                 scope="col"
-                className="w-[33%] py-2 px-2.5 sm:px-4 text-right"
+                className="w-[33%] py-2 px-2.5 sm:px-4 text-center"
               >
                 {t('Give', 'দেওয়া')}
               </th>
@@ -1201,20 +1242,20 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
                   <td className="py-1.5 px-2.5 sm:px-4 font-bold text-[#F0FDFA] border-r border-teal-800/60">
                     {row.month}
                   </td>
-                  <td className="py-1.5 px-2.5 sm:px-4 text-right font-semibold text-teal-200 tabular-nums">
+                  <td className="py-1.5 px-2.5 sm:px-4 text-center font-semibold text-teal-200 tabular-nums">
                     {formatNumberLocale(row.budget, lang)}
                   </td>
-                  <td className="py-1 px-2 sm:px-3.5 text-right">
+                  <td className="py-1 px-2 sm:px-3.5 text-center">
                     <input
                       type="text"
                       inputMode="numeric"
                       value={row.give > 0 ? String(row.give) : ''}
                       onChange={e => handleBouGiftGiveChange(row.month, e.target.value)}
                       placeholder="0"
-                      className={`w-full h-7 sm:h-8 bg-[#062423] border rounded-lg px-2 text-right text-[11px] sm:text-xs font-bold placeholder:text-teal-600 focus:outline-none focus:border-emerald-400 tabular-nums transition-colors ${
+                      className={`w-full h-7 sm:h-8 bg-white border rounded-lg px-2 text-center text-[11px] sm:text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums transition-colors ${
                         isPaid
-                          ? 'border-emerald-600/70 text-emerald-300'
-                          : 'border-teal-700/70 text-amber-300'
+                          ? 'border-emerald-600/70'
+                          : 'border-teal-700/70'
                       }`}
                     />
                   </td>
@@ -1227,16 +1268,169 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
               <td className="py-2 px-2.5 sm:px-4 border-r border-teal-800/60 text-[#F0FDFA]">
                 {t('Total', 'মোট')}
               </td>
-              <td className="py-2 px-2.5 sm:px-4 text-right text-teal-200 tabular-nums">
+              <td className="py-2 px-2.5 sm:px-4 text-center text-teal-200 tabular-nums">
                 {formatNumberLocale(calc.bouTotalAmount, lang)}
               </td>
-              <td className="py-2 px-2.5 sm:px-4 text-right text-emerald-400 tabular-nums">
+              <td className="py-2 px-2.5 sm:px-4 text-center text-emerald-400 tabular-nums">
                 {formatNumberLocale(calc.bouTotalGive, lang)}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* ================================================================ */}
+      {/* CATEGORY EDIT & REMOVE POPUP MODAL                               */}
+      {/* ================================================================ */}
+      <AnimatePresence>
+        {editingCategory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            onClick={closeCategoryModal}
+            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm bg-[#0B3C39] border border-teal-700/70 rounded-2xl shadow-2xl overflow-hidden text-[#F0FDFA]"
+            >
+              <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#0B3C39] border border-teal-700/60 flex items-center justify-center shrink-0">
+                    <Edit3 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-black text-white truncate">
+                      {t('Manage Category', 'ক্যাটাগরি এডিট / রিমুভ')}
+                    </h4>
+                    <p className="text-[11px] text-teal-300/80 truncate">{editingCategory}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCategoryModal}
+                  className="p-1.5 rounded-lg bg-[#0B3C39] hover:bg-teal-800/70 text-teal-300 hover:text-white transition-colors cursor-pointer shrink-0"
+                  aria-label={t('Close', 'বন্ধ করুন')}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCategoryModal} className="p-4 space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-teal-200 uppercase tracking-wider mb-1.5">
+                    {t('Category Name', 'ক্যাটাগরির নাম')}
+                  </label>
+                  <input
+                    type="text"
+                    value={editCategoryName}
+                    onChange={e => {
+                      setEditCategoryName(e.target.value);
+                      if (editCategoryError) setEditCategoryError('');
+                    }}
+                    placeholder={t('Enter category name', 'ক্যাটাগরির নাম লিখুন')}
+                    className="w-full rounded-xl border border-teal-600/70 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    autoFocus
+                  />
+                  {editCategoryError && (
+                    <p className="text-[11px] font-semibold text-rose-300 mt-1">{editCategoryError}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="text-[11px] font-bold text-teal-200 uppercase tracking-wider">
+                      {t('3-Month Values', '৩ মাসের পরিমাণ')}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleCopyFirstInModal}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#062423] hover:bg-teal-800/80 border border-teal-700/70 text-[10px] font-bold text-teal-200 cursor-pointer transition-colors"
+                    >
+                      {copiedInModal ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-300">{t('Copied', 'কপি হয়েছে')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-teal-300" />
+                          <span>{t('Copy 1st to all', '১ম মান সবগুলোতে')}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0, 1, 2].map(idx => (
+                      <div key={idx}>
+                        <span className="block text-[10px] font-bold text-teal-300/80 mb-1 truncate text-center">
+                          {upcomingMonths[idx]?.displayLabel ||
+                            formatMonth2DigitYear(upcomingMonths[idx]?.label || '') ||
+                            `M${idx + 1}`}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={editCategoryValues[idx]}
+                          onChange={e => {
+                            const next = [...editCategoryValues] as [string, string, string];
+                            next[idx] = e.target.value.replace(/[^0-9.]/g, '');
+                            setEditCategoryValues(next);
+                          }}
+                          placeholder="0"
+                          className="w-full h-9 rounded-xl border border-teal-600/70 px-2 text-center text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-400 tabular-nums"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-teal-800/70 flex items-center justify-between gap-2">
+                  {!DEFAULT_CORE_SET.has(editingCategory.toLowerCase()) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRemoveExtraCategory(editingCategory);
+                        closeCategoryModal();
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl bg-rose-950/85 hover:bg-rose-900 text-rose-200 border border-rose-700/70 text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{t('Remove', 'রিমুভ')}</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeCategoryModal}
+                      className="px-3.5 py-2.5 rounded-xl bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/60 text-xs font-bold cursor-pointer active:scale-95 transition-all"
+                    >
+                      {t('Cancel', 'বাতিল')}
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{t('Save', 'সেভ')}</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
