@@ -41,11 +41,6 @@ import { ExportMonthModal } from './components/Modals';
 // Modular Components
 import { Header } from './components/Header';
 import { SummaryTab } from './components/SummaryTab';
-import { EntryTab } from './components/EntryTab';
-import { DetailsTab } from './components/DetailsTab';
-import { BudgetTab } from './components/BudgetTab';
-import { UpcomingCostTab } from './components/UpcomingCostTab';
-import { SettingsTab } from './components/SettingsTab';
 import { NotepadTab } from './components/NotepadTab';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
@@ -93,6 +88,21 @@ class TabErrorBoundary extends React.Component<
   }
 }
 
+const EntryTab = lazyWithRetry(() =>
+  import('./components/EntryTab').then(m => ({ default: m.EntryTab }))
+);
+const DetailsTab = lazyWithRetry(() =>
+  import('./components/DetailsTab').then(m => ({ default: m.DetailsTab }))
+);
+const BudgetTab = lazyWithRetry(() =>
+  import('./components/BudgetTab').then(m => ({ default: m.BudgetTab }))
+);
+const UpcomingCostTab = lazyWithRetry(() =>
+  import('./components/UpcomingCostTab').then(m => ({ default: m.UpcomingCostTab }))
+);
+const SettingsTab = lazyWithRetry(() =>
+  import('./components/SettingsTab').then(m => ({ default: m.SettingsTab }))
+);
 const MonthlySummaryTab = lazyWithRetry(() =>
   import('./components/MonthlySummaryTab').then(m => ({ default: m.MonthlySummaryTab }))
 );
@@ -365,11 +375,32 @@ export default function App() {
       }
     };
 
-    // Check immediately and then every 15 minutes
-    checkUpdate();
-    const interval = setInterval(checkUpdate, 900000); 
-    return () => clearInterval(interval);
+    // Defer update check slightly so primary financial sync completes first on boot
+    const startupTimer = window.setTimeout(checkUpdate, 2500);
+    const interval = setInterval(checkUpdate, 900000);
+    return () => {
+      window.clearTimeout(startupTimer);
+      clearInterval(interval);
+    };
   }, [isAuthenticated]);
+
+  // Idle-prefetch secondary tab chunks right after initial render so tab taps/swipes open instantaneously
+  useEffect(() => {
+    const prefetchTabs = () => {
+      void import('./components/EntryTab');
+      void import('./components/DetailsTab');
+      void import('./components/UpcomingCostTab');
+      void import('./components/SettingsTab');
+      void import('./components/BudgetTab');
+    };
+    const ric = (window as any).requestIdleCallback;
+    if (typeof ric === 'function') {
+      const id = ric(prefetchTabs, { timeout: 1200 });
+      return () => (window as any).cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(prefetchTabs, 450);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // Lightweight wheel scroll forwarding for margins without lag
   useEffect(() => {
@@ -685,7 +716,9 @@ export default function App() {
                 } catch {}
 
                 if (mappedUsers.length > 0) {
-                  refreshMissingUserRecordCounts(mappedUsers, activeTabKey, activeTxLen ?? 0, false);
+                  window.setTimeout(() => {
+                    refreshMissingUserRecordCounts(mappedUsers, activeTabKey, activeTxLen ?? 0, false);
+                  }, 1500);
                 }
 
                 // Auto-update active user profile if found in synced list (Case-Insensitive)
@@ -2400,9 +2433,12 @@ export default function App() {
         const syncedTxCount = Array.isArray(data.transactions) ? data.transactions.length : transactions.length;
         const applySyncedUsers = (rawUsersList: any[]) => {
           const prevSnapshot = usersRef.current;
-          let mappedUsers = rawUsersList.map((rawU: any) =>
-            mapUserFromSheet(rawU, prevSnapshot, tabToSync, syncedTxCount)
-          );
+          const pendingDeleteUsernames = getDeletedUsernamesSet();
+          let mappedUsers = rawUsersList
+            .map((rawU: any) =>
+              mapUserFromSheet(rawU, prevSnapshot, tabToSync, syncedTxCount)
+            )
+            .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
           if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
             const prevAdmin = prevSnapshot.find(u => u.username.toLowerCase() === 'abujar287');
             mappedUsers = [prevAdmin ? { ...DEFAULT_ADMIN, recordCount: prevAdmin.recordCount ?? 0 } : DEFAULT_ADMIN, ...mappedUsers];
@@ -2518,7 +2554,7 @@ export default function App() {
         blocked = true;
         break;
       }
-      if (node.scrollWidth > node.clientWidth + 4) {
+      if (node.scrollWidth > node.clientWidth + 16) {
         const overflowX = window.getComputedStyle(node).overflowX;
         if (overflowX === 'auto' || overflowX === 'scroll') {
           blocked = true;
@@ -2562,8 +2598,8 @@ export default function App() {
     if (swipeStartXRef.current !== null && swipeStartYRef.current !== null && swipeAxisRef.current === null) {
       const sdx = touch.clientX - swipeStartXRef.current;
       const sdy = touch.clientY - swipeStartYRef.current;
-      if (Math.abs(sdx) > 12 || Math.abs(sdy) > 12) {
-        swipeAxisRef.current = Math.abs(sdx) > Math.abs(sdy) * 1.35 ? 'x' : 'y';
+      if (Math.abs(sdx) > 10 || Math.abs(sdy) > 10) {
+        swipeAxisRef.current = Math.abs(sdx) > Math.abs(sdy) * 1.05 ? 'x' : 'y';
       }
     }
 
@@ -2626,7 +2662,7 @@ export default function App() {
 
     if (!blocked && axis === 'x' && startX !== null && e.changedTouches.length > 0) {
       const dx = e.changedTouches[0].clientX - startX;
-      if (Math.abs(dx) >= 52) {
+      if (Math.abs(dx) >= 40) {
         const footerTabs: AppTab[] = (
           ['summary', 'details', 'upcoming_cost', 'settings', 'notepad'] as AppTab[]
         ).filter(id => allowedTabs.includes(id));
@@ -3403,7 +3439,7 @@ export default function App() {
   if (!isAuthenticated || !currentUser) {
     return (
       <div className="min-h-screen bg-[#042F2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#F0FDFA]">
+        <div className="w-full max-w-md bg-[#0B3C39] border border-teal-800/80 rounded-2xl p-8 shadow-2xl text-[#F0FDFA] animate-scaleUp">
           <div className="text-center mb-6">
             <img src="/logo.png" alt="হাত খরচ Logo" className="w-24 h-24 mx-auto mb-3 object-contain rounded-2xl shadow-xl border border-teal-600/60" />
             <h1 className="text-2xl font-extrabold text-[#F0FDFA]">হাত খরচ</h1>
@@ -3534,7 +3570,7 @@ export default function App() {
           onTouchMove={handleMainTouchMove}
           onTouchEnd={handleMainTouchEnd}
           onTouchCancel={handleMainTouchEnd}
-          className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [-webkit-overflow-scrolling:touch] relative"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-5 md:p-6 bg-[#042F2E] w-full [overscroll-behavior-y:contain] [overscroll-behavior-x:none] [touch-action:pan-y] [-webkit-overflow-scrolling:touch] relative"
         >
           {/* Pull-to-Sync Visual Indicator */}
           {(pullDistance > 0 || isSyncing) && (
@@ -3577,10 +3613,10 @@ export default function App() {
               <motion.div
                 key={activeTab}
                 custom={tabDirection}
-                initial={{ opacity: 0, x: tabDirection * 18, scale: 0.99 }}
+                initial={{ opacity: 0, x: tabDirection * 16, scale: 0.992 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: tabDirection * -18, scale: 0.99 }}
-                transition={{ duration: 0.13, ease: [0.22, 1, 0.36, 1] }}
+                exit={{ opacity: 0, x: tabDirection * -16, scale: 0.992 }}
+                transition={{ duration: 0.11, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full"
               >
               {activeTab === 'summary' && (

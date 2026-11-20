@@ -1685,16 +1685,151 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
   const [warningMsg, setWarningMsg] = useState('');
 
   const categories = activeType === 'Expense' ? expenseCategories : incomeCategories;
+  const [orderedCats, setOrderedCats] = useState<string[]>(categories);
+  const [draggingCat, setDraggingCat] = useState<string | null>(null);
+  const orderedRef = React.useRef<string[]>(orderedCats);
+  const draggingCatRef = React.useRef<string | null>(null);
+  const listContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const dragMetaRef = React.useRef<{
+    active: boolean;
+    cat: string;
+    index: number;
+    startX: number;
+    startY: number;
+    pointerType: string;
+  } | null>(null);
+  const dragHoldTimerRef = React.useRef<number | null>(null);
+  const onUpdateRef = React.useRef(onUpdateCategories);
+  const activeTypeRef = React.useRef(activeType);
 
-  const handleMove = (index: number, direction: 'up' | 'down') => {
-    const cats = [...categories];
-    const target = direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= cats.length) return;
-    const temp = cats[index];
-    cats[index] = cats[target];
-    cats[target] = temp;
-    setEditingIndex(null);
-    onUpdateCategories(cats, activeType);
+  useEffect(() => {
+    onUpdateRef.current = onUpdateCategories;
+  }, [onUpdateCategories]);
+
+  useEffect(() => {
+    activeTypeRef.current = activeType;
+  }, [activeType]);
+
+  useEffect(() => {
+    if (!draggingCatRef.current) {
+      setOrderedCats(categories);
+      orderedRef.current = categories;
+    }
+  }, [categories, activeType]);
+
+  useEffect(() => {
+    if (!draggingCat) return;
+    const preventScroll = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+    return () => window.removeEventListener('touchmove', preventScroll);
+  }, [draggingCat]);
+
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      const meta = dragMetaRef.current;
+      if (!meta) return;
+
+      if (!meta.active) {
+        const dist = Math.hypot(e.clientX - meta.startX, e.clientY - meta.startY);
+        if (meta.pointerType === 'mouse' && dist > 5) {
+          if (dragHoldTimerRef.current) {
+            window.clearTimeout(dragHoldTimerRef.current);
+            dragHoldTimerRef.current = null;
+          }
+          meta.active = true;
+          draggingCatRef.current = meta.cat;
+          setDraggingCat(meta.cat);
+        } else if (meta.pointerType !== 'mouse' && dist > 10) {
+          if (dragHoldTimerRef.current) {
+            window.clearTimeout(dragHoldTimerRef.current);
+            dragHoldTimerRef.current = null;
+          }
+          dragMetaRef.current = null;
+          return;
+        } else {
+          return;
+        }
+      }
+
+      // Auto-scroll modal list near top/bottom edge while dragging
+      const container = listContainerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        if (e.clientY < rect.top + 36) {
+          container.scrollTop -= 8;
+        } else if (e.clientY > rect.bottom - 36) {
+          container.scrollTop += 8;
+        }
+      }
+
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-mgr-cat-index]') as HTMLElement | null;
+      if (!el) return;
+      const targetIdx = Number(el.dataset.mgrCatIndex);
+      const fromIdx = meta.index;
+      if (!Number.isNaN(targetIdx) && targetIdx !== fromIdx && targetIdx >= 0 && targetIdx < orderedRef.current.length) {
+        const next = [...orderedRef.current];
+        const [moved] = next.splice(fromIdx, 1);
+        next.splice(targetIdx, 0, moved);
+        meta.index = targetIdx;
+        orderedRef.current = next;
+        setOrderedCats(next);
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (dragHoldTimerRef.current) {
+        window.clearTimeout(dragHoldTimerRef.current);
+        dragHoldTimerRef.current = null;
+      }
+      const meta = dragMetaRef.current;
+      if (meta?.active) {
+        onUpdateRef.current(orderedRef.current, activeTypeRef.current);
+      }
+      dragMetaRef.current = null;
+      draggingCatRef.current = null;
+      setDraggingCat(null);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, []);
+
+  const handleRowPointerDown = (e: React.PointerEvent, cat: string, index: number) => {
+    if (editingIndex !== null) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const targetEl = e.target as HTMLElement | null;
+    if (targetEl?.closest('button, input, textarea, select')) return;
+
+    if (dragHoldTimerRef.current) {
+      window.clearTimeout(dragHoldTimerRef.current);
+      dragHoldTimerRef.current = null;
+    }
+
+    dragMetaRef.current = {
+      active: false,
+      cat,
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerType: e.pointerType
+    };
+
+    dragHoldTimerRef.current = window.setTimeout(() => {
+      const meta = dragMetaRef.current;
+      if (meta && !meta.active && meta.cat === cat) {
+        meta.active = true;
+        draggingCatRef.current = cat;
+        setDraggingCat(cat);
+      }
+    }, 180);
   };
 
   const handleStartEdit = (cat: string, index: number) => {
@@ -1710,22 +1845,26 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
       setWarningMsg(t('Category name cannot be empty.', 'ক্যাটাগরির নাম খালি রাখা যাবে না।'));
       return;
     }
-    const cats = [...categories];
+    const cats = [...orderedCats];
     cats[index] = trimmed;
     saveCategoryIcon(trimmed, editIconId);
+    setOrderedCats(cats);
+    orderedRef.current = cats;
     onUpdateCategories(cats, activeType);
     setEditingIndex(null);
     setWarningMsg('');
   };
 
   const handleDelete = (cat: string) => {
-    if (categories.length <= 1) {
+    if (orderedCats.length <= 1) {
       setWarningMsg(t('At least one category is required.', 'কমপক্ষে একটি ক্যাটাগরি থাকা আবশ্যক।'));
       return;
     }
     setWarningMsg('');
     setEditingIndex(null);
-    const cats = categories.filter(c => c !== cat);
+    const cats = orderedCats.filter(c => c !== cat);
+    setOrderedCats(cats);
+    orderedRef.current = cats;
     onUpdateCategories(cats, activeType);
   };
 
@@ -1756,7 +1895,7 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
           </div>
 
           {/* Type Tab Selector */}
-          <div className="flex items-center bg-[#062423] p-1 rounded-xl mb-3 shrink-0 border border-teal-800/80">
+          <div className="flex items-center bg-[#062423] p-1 rounded-xl mb-2.5 shrink-0 border border-teal-800/80">
             <button
               type="button"
               onClick={() => {
@@ -1785,24 +1924,56 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
             </button>
           </div>
 
+          <div className="flex items-center justify-between px-1 mb-2 text-[10px] text-teal-300/75 font-medium shrink-0">
+            <span>
+              {draggingCat
+                ? t('Drag up or down to reorder', 'উপরে বা নিচে টেনে সাজান')
+                : t('Hold & drag any category to reorder', 'যেকোনো ক্যাটাগরি চেপে ধরে ড্র্যাগ করুন')}
+            </span>
+            {draggingCat && (
+              <span className="text-amber-300 font-bold animate-pulse truncate max-w-[140px]">
+                {cleanCategoryName(draggingCat, lang)}
+              </span>
+            )}
+          </div>
+
           {warningMsg && (
             <div className="mb-2 px-3 py-1.5 rounded-lg bg-rose-950/70 border border-rose-700/70 text-[11px] font-semibold text-rose-200 shrink-0">
               {warningMsg}
             </div>
           )}
 
-          {/* List of Categories with Move Up, Move Down, Inline Edit + Icon Pick, Delete */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 mb-3">
-            {categories.map((cat, idx) => {
+          {/* List of Categories with Press & Hold Drag Reorder, Edit, Remove */}
+          <div
+            ref={listContainerRef}
+            className="flex-1 overflow-y-auto space-y-1.5 pr-1 mb-3 select-none"
+          >
+            {orderedCats.map((cat, idx) => {
               const isEditing = editingIndex === idx;
+              const isDragging = draggingCat === cat;
               return (
                 <div
-                  key={`${cat}_${idx}`}
-                  className="p-2 rounded-xl bg-[#062423] border border-teal-700/70 text-xs shadow-sm space-y-2"
+                  key={cat}
+                  data-mgr-cat-index={idx}
+                  onContextMenu={e => e.preventDefault()}
+                  onPointerDown={e => handleRowPointerDown(e, cat, idx)}
+                  style={{ touchAction: isDragging ? 'none' : 'pan-y' }}
+                  className={`p-2 rounded-xl border text-xs shadow-sm space-y-2 transition-all select-none ${
+                    isDragging
+                      ? 'bg-teal-900/95 border-amber-400 ring-2 ring-amber-400/75 scale-[1.02] shadow-xl z-20 relative'
+                      : 'bg-[#062423] border-teal-700/70 hover:border-teal-500/70 cursor-grab active:cursor-grabbing'
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className="text-teal-300 p-0.5 rounded border border-teal-800/80 bg-[#042F2E] shrink-0" title="Order">
+                      <div
+                        className={`p-0.5 rounded border shrink-0 ${
+                          isDragging
+                            ? 'text-amber-300 border-amber-400/70 bg-amber-950/60'
+                            : 'text-teal-300 border-teal-800/80 bg-[#042F2E]'
+                        }`}
+                        title={t('Hold & Drag', 'চেপে ধরে ড্র্যাগ করুন')}
+                      >
                         <GripVertical className="w-3.5 h-3.5" />
                       </div>
                       <CategoryIcon category={cat} iconId={isEditing ? editIconId : undefined} withBadge size="sm" />
@@ -1815,13 +1986,13 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
                           autoFocus
                         />
                       ) : (
-                        <span className="font-semibold text-[#F0FDFA] truncate">
+                        <span className="font-semibold text-[#F0FDFA] truncate pointer-events-none">
                           {cleanCategoryName(cat, lang)}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {isEditing ? (
                         <>
                           <button
@@ -1845,35 +2016,17 @@ const CategoryManagerModalInner: React.FC<CategoryManagerModalProps> = ({
                         <>
                           <button
                             type="button"
-                            onClick={() => handleMove(idx, 'up')}
-                            disabled={idx === 0}
-                            className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
-                            title="Move Up"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMove(idx, 'down')}
-                            disabled={idx === categories.length - 1}
-                            className="px-1.5 py-0.5 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white disabled:opacity-30 cursor-pointer text-[10px] font-bold shadow-sm"
-                            title="Move Down"
-                          >
-                            ▼
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => handleStartEdit(cat, idx)}
-                            className="p-1 rounded border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white hover:bg-teal-900/60 cursor-pointer shadow-sm"
-                            title="Edit"
+                            className="p-1.5 rounded-lg border border-teal-800/80 bg-[#042F2E] text-teal-200 hover:text-white hover:bg-teal-900/60 cursor-pointer shadow-sm"
+                            title={t('Edit', 'এডিট')}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(cat)}
-                            className="p-1 rounded border border-rose-800/80 bg-rose-950/60 text-[#FF5252] hover:bg-rose-900/80 cursor-pointer shadow-sm"
-                            title="Delete"
+                            className="p-1.5 rounded-lg border border-rose-800/80 bg-rose-950/60 text-[#FF5252] hover:bg-rose-900/80 cursor-pointer shadow-sm"
+                            title={t('Remove', 'মুছুন')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

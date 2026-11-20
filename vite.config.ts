@@ -11,7 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'manifest.json', 'alarm.wav', 'sw.js'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'manifest.json', 'alarm.wav', 'push-sw.js'],
         manifest: {
           id: '/',
           name: 'হাত খরচ - Expense & Cost Task Manager',
@@ -49,13 +49,37 @@ export default defineConfig(() => {
           clientsClaim: true,
           skipWaiting: true,
           cleanupOutdatedCaches: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,wav}'],
+          importScripts: ['/push-sw.js'],
+          globPatterns: ['**/*.{css,html,ico,png,svg,woff,woff2,wav}', 'assets/index*.js', 'assets/vendor-*.js'],
+          globIgnores: ['**/xlsx*', '**/jspdf*', '**/html2canvas*', '**/jszip*', '**/purify*', '**/aistudio/**'],
         },
         devOptions: {
           enabled: false,
         },
       }),
     ],
+    build: {
+      rolldownOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('/scheduler/')) {
+                return 'vendor-react';
+              }
+              if (id.includes('/framer-motion/') || id.includes('/motion/') || id.includes('/motion-dom/') || id.includes('/motion-utils/')) {
+                return 'vendor-motion';
+              }
+              if (id.includes('/lucide-react/')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('/@capacitor/')) {
+                return 'vendor-capacitor';
+              }
+            }
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname ?? '.', '.'),
