@@ -77,6 +77,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   const pressTimerRef = useRef<any>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const isScrollingRef = useRef<boolean>(false);
+  const longPressTriggeredRef = useRef<boolean>(false);
 
   // Extract unique categories directly from Google Sheet BD column (sheetCategories + synced notes)
   const categories = useMemo(() => {
@@ -339,6 +340,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       touchStartPos.current = { x: e.clientX, y: e.clientY };
     }
     isScrollingRef.current = false;
+    longPressTriggeredRef.current = false;
 
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
@@ -346,12 +348,13 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
 
     pressTimerRef.current = setTimeout(() => {
       if (!isScrollingRef.current) {
+        longPressTriggeredRef.current = true;
         setIsSelectMode(true);
         setSelectedNoteIds(prev => (prev.includes(noteId) ? prev : [...prev, noteId]));
         showToast('Selection mode activated', 'info');
       }
       touchStartPos.current = null;
-    }, 700);
+    }, 550);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -755,12 +758,17 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 transition={{ duration: 0.18, delay: Math.min(idx * 0.025, 0.18), ease: [0.16, 1, 0.3, 1] }}
                 whileTap={{ scale: 0.992 }}
                 onClick={() => {
+                  if (longPressTriggeredRef.current) {
+                    longPressTriggeredRef.current = false;
+                    return;
+                  }
                   if (isSelectMode) {
                     toggleSelectNote(note.id);
                   } else {
                     handleOpenNoteModal(note);
                   }
                 }}
+                onContextMenu={e => e.preventDefault()}
                 onMouseDown={e => handleTouchStart(e, note.id)}
                 onMouseUp={handleTouchEnd}
                 onMouseLeave={handleTouchEnd}
@@ -768,31 +776,33 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-2xl px-3.5 py-3 transition-colors cursor-pointer flex flex-col gap-1.5 group select-none min-w-0 ${
+                className={`border rounded-2xl px-3.5 py-3 transition-colors cursor-pointer flex flex-col gap-1.5 group select-none min-w-0 shadow-sm ${
                   isSelected
-                    ? 'bg-teal-900/60 border-emerald-400 ring-1 ring-emerald-400/40'
-                    : 'bg-[#0B3C39] hover:bg-[#0E4844] border-teal-800/70 hover:border-teal-600/70'
+                    ? 'bg-amber-950/65 border-amber-400 ring-1 ring-amber-400/45'
+                    : 'bg-[#10474B]/95 hover:bg-[#14555A] border-teal-600/55 hover:border-amber-400/55'
                 }`}
               >
-                {/* Row 1: Subtle Checkbox + Category + Date + Clean Action Icons */}
+                {/* Row 1: Checkbox (only in select mode) + Category + Date + Clean Action Icons */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <div className="flex items-center gap-2 min-w-0 flex-1 text-[11px] text-teal-300/75">
-                    <button
-                      type="button"
-                      onClick={e => {
-                        e.stopPropagation();
-                        toggleSelectNote(note.id);
-                      }}
-                      className={`w-4 h-4 rounded-[5px] border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
-                        isSelected
-                          ? 'bg-emerald-400 border-emerald-300 text-[#042F2E]'
-                          : 'bg-[#062423]/70 border-teal-600/60 hover:border-emerald-400 opacity-75 group-hover:opacity-100'
-                      }`}
-                      title={isSelected ? 'Deselect note' : 'Select note'}
-                      aria-label={isSelected ? 'Deselect note' : 'Select note'}
-                    >
-                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                    </button>
+                    {isSelectMode && (
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          toggleSelectNote(note.id);
+                        }}
+                        className={`w-4 h-4 rounded-[5px] border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-emerald-400 border-emerald-300 text-[#042F2E]'
+                            : 'bg-[#062423]/70 border-teal-600/60 hover:border-emerald-400'
+                        }`}
+                        title={isSelected ? 'Deselect note' : 'Select note'}
+                        aria-label={isSelected ? 'Deselect note' : 'Select note'}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </button>
+                    )}
 
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getCategoryDotClass(catLabel)}`} />
 
@@ -877,11 +887,11 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
               setFormBody('');
               setShowCreateModal(true);
             }}
-            className="fixed bottom-[76px] sm:bottom-20 right-5 z-[9999] w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-[#0D9488] hover:bg-[#0F766E] text-white flex items-center justify-center shadow-2xl shadow-emerald-950/80 cursor-pointer border border-emerald-400/40 pointer-events-auto"
+            className="fixed bottom-[76px] sm:bottom-20 right-5 z-[9999] w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-[#042F2E] flex items-center justify-center shadow-2xl shadow-amber-950/70 cursor-pointer border border-amber-200/80 pointer-events-auto"
             title="Add New Note"
             aria-label="Add New Note"
           >
-            <Plus className="w-6 h-6 stroke-[2.6]" />
+            <Plus className="w-6 h-6 stroke-[2.8]" />
           </motion.button>,
           document.body
         )}

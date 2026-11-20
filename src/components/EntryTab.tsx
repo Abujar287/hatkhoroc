@@ -27,6 +27,7 @@ interface EntryTabProps {
   setCalcDisplay: (val: string) => void;
   expenseCategories: string[];
   incomeCategories: string[];
+  onReorderCategories?: (newCats: string[], type: TransactionType) => void;
   onOpenCategoryManager: () => void;
   onSubmit: (evaluatedAmount?: number) => Promise<void>;
   isSubmitting: boolean;
@@ -47,6 +48,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   setCalcDisplay,
   expenseCategories,
   incomeCategories,
+  onReorderCategories,
   onOpenCategoryManager,
   onSubmit,
   isSubmitting,
@@ -92,6 +94,143 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   }, [isCalculatorOpen, calcDisplay]);
 
   const currentCategories = entryType === 'Expense' ? expenseCategories : incomeCategories;
+
+  // Drag-and-drop category reordering state (supports both touch & mouse)
+  const [orderedCategories, setOrderedCategories] = useState<string[]>(currentCategories);
+  const [draggingCat, setDraggingCat] = useState<string | null>(null);
+  const orderedRef = React.useRef<string[]>(orderedCategories);
+  const draggingCatRef = React.useRef<string | null>(null);
+  const dragMetaRef = React.useRef<{
+    active: boolean;
+    cat: string;
+    index: number;
+    startX: number;
+    startY: number;
+    pointerType: string;
+  } | null>(null);
+  const dragHoldTimerRef = React.useRef<number | null>(null);
+  const suppressClickRef = React.useRef<boolean>(false);
+  const onReorderRef = React.useRef(onReorderCategories);
+  const entryTypeRef = React.useRef(entryType);
+
+  useEffect(() => {
+    onReorderRef.current = onReorderCategories;
+  }, [onReorderCategories]);
+
+  useEffect(() => {
+    entryTypeRef.current = entryType;
+  }, [entryType]);
+
+  useEffect(() => {
+    if (!draggingCatRef.current) {
+      setOrderedCategories(currentCategories);
+      orderedRef.current = currentCategories;
+    }
+  }, [currentCategories, entryType]);
+
+  useEffect(() => {
+    if (!draggingCat) return;
+    const preventScroll = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+    return () => window.removeEventListener('touchmove', preventScroll);
+  }, [draggingCat]);
+
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      const meta = dragMetaRef.current;
+      if (!meta) return;
+
+      if (!meta.active) {
+        const dist = Math.hypot(e.clientX - meta.startX, e.clientY - meta.startY);
+        if (meta.pointerType === 'mouse' && dist > 6) {
+          if (dragHoldTimerRef.current) {
+            window.clearTimeout(dragHoldTimerRef.current);
+            dragHoldTimerRef.current = null;
+          }
+          meta.active = true;
+          suppressClickRef.current = true;
+          draggingCatRef.current = meta.cat;
+          setDraggingCat(meta.cat);
+        } else if (meta.pointerType !== 'mouse' && dist > 10) {
+          if (dragHoldTimerRef.current) {
+            window.clearTimeout(dragHoldTimerRef.current);
+            dragHoldTimerRef.current = null;
+          }
+          dragMetaRef.current = null;
+          return;
+        } else {
+          return;
+        }
+      }
+
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-cat-index]') as HTMLElement | null;
+      if (!el) return;
+      const targetIdx = Number(el.dataset.catIndex);
+      const fromIdx = meta.index;
+      if (!Number.isNaN(targetIdx) && targetIdx !== fromIdx && targetIdx >= 0 && targetIdx < orderedRef.current.length) {
+        const next = [...orderedRef.current];
+        const [moved] = next.splice(fromIdx, 1);
+        next.splice(targetIdx, 0, moved);
+        meta.index = targetIdx;
+        orderedRef.current = next;
+        setOrderedCategories(next);
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (dragHoldTimerRef.current) {
+        window.clearTimeout(dragHoldTimerRef.current);
+        dragHoldTimerRef.current = null;
+      }
+      const meta = dragMetaRef.current;
+      if (meta?.active) {
+        onReorderRef.current?.(orderedRef.current, entryTypeRef.current);
+        window.setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 80);
+      }
+      dragMetaRef.current = null;
+      draggingCatRef.current = null;
+      setDraggingCat(null);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, []);
+
+  const handlePillPointerDown = (e: React.PointerEvent, cat: string, index: number) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (dragHoldTimerRef.current) {
+      window.clearTimeout(dragHoldTimerRef.current);
+      dragHoldTimerRef.current = null;
+    }
+    suppressClickRef.current = false;
+    dragMetaRef.current = {
+      active: false,
+      cat,
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerType: e.pointerType
+    };
+    dragHoldTimerRef.current = window.setTimeout(() => {
+      const meta = dragMetaRef.current;
+      if (meta && !meta.active && meta.cat === cat) {
+        meta.active = true;
+        suppressClickRef.current = true;
+        draggingCatRef.current = cat;
+        setDraggingCat(cat);
+      }
+    }, 200);
+  };
 
   // Handle Category Click -> Sets category & Opens Calculator
   const handleSelectCategory = (cat: string) => {
@@ -268,48 +407,79 @@ export const EntryTab: React.FC<EntryTabProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* 3. Full-Width Aligned Single-Line Category Pills (Fast single-layer transition) */}
-      <motion.div
-        key={entryType}
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-wrap items-stretch gap-1.5 sm:gap-2.5 pt-1 w-full"
-      >
-        {currentCategories.map(cat => {
-          const isSelected = entryCategory === cat;
-          const label = cleanCategoryName(cat, lang);
-          return (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => handleSelectCategory(cat)}
-              className={`flex-auto inline-flex flex-col items-center justify-center px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition-all duration-100 active:scale-95 cursor-pointer shadow-xs min-h-[54px] sm:min-h-[62px] ${
-                isSelected
-                  ? 'bg-emerald-600 text-white border-emerald-400 ring-1 ring-emerald-300'
-                  : 'bg-[#0B3C39] hover:bg-teal-900/90 text-[#F0FDFA] border-teal-700/80 hover:border-emerald-500/70'
-              }`}
-            >
-              <CategoryIcon category={cat} size="sm" className="shrink-0 mb-1" />
-              <span className="text-[11px] sm:text-xs font-bold text-center leading-none tracking-tight whitespace-nowrap">
-                {label}
-              </span>
-            </button>
-          );
-        })}
-
-        {/* Plus / Add Category Button at the end */}
-        <button
-          type="button"
-          onClick={onOpenCategoryManager}
-          className="flex-auto inline-flex flex-col items-center justify-center px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-dashed border-amber-400/80 transition-all duration-100 active:scale-95 cursor-pointer shadow-sm min-h-[54px] sm:min-h-[62px]"
-        >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0 text-amber-300" />
-          <span className="text-[11px] sm:text-xs font-extrabold text-center leading-none tracking-tight whitespace-nowrap">
-            {t('Add', 'যোগ')}
+      {/* 3. Full-Width Aligned Single-Line Category Pills (Drag & Drop Reorderable) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between px-1 text-[10px] text-teal-300/70 font-medium">
+          <span>
+            {draggingCat
+              ? t('Drag over another category to move', 'অন্য ক্যাটাগরির উপর নিয়ে ছাড়ুন')
+              : t('Hold & drag any category to reorder', 'যেকোনো ক্যাটাগরি ধরে টেনে সামনে বা শেষে নিন')}
           </span>
-        </button>
-      </motion.div>
+          {draggingCat && (
+            <span className="text-amber-300 font-bold animate-pulse">
+              {cleanCategoryName(draggingCat, lang)}
+            </span>
+          )}
+        </div>
+
+        <motion.div
+          key={entryType}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-wrap items-stretch gap-1.5 sm:gap-2.5 pt-0.5 w-full"
+        >
+          {orderedCategories.map((cat, idx) => {
+            const isSelected = entryCategory === cat;
+            const isDragging = draggingCat === cat;
+            const label = cleanCategoryName(cat, lang);
+            return (
+              <motion.button
+                key={cat}
+                layout="position"
+                transition={{ duration: 0.14 }}
+                data-cat-index={idx}
+                type="button"
+                onContextMenu={e => e.preventDefault()}
+                onPointerDown={e => handlePillPointerDown(e, cat, idx)}
+                onClick={() => {
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  handleSelectCategory(cat);
+                }}
+                className={`flex-auto inline-flex flex-col items-center justify-center px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border transition-colors duration-100 cursor-grab active:cursor-grabbing shadow-xs min-h-[54px] sm:min-h-[62px] select-none ${
+                  draggingCat ? 'touch-none' : ''
+                } ${
+                  isDragging
+                    ? 'bg-teal-800 text-white border-amber-400 ring-2 ring-amber-400/80 scale-105 shadow-xl z-20 opacity-95'
+                    : isSelected
+                    ? 'bg-emerald-600 text-white border-emerald-400 ring-1 ring-emerald-300'
+                    : 'bg-[#0B3C39] hover:bg-teal-900/90 text-[#F0FDFA] border-teal-700/80 hover:border-emerald-500/70 active:scale-95'
+                }`}
+              >
+                <CategoryIcon category={cat} size="sm" className="shrink-0 mb-1 pointer-events-none" />
+                <span className="text-[11px] sm:text-xs font-bold text-center leading-none tracking-tight whitespace-nowrap pointer-events-none">
+                  {label}
+                </span>
+              </motion.button>
+            );
+          })}
+
+          {/* Plus / Add Category Button at the end */}
+          <button
+            type="button"
+            onClick={onOpenCategoryManager}
+            className="flex-auto inline-flex flex-col items-center justify-center px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-100 border border-dashed border-amber-400/80 transition-all duration-100 active:scale-95 cursor-pointer shadow-sm min-h-[54px] sm:min-h-[62px]"
+          >
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5 mb-1 shrink-0 text-amber-300" />
+            <span className="text-[11px] sm:text-xs font-extrabold text-center leading-none tracking-tight whitespace-nowrap">
+              {t('Add', 'যোগ')}
+            </span>
+          </button>
+        </motion.div>
+      </div>
 
       {/* 4. Compact Calculator Bottom Sheet Modal via ModalPortal */}
       <AnimatePresence>

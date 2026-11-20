@@ -5,7 +5,7 @@ import {
   Menu,
   CalendarRange,
   CalendarClock,
-  NotebookPen,
+  Sliders,
   Check,
   LogOut,
   PlusCircle
@@ -124,8 +124,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }>; superAdminOnly?: boolean }[] = [
     { id: 'monthly_summary', label: t('Monthly Summary', 'মাসিক সারসংক্ষেপ'), icon: CalendarRange },
+    { id: 'budget', label: t('Budget', 'বাজেট'), icon: Sliders },
     { id: 'upcoming_3_month', label: t('Upcoming 3 Month', 'আগামী ৩ মাস'), icon: CalendarClock },
-    { id: 'notepad', label: t('Notepad', 'নোটপ্যাড'), icon: NotebookPen },
     { id: 'users', label: t('Users', 'ইউজার'), icon: Users },
   ];
 

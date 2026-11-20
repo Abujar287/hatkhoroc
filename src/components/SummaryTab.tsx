@@ -39,6 +39,8 @@ interface SummaryTabProps {
   lang: 'en' | 'bn';
   t: (en: string, bn: string) => string;
   monthMappings: import('../types').MonthMapping[];
+  currentTab?: string;
+  budgetVersion?: number;
 }
 
 export const SummaryTab: React.FC<SummaryTabProps> = ({
@@ -53,7 +55,9 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   isReadOnly,
   lang,
   t,
-  monthMappings
+  monthMappings,
+  currentTab = 'abujar287',
+  budgetVersion = 0
 }) => {
   const [showCalendarGrid, setShowCalendarGrid] = useState<boolean>(true);
   const [dayFilterMode, setDayFilterMode] = useState<'active' | 'all'>('active');
@@ -470,6 +474,54 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     return Math.min(100, Math.round((chartDisplayedTotal / overallTotal) * 100));
   }, [chartType, stats.exp, stats.inc, chartDisplayedTotal]);
 
+  // Load category budgets for the active month from localStorage
+  const activeCategoryBudgets = useMemo<Record<string, number>>(() => {
+    if (globalFilterMode !== 'month') return {};
+    const mapping = findMonthMapping(monthMappings, selectedMonth);
+    const candidateKeys = [
+      selectedMonth,
+      mapping?.label,
+      getMonthKeyFromLabel(selectedMonth)
+    ].filter((k): k is string => Boolean(k));
+
+    for (const key of candidateKeys) {
+      try {
+        const saved = localStorage.getItem(`app_category_budgets_${currentTab}_${key}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return {};
+  }, [currentTab, selectedMonth, globalFilterMode, monthMappings, budgetVersion]);
+
+  const getCategoryBudgetVal = (cat: string): number => {
+    const en = cleanCategoryName(cat, 'en');
+    const bn = cleanCategoryName(cat, 'bn');
+    const raw = String(cat).trim();
+    const alpha = en.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const candidates = [
+      en,
+      en.toLowerCase(),
+      alpha,
+      bn,
+      bn.toLowerCase(),
+      raw,
+      raw.toLowerCase()
+    ];
+
+    for (const k of candidates) {
+      if (k && activeCategoryBudgets[k] !== undefined && Number(activeCategoryBudgets[k]) > 0) {
+        return Number(activeCategoryBudgets[k]);
+      }
+    }
+    return 0;
+  };
+
   // All Categories Breakdown (Expense & Income) for filtered range
   const filteredAllCategoryBreakdown = useMemo(() => {
     const catMap: Record<string, { total: number; count: number; rawCat: string }> = {};
@@ -487,15 +539,25 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
     const baseTotal = targetTotal || 1;
 
     return Object.entries(catMap)
-      .map(([cat, info]) => ({
-        cat,
-        rawCat: info.rawCat,
-        total: info.total,
-        count: info.count,
-        percent: ((info.total / baseTotal) * 100).toFixed(1)
-      }))
+      .map(([cat, info]) => {
+        const budget = categoryBreakdownType === 'Expense' ? getCategoryBudgetVal(info.rawCat || cat) : 0;
+        const hasBudget = budget > 0;
+        const remain = hasBudget ? budget - info.total : 0;
+        const isOverBudget = hasBudget && info.total > budget;
+        return {
+          cat,
+          rawCat: info.rawCat,
+          total: info.total,
+          count: info.count,
+          percent: ((info.total / baseTotal) * 100).toFixed(1),
+          budget,
+          hasBudget,
+          remain,
+          isOverBudget
+        };
+      })
       .sort((a, b) => b.total - a.total);
-  }, [displayTransactions, categoryBreakdownType, stats.exp, stats.inc, lang]);
+  }, [displayTransactions, categoryBreakdownType, stats.exp, stats.inc, lang, activeCategoryBudgets]);
 
   // Monthly History Comparison
   const monthlyHistory = useMemo(() => {
@@ -989,20 +1051,75 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                 key={item.cat}
                 type="button"
                 onClick={() => setSelectedCategoryModal(item.rawCat || item.cat)}
-                className="px-2.5 py-2 rounded-xl bg-[#062423] hover:bg-teal-900/80 border border-teal-700/70 flex items-center justify-between text-[11px] cursor-pointer active:scale-98 transition-all text-left group"
+                className={`px-3 py-2.5 rounded-xl border flex items-center justify-between gap-2 text-[11px] cursor-pointer active:scale-98 transition-all text-left group ${
+                  item.isOverBudget
+                    ? 'bg-rose-950/75 hover:bg-rose-900/80 border-rose-500/85 ring-1 ring-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.22)]'
+                    : 'bg-[#062423] hover:bg-teal-900/80 border-teal-700/70'
+                }`}
                 title={t('Click to view details', 'বিস্তারিত দেখতে ক্লিক করুন')}
               >
-                <div className="min-w-0 pr-2">
-                  <div className="font-bold text-[#F0FDFA] group-hover:text-teal-200 transition-colors truncate text-[11px]">
-                    {item.cat}
+                {/* Left: Category & record count, ratio */}
+                <div className="flex-1 min-w-0 pr-1">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span
+                      className={`font-bold transition-colors truncate text-[11.5px] ${
+                        item.isOverBudget ? 'text-rose-200' : 'text-[#F0FDFA] group-hover:text-teal-200'
+                      }`}
+                    >
+                      {item.cat}
+                    </span>
+                    {item.isOverBudget && (
+                      <span className="text-[8.5px] font-black uppercase tracking-wider text-rose-300 shrink-0">
+                        · Over
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[10px] text-teal-300/80 font-medium mt-0.5">
+                  <div className="text-[10px] text-teal-300/80 font-medium mt-0.5 tabular-nums truncate">
                     {item.count} {t('records', 'টি')} · {item.percent}%
                   </div>
                 </div>
+
+                {/* Middle: Budget Remain (Centered) */}
+                {categoryBreakdownType === 'Expense' && (
+                  <div className="shrink-0 text-center px-1.5 min-w-[64px]">
+                    {item.hasBudget ? (
+                      <div className="flex flex-col items-center justify-center leading-tight tabular-nums">
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-wider ${
+                            item.remain < 0 ? 'text-rose-300/90' : 'text-amber-300/80'
+                          }`}
+                        >
+                          {item.remain < 0 ? t('Over', 'বেশি') : t('Remain', 'বাকি')}
+                        </span>
+                        <span
+                          className={`text-[11px] font-extrabold mt-0.5 ${
+                            item.remain < 0 ? 'text-rose-200' : 'text-amber-300'
+                          }`}
+                        >
+                          {item.remain >= 0
+                            ? formatNumberLocale(item.remain, lang)
+                            : `-${formatNumberLocale(Math.abs(item.remain), lang)}`}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center leading-tight tabular-nums">
+                        <span className="text-[9px] font-semibold text-teal-400/60 uppercase tracking-wider">
+                          {t('Remain', 'বাকি')}
+                        </span>
+                        <span className="text-[11px] text-teal-400/55 font-bold mt-0.5">—</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Right: Value */}
                 <div
-                  className={`font-bold text-[11px] tabular-nums shrink-0 ${
-                    categoryBreakdownType === 'Expense' ? 'text-[#FF7A59]' : 'text-emerald-400'
+                  className={`flex-1 min-w-0 text-right font-extrabold text-xs tabular-nums ${
+                    item.isOverBudget
+                      ? 'text-rose-300'
+                      : categoryBreakdownType === 'Expense'
+                      ? 'text-[#FF7A59]'
+                      : 'text-emerald-400'
                   }`}
                 >
                   {categoryBreakdownType === 'Expense' ? '-' : '+'}{formatNumberLocale(item.total, lang)}

@@ -486,3 +486,65 @@
   }
 }
 
+@keyframes tabBorderOrbit {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes tabNameShimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.tab-border-orbit {
+  animation: tabBorderOrbit 2.4s linear infinite;
+}
+
+@keyframes tabSvgBorderRun {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.tab-svg-border-run {
+  animation: tabSvgBorderRun 1.8s linear infinite;
+}
+
+@keyframes tabLoadingRingSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.tab-loading-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140px;
+  height: 140px;
+  margin-left: -70px;
+  margin-top: -70px;
+  animation: tabLoadingRingSpin 2s linear infinite;
+  will-change: transform;
+}
+
+.tab-name-highlight {
+  background-size: 200% auto;
+  animation: tabNameShimmer 2.8s linear infinite;
+}
+
+

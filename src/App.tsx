@@ -7,7 +7,7 @@ import {
   Eye,
   EyeOff,
   BarChart3,
-  Sliders,
+  NotebookPen,
   CalendarClock,
   Settings,
   RefreshCw
@@ -743,6 +743,29 @@ export default function App() {
     return Array.from(map.values());
   };
 
+  const applySavedCategoryOrder = (categories: string[], tab: string, type: TransactionType): string[] => {
+    try {
+      const savedOrderRaw = localStorage.getItem(`app_category_order_${tab}_${type.toLowerCase()}`);
+      if (!savedOrderRaw) return categories;
+      const savedOrder = JSON.parse(savedOrderRaw);
+      if (!Array.isArray(savedOrder) || savedOrder.length === 0) return categories;
+      const orderIndex = new Map<string, number>();
+      savedOrder.forEach((key: string, idx: number) => {
+        const norm = String(key || '').trim().toLowerCase();
+        if (norm && !orderIndex.has(norm)) orderIndex.set(norm, idx);
+      });
+      return [...categories].sort((a, b) => {
+        const ka = cleanCategoryName(a, 'en').toLowerCase();
+        const kb = cleanCategoryName(b, 'en').toLowerCase();
+        const ia = orderIndex.has(ka) ? orderIndex.get(ka)! : Number.MAX_SAFE_INTEGER;
+        const ib = orderIndex.has(kb) ? orderIndex.get(kb)! : Number.MAX_SAFE_INTEGER;
+        return ia - ib;
+      });
+    } catch {
+      return categories;
+    }
+  };
+
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(`app_expense_categories_${currentTab}`);
@@ -967,7 +990,20 @@ export default function App() {
   // 7. VIEW & FILTER STATE
   // ----------------------------------------------------
   const [activeTab, setActiveTab] = useState<AppTab>('summary');
+  const [tabDirection, setTabDirection] = useState<number>(1);
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
+
+  const handleSelectFooterTab = useCallback((nextTab: AppTab) => {
+    const order: AppTab[] = ['summary', 'details', 'upcoming_cost', 'settings', 'notepad'];
+    const prevIdx = order.indexOf(activeTab);
+    const nextIdx = order.indexOf(nextTab);
+    if (prevIdx !== -1 && nextIdx !== -1 && prevIdx !== nextIdx) {
+      setTabDirection(nextIdx > prevIdx ? 1 : -1);
+    } else {
+      setTabDirection(1);
+    }
+    setActiveTab(nextTab);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'upcoming_3_month' && !isSuperAdmin) {
@@ -1362,6 +1398,7 @@ export default function App() {
       try {
         localStorage.setItem(`app_category_budgets_${currentTab}_${cleanLabel}`, JSON.stringify(cleanBudgets));
       } catch {}
+      setBudgetVersion(v => v + 1);
     }
 
     let found = false;
@@ -1529,6 +1566,7 @@ export default function App() {
   // 8. CLOUD SYNC STATE
   // ----------------------------------------------------
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [budgetVersion, setBudgetVersion] = useState<number>(0);
   const [lastSyncDate, setLastSyncDate] = useState<Date>(() => new Date());
   const [lastSyncTime, setLastSyncTime] = useState<string>(() => formatSyncDateTime(new Date(), lang));
   const [upcoming3MonthRemotePlan, setUpcoming3MonthRemotePlan] = useState<Upcoming3MonthPlan | null>(null);
@@ -2182,6 +2220,7 @@ export default function App() {
               }
             } catch {}
           });
+          setBudgetVersion(v => v + 1);
         }
 
         if (data.upcoming3Month && typeof data.upcoming3Month === 'object' && Array.isArray(data.upcoming3Month.categories)) {
@@ -2290,13 +2329,21 @@ export default function App() {
           });
         }
 
-        const finalExpList = aggregatedExp.length > 0
-          ? deduplicateCategories(aggregatedExp)
-          : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]);
+        const finalExpList = applySavedCategoryOrder(
+          aggregatedExp.length > 0
+            ? deduplicateCategories(aggregatedExp)
+            : deduplicateCategories([...DEFAULT_EXPENSE_CATEGORIES]),
+          tabToSync,
+          'Expense'
+        );
 
-        const finalIncList = aggregatedInc.length > 0
-          ? deduplicateCategories(aggregatedInc)
-          : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]);
+        const finalIncList = applySavedCategoryOrder(
+          aggregatedInc.length > 0
+            ? deduplicateCategories(aggregatedInc)
+            : deduplicateCategories([...DEFAULT_INCOME_CATEGORIES]),
+          tabToSync,
+          'Income'
+        );
 
         setExpenseCategories(finalExpList);
         try {
@@ -2683,7 +2730,13 @@ export default function App() {
   const handleUpdateCategories = (newCats: string[], type: TransactionType) => {
     if (type === 'Expense') setExpenseCategories(newCats);
     else setIncomeCategories(newCats);
-    localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(newCats));
+    try {
+      localStorage.setItem(`app_${type.toLowerCase()}_categories_${currentTab}`, JSON.stringify(newCats));
+      localStorage.setItem(
+        `app_category_order_${currentTab}_${type.toLowerCase()}`,
+        JSON.stringify(newCats.map(c => cleanCategoryName(c, 'en').toLowerCase()))
+      );
+    } catch {}
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -3354,13 +3407,14 @@ export default function App() {
                 </div>
               }
             >
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" custom={tabDirection}>
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                custom={tabDirection}
+                initial={{ opacity: 0, x: tabDirection * 24, scale: 0.985 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: tabDirection * -24, scale: 0.985 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full"
               >
               {activeTab === 'summary' && (
@@ -3377,6 +3431,8 @@ export default function App() {
                   lang={lang}
                   t={t}
                   monthMappings={monthMappings}
+                  currentTab={currentTab}
+                  budgetVersion={budgetVersion}
                 />
               )}
 
@@ -3404,6 +3460,7 @@ export default function App() {
                   entryNote={entryNote} setEntryNote={setEntryNote}
                   calcDisplay={calcDisplay} setCalcDisplay={setCalcDisplay}
                   expenseCategories={expenseCategories} incomeCategories={incomeCategories}
+                  onReorderCategories={handleUpdateCategories}
                   onOpenCategoryManager={() => setShowCategoryManager(true)}
                   onSubmit={handleSaveTransaction} isSubmitting={isSubmitting}
                   lang={lang} t={t}
@@ -3558,42 +3615,113 @@ export default function App() {
           </div>
         </main>
 
-        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[64px] border-t border-teal-800/50">
+        <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[66px] border-t border-teal-800/50">
           <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
               { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
               { id: 'details' as const, label: 'Details', icon: ListOrdered },
-              { id: 'budget' as const, label: 'Budget', icon: Sliders },
               { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
-              { id: 'settings' as const, label: 'Settings', icon: Settings }
+              { id: 'settings' as const, label: 'Settings', icon: Settings },
+              { id: 'notepad' as const, label: 'Notepad', icon: NotebookPen }
             ].filter(x => allowedTabs.includes(x.id)).map(item => {
-                const isActive = activeTab === item.id;
+              const isActive = activeTab === item.id;
+              const isNotepad = item.id === 'notepad';
+
               return (
                 <motion.button
                   key={item.id}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => setActiveTab(item.id)}
-                  className="flex-1 relative flex flex-col items-center justify-center py-2 px-1 rounded-xl cursor-pointer select-none transition-colors duration-150"
+                  whileTap={{ scale: 0.93 }}
+                  onClick={() => handleSelectFooterTab(item.id)}
+                  className={`flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-colors duration-200 border border-transparent ${
+                    !isActive && isNotepad
+                      ? 'bg-amber-500/10 hover:bg-amber-500/18'
+                      : !isActive
+                      ? 'hover:bg-teal-900/40'
+                      : ''
+                  }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className="absolute inset-0 bg-[#0D9488] rounded-xl border border-teal-400/40"
-                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                      className={`absolute inset-0 rounded-xl ${
+                        isNotepad
+                          ? 'bg-amber-500/15'
+                          : 'bg-[#0B4A45]/75'
+                      }`}
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     />
                   )}
+
                   <motion.div
-                    animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.06 : 1 }}
-                    transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+                    animate={{
+                      y: isActive ? -1.5 : 0,
+                      scale: isActive ? 1.12 : 1
+                    }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 24 }}
                     className="relative z-10 flex items-center justify-center"
                   >
-                    <item.icon className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 ${isActive ? 'text-white' : 'text-teal-300/75 hover:text-teal-100'}`} />
+                    <item.icon
+                      className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${
+                        isActive
+                          ? isNotepad
+                            ? 'text-amber-200 drop-shadow-[0_0_6px_rgba(253,230,138,0.85)]'
+                            : 'text-teal-200 drop-shadow-[0_0_6px_rgba(94,234,212,0.8)]'
+                          : isNotepad
+                          ? 'text-amber-300'
+                          : 'text-teal-300/75'
+                      }`}
+                    />
                   </motion.div>
-                  <span className={`text-[10px] sm:text-[11px] font-bold mt-1 tracking-tight leading-none relative z-10 truncate max-w-full ${isActive ? 'text-white' : 'text-teal-300/75'}`}>
-                    {item.label}
-                  </span>
+
+                  {isActive ? (
+                    <span
+                      className={`relative z-10 mt-1 inline-flex items-center justify-center px-2 py-[3px] rounded-full overflow-hidden max-w-full ${
+                        isNotepad
+                          ? 'shadow-[0_0_12px_rgba(245,158,11,0.45)]'
+                          : 'shadow-[0_0_12px_rgba(45,212,191,0.45)]'
+                      }`}
+                    >
+                      {/* Continuously moving loading border line around the active tab name */}
+                      <span
+                        aria-hidden="true"
+                        className="tab-loading-ring pointer-events-none"
+                        style={{
+                          background: isNotepad
+                            ? 'conic-gradient(from 0deg, transparent 0deg 200deg, #F59E0B 260deg, #FDE68A 320deg, #FFFFFF 360deg)'
+                            : 'conic-gradient(from 0deg, transparent 0deg 200deg, #14B8A6 260deg, #5EEAD4 320deg, #FFFFFF 360deg)'
+                        }}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={`absolute inset-[1.5px] rounded-full ${
+                          isNotepad ? 'bg-[#3B2407]' : 'bg-[#063835]'
+                        }`}
+                      />
+                      <motion.span
+                        initial={{ scale: 0.94 }}
+                        animate={{ scale: 1.02 }}
+                        transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+                        className={`relative z-10 text-[10px] sm:text-[11px] font-extrabold tracking-tight leading-none truncate max-w-full tab-name-highlight bg-clip-text text-transparent ${
+                          isNotepad
+                            ? 'bg-gradient-to-r from-amber-200 via-white to-amber-200'
+                            : 'bg-gradient-to-r from-teal-200 via-white to-emerald-200'
+                        }`}
+                      >
+                        {item.label}
+                      </motion.span>
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-[10px] sm:text-[11px] mt-1 tracking-tight leading-none relative z-10 truncate max-w-full font-bold ${
+                        isNotepad ? 'text-amber-300' : 'text-teal-300/75'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  )}
+
                   {item.id === 'upcoming_cost' && taskDueCount > 0 && (
-                    <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E]" />
+                    <span className="absolute top-1 right-2.5 w-2 h-2 rounded-full bg-[#FF7A59] ring-2 ring-[#042F2E] z-20" />
                   )}
                 </motion.button>
               );
