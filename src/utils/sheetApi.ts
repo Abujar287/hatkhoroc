@@ -8,6 +8,19 @@ export const GOOGLE_SCRIPT_URL = DIRECT_GOOGLE_SCRIPT_URL;
  * On Android APK (Capacitor/WebView), /api/sheet-proxy does not exist locally.
  * So this automatically uses direct Google Apps Script Web App URL!
  */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
+  if (options.signal) {
+    return fetch(url, options);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchSheetApi(
   endpointOrQuery: string,
   options?: RequestInit
@@ -59,7 +72,7 @@ export async function fetchSheetApi(
   }
 
   try {
-    const res = await fetch(targetUrl, finalOptions);
+    const res = await fetchWithTimeout(targetUrl, finalOptions);
     if (res.ok) return res;
 
     // Fallback to direct URL if web proxy returned non-ok error
@@ -67,7 +80,7 @@ export async function fetchSheetApi(
       const fallbackUrl = endpointOrQuery.includes('?')
         ? `${DIRECT_GOOGLE_SCRIPT_URL}?${endpointOrQuery.split('?')[1]}`
         : DIRECT_GOOGLE_SCRIPT_URL;
-      return await fetch(fallbackUrl, finalOptions);
+      return await fetchWithTimeout(fallbackUrl, finalOptions);
     }
     return res;
   } catch (err) {
@@ -76,7 +89,7 @@ export async function fetchSheetApi(
       const fallbackUrl = endpointOrQuery.includes('?')
         ? `${DIRECT_GOOGLE_SCRIPT_URL}?${endpointOrQuery.split('?')[1]}`
         : DIRECT_GOOGLE_SCRIPT_URL;
-      return await fetch(fallbackUrl, finalOptions);
+      return await fetchWithTimeout(fallbackUrl, finalOptions);
     }
     throw err;
   }

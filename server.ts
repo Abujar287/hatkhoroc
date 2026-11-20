@@ -74,7 +74,8 @@ async function startServer() {
         const response = await fetch(GOOGLE_SCRIPT_TARGET, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(req.body)
+          body: JSON.stringify(req.body),
+          signal: AbortSignal.timeout(15000)
         });
         const text = await response.text();
         let json: any = null;
@@ -101,7 +102,7 @@ async function startServer() {
       } else {
         const queryString = new URLSearchParams(req.query as any).toString();
         const url = queryString ? `${GOOGLE_SCRIPT_TARGET}?${queryString}` : GOOGLE_SCRIPT_TARGET;
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
         const text = await response.text();
         let json: any = null;
         try {

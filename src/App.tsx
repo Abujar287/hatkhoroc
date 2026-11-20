@@ -47,16 +47,61 @@ import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
 import { SettingsTab } from './components/SettingsTab';
 
-const MonthlySummaryTab = React.lazy(() =>
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return React.lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      await new Promise(r => setTimeout(r, 350));
+      return await factory();
+    }
+  });
+}
+
+class TabErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="py-12 px-4 text-center space-y-3">
+          <p className="text-xs font-semibold text-teal-200/80">
+            Tab could not load due to a recent update or network issue.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white text-xs font-bold cursor-pointer"
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const MonthlySummaryTab = lazyWithRetry(() =>
   import('./components/MonthlySummaryTab').then(m => ({ default: m.MonthlySummaryTab }))
 );
-const Upcoming3MonthTab = React.lazy(() =>
+const Upcoming3MonthTab = lazyWithRetry(() =>
   import('./components/Upcoming3MonthTab').then(m => ({ default: m.Upcoming3MonthTab }))
 );
-const NotepadTab = React.lazy(() =>
+const NotepadTab = lazyWithRetry(() =>
   import('./components/NotepadTab').then(m => ({ default: m.NotepadTab }))
 );
-const UsersTab = React.lazy(() =>
+const UsersTab = lazyWithRetry(() =>
   import('./components/UsersTab').then(m => ({ default: m.UsersTab }))
 );
 import {
@@ -2415,12 +2460,17 @@ export default function App() {
     }
   }, [currentTab, handleSyncNotes, hasNotepadAccess, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
 
-  // Initial sync on mount or auth
+  const handleManualSyncRef = useRef(handleManualSync);
+  useEffect(() => {
+    handleManualSyncRef.current = handleManualSync;
+  }, [handleManualSync]);
+
+  // Initial sync on mount or auth / tab switch only (never re-trigger on transaction count edits)
   useEffect(() => {
     if (isAuthenticated) {
-      handleManualSync(currentTab);
+      handleManualSyncRef.current(currentTab);
     }
-  }, [isAuthenticated, currentTab, handleManualSync]);
+  }, [isAuthenticated, currentTab]);
 
   // Universal Pull-Down-To-Sync across all tabs
   const [pullDistance, setPullDistance] = useState<number>(0);
@@ -3400,6 +3450,7 @@ export default function App() {
               transition: isPulling ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
+            <TabErrorBoundary>
             <Suspense
               fallback={
                 <div className="py-16 flex items-center justify-center">
@@ -3612,6 +3663,7 @@ export default function App() {
               </motion.div>
             </AnimatePresence>
             </Suspense>
+            </TabErrorBoundary>
           </div>
         </main>
 
