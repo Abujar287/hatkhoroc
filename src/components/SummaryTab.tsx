@@ -747,81 +747,8 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
         </div>
       </motion.div>
 
-      {/* 3. DYNAMIC CALENDAR / RANGE GRID */}
-      {globalFilterMode === 'month' && (
-        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#062423] border border-teal-700/70 text-teal-200 flex items-center justify-center shrink-0 shadow-sm">
-                <CalendarDays className="w-5 h-5 text-teal-300" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-[#F0FDFA] tracking-tight">
-                  {t('Monthly Calendar', 'মাসিক ক্যালেন্ডার')}
-                </h3>
-                <p className="text-[11px] text-teal-300/80 font-medium">
-                  {monthLabel} · {t('Tap day for details', 'বিস্তারিত দেখতে ক্লিক করুন')}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowCalendarGrid(!showCalendarGrid)}
-              className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <span>{showCalendarGrid ? t('Hide Grid', 'গ্রিড লুকান') : t('Show Grid', 'গ্রিড দেখুন')}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showCalendarGrid ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-
-          <AnimatePresence initial={false}>
-            {showCalendarGrid && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-3 overflow-hidden"
-              >
-                {/* Standard 7-Column (Sun - Sat) Calendar Grid */}
-                <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] font-bold text-teal-300/80 py-0.5">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                    <span key={d} className="tracking-tight">{d}</span>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                  {calendarGrid.emptySlots.map((_, idx) => (
-                    <div key={`empty-${idx}`} className="min-h-[58px] sm:min-h-[64px]" />
-                  ))}
-                  {calendarGrid.days.map(d => renderDayCell(d.dateStr, d.isToday, d.displayLabel))}
-                </div>
-
-                {/* Bottom Legend */}
-                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shrink-0" />
-                    <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shrink-0" />
-                    <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
-                    <span>{t('Today', 'আজ')}</span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
       {/* ======================================================== */}
-      {/* 7. CATEGORY DONUT CHART (FULL 100% CIRCLE, DYNAMIC FILTER, DEFAULT THIS MONTH TOP 5) */}
+      {/* 3. CATEGORY DONUT CHART (FULL 100% CIRCLE, DYNAMIC FILTER, DEFAULT THIS MONTH TOP 5) */}
       {/* ======================================================== */}
       <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-3.5 sm:p-5 border border-teal-800/80 shadow-sm space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-teal-800/60">
@@ -993,6 +920,79 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* 4. DYNAMIC CALENDAR / RANGE GRID */}
+      {globalFilterMode === 'month' && (
+        <div className="bg-[#0B3C39] text-[#F0FDFA] rounded-2xl p-4 sm:p-5 border border-teal-800/80 shadow-sm space-y-3.5">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#062423] border border-teal-700/70 text-teal-200 flex items-center justify-center shrink-0 shadow-sm">
+                <CalendarDays className="w-5 h-5 text-teal-300" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-[#F0FDFA] tracking-tight">
+                  {t('Monthly Calendar', 'মাসিক ক্যালেন্ডার')}
+                </h3>
+                <p className="text-[11px] text-teal-300/80 font-medium">
+                  {monthLabel} · {t('Tap day for details', 'বিস্তারিত দেখতে ক্লিক করুন')}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowCalendarGrid(!showCalendarGrid)}
+              className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>{showCalendarGrid ? t('Hide Grid', 'গ্রিড লুকান') : t('Show Grid', 'গ্রিড দেখুন')}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showCalendarGrid ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          <AnimatePresence initial={false}>
+            {showCalendarGrid && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-3 overflow-hidden"
+              >
+                {/* Standard 7-Column (Sun - Sat) Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] font-bold text-teal-300/80 py-0.5">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                    <span key={d} className="tracking-tight">{d}</span>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                  {calendarGrid.emptySlots.map((_, idx) => (
+                    <div key={`empty-${idx}`} className="min-h-[58px] sm:min-h-[64px]" />
+                  ))}
+                  {calendarGrid.days.map(d => renderDayCell(d.dateStr, d.isToday, d.displayLabel))}
+                </div>
+
+                {/* Bottom Legend */}
+                <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[10px] sm:text-[11px] font-medium text-teal-300/80">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF7A59] shrink-0" />
+                    <span className="text-teal-200 font-bold">{t('Expense', 'খরচ')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#34D399] shrink-0" />
+                    <span className="text-teal-200 font-bold">{t('Income', 'আয়')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
+                    <span>{t('Today', 'আজ')}</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 8. CATEGORY BREAKDOWN REPORT (MATCHING DETAILS TAB FONT SIZE) */}

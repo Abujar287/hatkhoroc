@@ -744,19 +744,15 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
         </motion.div>
       ) : (
         <div className="flex flex-col gap-2">
-          {filteredNotes.map((note, idx) => {
+          {filteredNotes.map(note => {
             const isSelected = selectedNoteIds.includes(note.id);
             const compactDt = formatCompactNoteDateTime(note.datetime);
             const catLabel = (note.category || 'Uncategorized').trim();
             const previewText = formatCleanPreview(note.note);
 
             return (
-              <motion.div
+              <div
                 key={note.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18, delay: Math.min(idx * 0.025, 0.18), ease: [0.16, 1, 0.3, 1] }}
-                whileTap={{ scale: 0.992 }}
                 onClick={() => {
                   if (longPressTriggeredRef.current) {
                     longPressTriggeredRef.current = false;
@@ -776,7 +772,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                className={`border rounded-2xl px-3.5 py-3 transition-colors cursor-pointer flex flex-col gap-1.5 group select-none min-w-0 shadow-sm ${
+                className={`border rounded-2xl px-3.5 py-3 transition-all cursor-pointer flex flex-col gap-1.5 group select-none min-w-0 shadow-sm active:scale-[0.992] ${
                   isSelected
                     ? 'bg-amber-950/65 border-amber-400 ring-1 ring-amber-400/45'
                     : 'bg-[#10474B]/95 hover:bg-[#14555A] border-teal-600/55 hover:border-amber-400/55'
@@ -864,7 +860,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
                 <p className="text-xs text-teal-200/65 truncate leading-relaxed">
                   {previewText}
                 </p>
-              </motion.div>
+              </div>
             );
           })}
         </div>

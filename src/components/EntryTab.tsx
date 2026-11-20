@@ -129,12 +129,16 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   }, [currentCategories, entryType]);
 
   useEffect(() => {
+    (window as any).__isCategoryDragging = Boolean(draggingCat);
     if (!draggingCat) return;
     const preventScroll = (e: TouchEvent) => {
       if (e.cancelable) e.preventDefault();
     };
     window.addEventListener('touchmove', preventScroll, { passive: false });
-    return () => window.removeEventListener('touchmove', preventScroll);
+    return () => {
+      (window as any).__isCategoryDragging = false;
+      window.removeEventListener('touchmove', preventScroll);
+    };
   }, [draggingCat]);
 
   useEffect(() => {
@@ -439,7 +443,10 @@ export const EntryTab: React.FC<EntryTabProps> = ({
                 layout="position"
                 transition={{ duration: 0.14 }}
                 data-cat-index={idx}
+                data-no-pull-sync="true"
+                data-no-tab-swipe="true"
                 type="button"
+                style={{ touchAction: isDragging ? 'none' : 'manipulation' }}
                 onContextMenu={e => e.preventDefault()}
                 onPointerDown={e => handlePillPointerDown(e, cat, idx)}
                 onClick={() => {

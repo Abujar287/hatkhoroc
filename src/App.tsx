@@ -46,6 +46,7 @@ import { DetailsTab } from './components/DetailsTab';
 import { BudgetTab } from './components/BudgetTab';
 import { UpcomingCostTab } from './components/UpcomingCostTab';
 import { SettingsTab } from './components/SettingsTab';
+import { NotepadTab } from './components/NotepadTab';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
@@ -97,9 +98,6 @@ const MonthlySummaryTab = lazyWithRetry(() =>
 );
 const Upcoming3MonthTab = lazyWithRetry(() =>
   import('./components/Upcoming3MonthTab').then(m => ({ default: m.Upcoming3MonthTab }))
-);
-const NotepadTab = lazyWithRetry(() =>
-  import('./components/NotepadTab').then(m => ({ default: m.NotepadTab }))
 );
 const UsersTab = lazyWithRetry(() =>
   import('./components/UsersTab').then(m => ({ default: m.UsersTab }))
@@ -2472,7 +2470,7 @@ export default function App() {
     }
   }, [isAuthenticated, currentTab]);
 
-  // Universal Pull-Down-To-Sync across all tabs
+  // Universal Pull-Down-To-Sync & Horizontal Swipe Between Footer Tabs
   const [pullDistance, setPullDistance] = useState<number>(0);
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const mainScrollRef = useRef<HTMLElement | null>(null);
@@ -2481,17 +2479,107 @@ export default function App() {
   const isPullActiveRef = useRef<boolean>(false);
   const pullDistanceRef = useRef<number>(0);
 
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
+  const swipeAxisRef = useRef<'x' | 'y' | null>(null);
+  const swipeBlockedRef = useRef<boolean>(false);
+
   const handleMainTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (isSyncing || e.touches.length !== 1) return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
     const el = mainScrollRef.current;
+
+    if ((window as any).__isCategoryDragging) {
+      swipeBlockedRef.current = true;
+      pullStartYRef.current = null;
+      isPullActiveRef.current = false;
+      return;
+    }
+
+    // Horizontal swipe tracking (works at any scroll offset)
+    swipeStartXRef.current = touch.clientX;
+    swipeStartYRef.current = touch.clientY;
+    swipeAxisRef.current = null;
+
+    let blocked = false;
+    let pullBlocked = false;
+    let node = e.target as HTMLElement | null;
+    while (node && node !== el) {
+      const tag = node.tagName;
+      if (node.hasAttribute('data-no-pull-sync')) {
+        pullBlocked = true;
+      }
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        node.hasAttribute('data-no-tab-swipe')
+      ) {
+        blocked = true;
+        break;
+      }
+      if (node.scrollWidth > node.clientWidth + 4) {
+        const overflowX = window.getComputedStyle(node).overflowX;
+        if (overflowX === 'auto' || overflowX === 'scroll') {
+          blocked = true;
+          break;
+        }
+      }
+      node = node.parentElement;
+    }
+    swipeBlockedRef.current = blocked;
+
+    // Pull-to-sync tracking (only when scrolled to top and not touching drag-reorder elements)
+    if (isSyncing || pullBlocked) {
+      pullStartYRef.current = null;
+      isPullActiveRef.current = false;
+      return;
+    }
     if (el && el.scrollTop > 2) return;
-    pullStartYRef.current = e.touches[0].clientY;
-    pullStartXRef.current = e.touches[0].clientX;
+    pullStartYRef.current = touch.clientY;
+    pullStartXRef.current = touch.clientX;
     isPullActiveRef.current = false;
   }, [isSyncing]);
 
   const handleMainTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (pullStartYRef.current === null || isSyncing || e.touches.length !== 1) return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+
+    if ((window as any).__isCategoryDragging) {
+      pullStartYRef.current = null;
+      swipeStartXRef.current = null;
+      swipeStartYRef.current = null;
+      if (isPullActiveRef.current || pullDistanceRef.current > 0) {
+        isPullActiveRef.current = false;
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        setIsPulling(false);
+      }
+      return;
+    }
+
+    // Axis lock for horizontal tab swipe
+    if (swipeStartXRef.current !== null && swipeStartYRef.current !== null && swipeAxisRef.current === null) {
+      const sdx = touch.clientX - swipeStartXRef.current;
+      const sdy = touch.clientY - swipeStartYRef.current;
+      if (Math.abs(sdx) > 12 || Math.abs(sdy) > 12) {
+        swipeAxisRef.current = Math.abs(sdx) > Math.abs(sdy) * 1.35 ? 'x' : 'y';
+      }
+    }
+
+    if (swipeAxisRef.current === 'x') {
+      // Cancel pull-to-sync if user is swiping horizontally
+      pullStartYRef.current = null;
+      if (isPullActiveRef.current) {
+        isPullActiveRef.current = false;
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        setIsPulling(false);
+      }
+      return;
+    }
+
+    if (pullStartYRef.current === null || isSyncing) return;
     const el = mainScrollRef.current;
     if (el && el.scrollTop > 2) {
       pullStartYRef.current = null;
@@ -2502,8 +2590,8 @@ export default function App() {
       return;
     }
 
-    const dy = e.touches[0].clientY - pullStartYRef.current;
-    const dx = Math.abs(e.touches[0].clientX - (pullStartXRef.current ?? e.touches[0].clientX));
+    const dy = touch.clientY - pullStartYRef.current;
+    const dx = Math.abs(touch.clientX - (pullStartXRef.current ?? touch.clientX));
 
     if (!isPullActiveRef.current) {
       if (dy <= 10 || dx > dy) {
@@ -2525,8 +2613,35 @@ export default function App() {
     setPullDistance(damped);
   }, [isSyncing]);
 
-  const handleMainTouchEnd = useCallback(() => {
-    const shouldSync = isPullActiveRef.current && pullDistanceRef.current >= 46 && !isSyncing;
+  const handleMainTouchEnd = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    const isCatDragging = Boolean((window as any).__isCategoryDragging);
+    const startX = swipeStartXRef.current;
+    const axis = swipeAxisRef.current;
+    const blocked = swipeBlockedRef.current || isCatDragging;
+
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+    swipeAxisRef.current = null;
+    swipeBlockedRef.current = false;
+
+    if (!blocked && axis === 'x' && startX !== null && e.changedTouches.length > 0) {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) >= 52) {
+        const footerTabs: AppTab[] = (
+          ['summary', 'details', 'upcoming_cost', 'settings', 'notepad'] as AppTab[]
+        ).filter(id => allowedTabs.includes(id));
+        const curIdx = footerTabs.indexOf(activeTab);
+        if (curIdx !== -1) {
+          if (dx < 0 && curIdx < footerTabs.length - 1) {
+            handleSelectFooterTab(footerTabs[curIdx + 1]);
+          } else if (dx > 0 && curIdx > 0) {
+            handleSelectFooterTab(footerTabs[curIdx - 1]);
+          }
+        }
+      }
+    }
+
+    const shouldSync = !isCatDragging && isPullActiveRef.current && pullDistanceRef.current >= 46 && !isSyncing;
     pullStartYRef.current = null;
     pullStartXRef.current = null;
     isPullActiveRef.current = false;
@@ -2537,7 +2652,7 @@ export default function App() {
     if (shouldSync) {
       handleManualSync(currentTab);
     }
-  }, [isSyncing, handleManualSync, currentTab]);
+  }, [activeTab, allowedTabs, currentTab, handleManualSync, handleSelectFooterTab, isSyncing]);
 
   // Offline queue listener & auto-sync when back online
   useEffect(() => {
@@ -3462,10 +3577,10 @@ export default function App() {
               <motion.div
                 key={activeTab}
                 custom={tabDirection}
-                initial={{ opacity: 0, x: tabDirection * 24, scale: 0.985 }}
+                initial={{ opacity: 0, x: tabDirection * 18, scale: 0.99 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: tabDirection * -24, scale: 0.985 }}
-                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                exit={{ opacity: 0, x: tabDirection * -18, scale: 0.99 }}
+                transition={{ duration: 0.13, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full"
               >
               {activeTab === 'summary' && (
