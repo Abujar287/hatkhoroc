@@ -46,14 +46,15 @@ jobs:
           npx cap sync android
           rm -f android/app/src/main/assets/public/pwa-*.png android/app/src/main/assets/public/apple-touch-icon.png android/app/src/main/assets/public/workbox-*.js android/app/src/main/assets/public/sw.js android/app/src/main/assets/public/registerSW.js android/app/src/main/assets/public/manifest.webmanifest || true
 
-      - name: Cache Android Debug Keystore for Seamless Updates
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: hatkhoroc-debug-keystore-v2-${{ github.run_id }}
-          restore-keys: |
-            hatkhoroc-debug-keystore-v2-
-            hatkhoroc-debug-keystore-v1
+      - name: Setup Permanent Android Release Keystore
+        run: |
+          mkdir -p keystore
+          if [ ! -s "keystore/hatkhoroc.keystore" ]; then
+            echo "Restoring permanent release keystore..."
+            echo "MIIKwgIBAzCCCngGCSqGSIb3DQEHAaCCCmkEggplMIIKYTCCBLIGCSqGSIb3DQEHBqCCBKMwggSfAgEAMIIEmAYJKoZIhvcNAQcBMFcGCSqGSIb3DQEFDTBKMCkGCSqGSIb3DQEFDDAcBAgF+jZYi4VLFQICCAAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEPD0NGXcXtoh3xV3FrHFiVOAggQw84NcjLCzulKGNoWbidB+NycC2rYy4P8ZIWVNHsUGcZn1e4qWMfPKAy+E5DfLBps4vBwN/tcE4sqC7mipEIzz50Gj1tDp5ev/SNY2L0jGE6AvHTXg9WcNHITgKYeF1bHniO/S3JcNniHBu6Km+LL75kGrz1NToudTJjo3YmOSSUQRIMSDuKBtiwd4hTLXVaaFjJjQGQwTzeqZSNcLKySVjWzKnktCZiFh+eWOwG1jdWYnxrs/Yf3BFZqcHCaZmnlzrwQVv6hBwSVlmq3C73Qt4MLW9kNhxeZva8hNYqHg/KrkVOEbNDmsnq2PqyR2o5Ga81za6RSWZ8yPSixFAwLMBlrcgHvPnSLOCl+fgMhD1pnvLBbtGne1UqWIlXJ+WRpkrBT1I6os8Cfi2iK5dbaEOqPuvlTDZaTO7mk8o4DuGfx/QfR2ND6G6FFZ78Jh+R9kpWZOCr895EzG12p5DVVKVRbldYtzsf+CYFJPbjvsl5vFkdB4NftHovjZj7nejyEA1PT2zPliUSQsLvPdIiuoSzRTDgxmQIsnmm1F8xAT43rJwq+D5ZwqnqvcrjXoP5Vvt4gEBK4LkvKtMSnToEJdgo4H+nsD3Gc2CshXl9EED482Tvb8lff6Y6YhrArGo2++SqUhxvaCHWumPRXMjjUvITkiXk2+eFhg+uULHWZMjmIFdToXSTEPANLpzzHt2Oxr1cqH0oCLrCwmxMcQ4MKk44R1NEleXwIIOeX9QD8bO2n2RKOjDVVsLmjxSjjPEH6vArS49Nrzr2RTjl/6wduRw/DwuL8pnaAqMeRfzFXmQjNQ5aEakZBhU+Modg9McdxfPAMq7GYCLv2ySzMmHI7+5z5tHx0oxyDc7Prf6HhBTbjHJhIB7mHRfFR+2+fNV3hSAlel2weYEe2TKul3Zp2voDhrWxEuemD8P/AbwdIxf1+q5EdB2On6N3Gb2izhqVe9TbDvPxYMcCqTw4aeBUpnYT8BvX63ZmGZ2FlYrx+/Ctp+IQtUGqzIhfKxiR0UaLy3Usjt+qVGPm9nI1VqH4RVFBaHpnVbw6d5abkjnpSUdg8dvr6jD/MfPnkuWs4Km+4Z4/icCUrG0q9qBmRgIw6aRcoCeV/VsdMAc9nCDVJiVakBd34uDy8Mk8H83px8jTLio+Imqti3RUjXI5oSIyd3szdBChyU5quPygI9fcO4hYirSmT26TaBYzhdTjgWxomqwtiTgBns7cFDzD+9TqVIOgUycpMWhPxowE451HPxP1nOb8w3p5kEc0iCvJIMot1HjguTJhqF9argIUAUSQFtmJtZLtokr+Oi0T/7hYniWjPoq4gb3ULHqdpkflECTnkogjo+RYcRrxB/q0+JrRNo3/4oGebPnB11jMiJUNuzslG/93tBogsYNmJNrMyYYFb9q+DZxuSuOg3KQc/RXL7pwTCCBacGCSqGSIb3DQEHAaCCBZgEggWUMIIFkDCCBYwGCyqGSIb3DQEMCgECoIIFMTCCBS0wVwYJKoZIhvcNAQUNMEowKQYJKoZIhvcNAQUMMBwECKUj/HJINj6eAgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQHRoykgOza2H1FR5vKgkIwASCBNDNci/QZiUhj0b5EcDl7RGEzLUpRmsVFhOh0WwIVBQhlMVe+U0uy14c6dS31K1tBdJYeTDe5Uh7bEzbt2MfgCS+3Q46s3+UBwZslx2PqBCgFixo1h9sD+zjNTrqHPHVoQlmIvOH/xEhhNKNoISHuM5jhkGAc29xvo2OLueRVbg4K1VnxE+3126bxJPKcKCrhTXyS2S3nBNRcG19xMT5cVjeIlfjOB/lZhMrfSUsLXD3k8xU+tpdorbylOuIQVxKCrOOVweOmU95LvmnAIU3iz3VWtDDFGtA9HPvjfPaqfCtsMjMFDF9W4lCWwN3lt4oYxXQ3kVDBxtMjNMrlJuaECfAy9Ls+hCUX8/7HVW3Z3b8l230XAJ+mH7dVAjQEfgna5EmXDzWcBv6F/LTwwwWUz2Q7N8o8MUkZg3x8PT3CS1jePI9EAcI+Q+54nnlnZ+zCovrhKf2eHkoS4qhbomT4S41XkFpj91WhCLR9MjrKhTi4TuuMQ+kABkuEAgUrsj4QN9Tx/nUYDGb0geNzKg917SpPlO3xVsyilr5Mhxy0NLgcmdgpVa4hbWSv2i+KINfMSUaaG9JLM46kiYxKzrVq4O3NTVIbMi5/ErlgPL4DLG0DhRtnn4onrDAf2XReyUqYiJNf3Mq9rRizmtOlsah8p6bVxoj9xvWrOyRpcdYVtetf33TuMEbESfe1eOfvpikE3VK9wDRwcPTgl2vkCR+sN1IllgCThuG3rBGQA3xIAg75MZIojtJGLrIIPQ14W3UTIpMwXECgmQ/sp39irLvOwx4V44d3OOVP6JLHhD4GUUxBdeTAFe5oNOX4UDNO3yPoTcFXeTcAg/llXab/KiaNX1nK4cmzaqKHifmAcNBuv4yboHlc20enrhPzDL96e6isXXZY3AZjrqucIha85HemC1Qlh72uuiqeiL1YZl0MArA3rwtKyeXZryRdGUrMn0fkcA92UzlJ5uuPt1+5HLEmfNx+eQUInzKyyaGrT398UxtX9w8PwLqIGavJhJkk3A+S/igupbqdATygZEuPeZqI0hKy6XmBD8rHRuzrBrcaoulH+c6Yltg/FDa0GSrYM3epPjZ+quv3X8sjfQo8eJwuJPNrU8LOB9Iw5H6K2KGSbQA+51BpxvDd+FLKXSgLSCYimOl1JTxo3mUGOP3cWC8Q3sprKOA7GxPomPrD6WbuvqNOyO/cIWG2s1Wf6Qao06vXuP92FScDRN+Y1Oq9/2PsUa4CcCG/wJPLNx4g5rT1DDHkVIQTSXu26/tGOhl9tRkgPlcLWH9u99RtzRnNOCEYpplIXfy8y9GMI7CQTB3aOIO351EHIQ1SW5R3rTBnTe69m8dmgFkOM2Tfbji9+BDBlA78Asby/cfG21U8V7ap7aBpKogtY+EU/9ogkL6EIz2PrDQqlLG5fUJf680RqdaIz/Mc9vCs53VAGYyivs5eJjauzYa07PaUo6w9Fcsv8vpxKUUGv6sJZlQwPb6Naqr+BhMu3wgNOqtM7Ff6LjWRI/IgTcHDOJvMvat5VC51tZrsJrk2p15DsJPhIy+ZgW1AJ4eJarA4BcxC70kcPNTclbUlHUg8lv+Bhd1gwGezARAcMyrnom9YiRVlFC7gp+ccVTKWzhFGRsuxE37khdFBrMvjFIMCEGCSqGSIb3DQEJFDEUHhIAaABhAHQAawBoAG8AcgBvAGMwIwYJKoZIhvcNAQkVMRYEFL1koJPr2miF4zvoVvFRRkavgMf4MEEwMTANBglghkgBZQMEAgEFAAQgkwBRSIyP+1nhfnhd6mlOQnviw5v1IWh8Y41bYBUBX2UECEqlmzu4qy9UAgIIAA==" | base64 -d > keystore/hatkhoroc.keystore
+          fi
+          mkdir -p ~/.android
+          cp keystore/hatkhoroc.keystore ~/.android/debug.keystore
 
       - name: Configure Android Permissions, FileProvider and Auto-Installer
         run: |
@@ -954,8 +955,12 @@ jobs:
 
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                           if (installedInfo.signingInfo == null || archiveInfo.signingInfo == null) return true;
-                          Signature[] s1 = installedInfo.signingInfo.getApkContentsSigners();
-                          Signature[] s2 = archiveInfo.signingInfo.getApkContentsSigners();
+                          Signature[] s1 = installedInfo.signingInfo.hasMultipleSigners()
+                              ? installedInfo.signingInfo.getApkContentsSigners()
+                              : installedInfo.signingInfo.getSigningCertificateHistory();
+                          Signature[] s2 = archiveInfo.signingInfo.hasMultipleSigners()
+                              ? archiveInfo.signingInfo.getApkContentsSigners()
+                              : archiveInfo.signingInfo.getSigningCertificateHistory();
                           if (s1 == null || s2 == null || s1.length == 0 || s2.length == 0) return true;
                           return Arrays.equals(s1[0].toByteArray(), s2[0].toByteArray());
                       } else {
@@ -965,7 +970,7 @@ jobs:
                           return Arrays.equals(s1[0].toByteArray(), s2[0].toByteArray());
                       }
                   } catch (Exception e) {
-                      return false;
+                      return true;
                   }
               }
 
@@ -995,13 +1000,16 @@ jobs:
                       }
 
                       if (downloadedApkFile == null || !downloadedApkFile.exists()) {
-                          notifyWebDownloadState("failed", 0, "ডাউনলোড করা APK ফাইল খুঁজে পাওয়া যায়নি");
-                          return;
+                          File fallbackApk = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), APK_FILENAME);
+                          if (fallbackApk.exists()) {
+                              downloadedApkFile = fallbackApk;
+                          } else {
+                              notifyWebDownloadState("failed", 0, "ডাউনলোড করা APK ফাইল খুঁজে পাওয়া যায়নি");
+                              return;
+                          }
                       }
 
-                      if (forceUninstall || !isApkSignatureCompatible(downloadedApkFile)) {
-                          signatureMismatch = true;
-                          notifyWebDownloadState("ready", 100, "");
+                      if (forceUninstall) {
                           launchUninstallOnly();
                           return;
                       }
@@ -1097,23 +1105,38 @@ jobs:
           with open(gradle_path, "r", encoding="utf-8") as f:
               content = f.read()
 
+          signing_block = """
+    signingConfigs {
+        release {
+            storeFile file('../../keystore/hatkhoroc.keystore')
+            storePassword 'hatkhoroc2026'
+            keyAlias 'hatkhoroc'
+            keyPassword 'hatkhoroc2026'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+"""
+          if "signingConfigs {" not in content:
+              content = content.replace("android {", "android {\n" + signing_block, 1)
+
           if "resConfigs" not in content:
               content = content.replace("defaultConfig {", 'defaultConfig {\n        resConfigs "en", "bn"', 1)
 
           content = re.sub(r"minifyEnabled\s+false", "minifyEnabled true", content)
           if "shrinkResources" not in content:
               content = content.replace("minifyEnabled true", "minifyEnabled true\n            shrinkResources true")
-          if "signingConfig signingConfigs.debug" not in content and "buildTypes {" in content:
+          if "signingConfig signingConfigs.release" not in content and "buildTypes {" in content:
               content = content.replace(
                   "release {",
-                  "release {\n            signingConfig signingConfigs.debug",
+                  "release {\n            signingConfig signingConfigs.release",
                   1
               )
-          content = content.replace("signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")
+          content = re.sub(r'signingConfig\s+signingConfigs\.\w+', 'signingConfig signingConfigs.release', content)
 
           with open(gradle_path, "w", encoding="utf-8") as f:
               f.write(content)
-          print("Configured R8 shrinking and debug keystore signing on release buildType")
+          print("Configured R8 shrinking and permanent release keystore signing on release buildType")
           EOF
 
       - name: Build Shrunk Android APK

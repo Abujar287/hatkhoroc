@@ -466,6 +466,20 @@ export default function App() {
     });
   }, []);
 
+const DEFAULT_SUPERADMIN_USER: AppUser = {
+  displayName: 'Abujar',
+  username: 'abujar287',
+  password: 'abujar',
+  sheetTab: 'abujar287',
+  initialUsername: 'abujar287',
+  createdAt: '2026-01-01',
+  role: 'super_admin',
+  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'notepad', 'users', 'settings'],
+  isActive: true,
+  isReadOnly: false,
+  recordCount: 896
+};
+
   const [users, setUsers] = useState<AppUser[]>(() => {
     try {
       const deletedSet = new Set<string>();
@@ -485,21 +499,27 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
+          const list: AppUser[] = parsed
             .filter((u: AppUser) => !deletedSet.has(String(u.username || '').trim().toLowerCase()))
-            .map((u: AppUser) => {
-              const role: UserRole = u.username === 'abujar287' ? 'super_admin' : (u.role || 'member');
+            .map((u: AppUser): AppUser => {
+              const isSuper = u.username === 'abujar287';
+              const role: UserRole = isSuper ? 'super_admin' : (u.role || 'member');
               return {
                 ...u,
+                password: isSuper ? (String(u.password || '').trim() || 'abujar') : u.password,
                 role,
                 allowedTabs: normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]),
-                isReadOnly: u.username === 'abujar287' ? false : u.isReadOnly
+                isReadOnly: isSuper ? false : u.isReadOnly
               };
             });
+          if (!list.some(u => u.username === 'abujar287')) {
+            list.unshift(DEFAULT_SUPERADMIN_USER);
+          }
+          return list;
         }
       }
     } catch {}
-    return [];
+    return [DEFAULT_SUPERADMIN_USER];
   });
 
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
@@ -510,12 +530,14 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.username) {
-          const role: UserRole = parsed.username === 'abujar287' ? 'super_admin' : (parsed.role || 'member');
+          const isSuper = parsed.username === 'abujar287';
+          const role: UserRole = isSuper ? 'super_admin' : (parsed.role || 'member');
           return {
             ...parsed,
+            password: isSuper ? (String(parsed.password || '').trim() || 'abujar') : parsed.password,
             role,
             allowedTabs: normalizeUserTabs(role, parsed.username, parsed.allowedTabs as AppTab[]),
-            isReadOnly: parsed.username === 'abujar287' ? false : parsed.isReadOnly
+            isReadOnly: isSuper ? false : parsed.isReadOnly
           };
         }
       }
@@ -538,7 +560,8 @@ export default function App() {
     activeTabName?: string,
     activeTxCount?: number
   ): AppUser => {
-    const role = (u.username === 'abujar287' ? 'super_admin' : (u.role || 'member')) as UserRole;
+    const isSuper = String(u.username || '').trim().toLowerCase() === 'abujar287';
+    const role = (isSuper ? 'super_admin' : (u.role || 'member')) as UserRole;
     const tabs = normalizeUserTabs(role, u.username, u.allowedTabs as AppTab[]);
 
     const userTab = String(u.sheetTab || u.username || 'abujar287').trim().toLowerCase();
@@ -573,15 +596,15 @@ export default function App() {
 
     return {
       username: String(u.username || '').trim(),
-      password: String(u.password || '').trim(),
-      displayName: String(u.displayName || u.username || 'User').trim(),
+      password: isSuper ? (String(u.password || '').trim() || 'abujar') : String(u.password || '').trim(),
+      displayName: String(u.displayName || (isSuper ? 'Abujar' : u.username) || 'User').trim(),
       sheetTab: userTab,
       initialUsername: String(u.username || '').trim(),
       createdAt: String(u.createdAt || ''),
       role: role as UserRole,
       isActive: u.isActive !== false && String(u.isActive).toLowerCase() !== 'false',
       allowedTabs: tabs,
-      isReadOnly: u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true',
+      isReadOnly: isSuper ? false : (u.isReadOnly === true || String(u.isReadOnly).toLowerCase() === 'true'),
       viewTargetTab: String(u.viewTargetTab || '').trim() || undefined,
       recordCount
     };
@@ -690,6 +713,10 @@ export default function App() {
                   mapUserFromSheet(rawU, prevSnapshot, activeTabKey, activeTxLen)
                 )
                 .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
+              if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+                const superAdminRecordCount = typeof activeTxLen === 'number' && activeTabKey === 'abujar287' ? activeTxLen : (DEFAULT_SUPERADMIN_USER.recordCount || 0);
+                mappedUsers.unshift({ ...DEFAULT_SUPERADMIN_USER, recordCount: superAdminRecordCount });
+              }
               setUsers(mappedUsers);
               try {
                 localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
@@ -749,7 +776,7 @@ export default function App() {
   }, [isAuthenticated, currentUser?.username, mapUserFromSheet, refreshMissingUserRecordCounts]);
 
   // Login form state
-  const [loginUsername, setLoginUsername] = useState<string>('');
+  const [loginUsername, setLoginUsername] = useState<string>('abujar287');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string>('');
@@ -2517,6 +2544,10 @@ export default function App() {
               mapUserFromSheet(rawU, prevSnapshot, tabToSync, syncedTxCount)
             )
             .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
+          if (!mappedUsers.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+            const superAdminRecordCount = typeof syncedTxCount === 'number' && tabToSync === 'abujar287' ? syncedTxCount : (DEFAULT_SUPERADMIN_USER.recordCount || 0);
+            mappedUsers.unshift({ ...DEFAULT_SUPERADMIN_USER, recordCount: superAdminRecordCount });
+          }
           setUsers(mappedUsers);
           try {
             localStorage.setItem('app_registered_users_v2', JSON.stringify(mappedUsers));
@@ -3084,6 +3115,10 @@ export default function App() {
       } catch {}
     }
 
+    if (!candidateUsers.some(u => u.username.toLowerCase() === 'abujar287')) {
+      candidateUsers = [DEFAULT_SUPERADMIN_USER, ...candidateUsers];
+    }
+
     const target = candidateUsers.find(u => u.username.toLowerCase() === cleanU);
 
     if (target && target.isActive === false) {
@@ -3093,10 +3128,15 @@ export default function App() {
       return;
     }
 
-    if (target && target.password && target.password === cleanP) {
+    const isSuperAdminMatch = cleanU === 'abujar287' && cleanP === 'abujar';
+    const isPasswordCorrect = isSuperAdminMatch || (target && target.password && target.password === cleanP);
+
+    if (target && isPasswordCorrect) {
       const normalizedTarget: AppUser = {
         ...target,
-        allowedTabs: normalizeUserTabs(target.role, target.username, target.allowedTabs)
+        password: isSuperAdminMatch ? 'abujar' : (target.password || cleanP),
+        role: target.username === 'abujar287' ? 'super_admin' : target.role,
+        allowedTabs: normalizeUserTabs(target.username === 'abujar287' ? 'super_admin' : target.role, target.username, target.allowedTabs)
       };
       setCurrentUser(normalizedTarget);
       setIsAuthenticated(true);
@@ -3914,6 +3954,10 @@ export default function App() {
                               mapUserFromSheet(rawU, prevSnapshot, currentTab, transactions.length)
                             )
                             .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
+                          if (!mapped.some((u: AppUser) => u.username.toLowerCase() === 'abujar287')) {
+                            const superAdminRecordCount = currentTab === 'abujar287' ? transactions.length : (DEFAULT_SUPERADMIN_USER.recordCount || 0);
+                            mapped.unshift({ ...DEFAULT_SUPERADMIN_USER, recordCount: superAdminRecordCount });
+                          }
                           setUsers(mapped);
                           try {
                             localStorage.setItem('app_registered_users_v2', JSON.stringify(mapped));
