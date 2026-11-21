@@ -91,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [selectedMonth, lang, monthMappings]);
 
-  const userDisplayName = currentUser?.displayName || currentUser?.username || 'Abujar Al-Gifari';
+  const userDisplayName = currentUser?.displayName || currentUser?.username || 'User';
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.username?.toLowerCase() === 'abujar287';
 
   const userAllowedTabs: AppTab[] = React.useMemo(() => {

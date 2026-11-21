@@ -32,7 +32,7 @@ function formatAmount(val: number): string {
  * 2. Details Data Excel Spreadsheet (All transactions, category summaries & overview)
  */
 export async function exportMonthlyReportZip(options: ExportZipOptions): Promise<boolean> {
-  const { month, startDate, endDate, transactions, lang = 'en', userName = 'Abujar Al-Gifari', monthMappings = [] } = options;
+  const { month, startDate, endDate, transactions, lang = 'en', userName = 'User', monthMappings = [] } = options;
 
   // 1. Determine target transactions
   let targetTxs: Transaction[] = [];

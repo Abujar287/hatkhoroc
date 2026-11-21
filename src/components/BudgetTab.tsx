@@ -218,12 +218,18 @@ export const BudgetTab: React.FC<BudgetTabProps> = ({
       setCategoryBudgets({});
     }
 
-    // Default to ALL valid expense categories (10 default + any custom) so they all show with budget=0 & spent=0
     const allNames = validExpenseCategories.map(c => c.cleanName);
-    setSelectedCategoryNames(allNames);
     try {
-      localStorage.setItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`, JSON.stringify(allNames));
+      const savedSelected = localStorage.getItem(`app_selected_budget_cats_${currentTab}_${selectedMonth}`);
+      if (savedSelected) {
+        const parsed = JSON.parse(savedSelected);
+        if (Array.isArray(parsed)) {
+          setSelectedCategoryNames(parsed);
+          return;
+        }
+      }
     } catch {}
+    setSelectedCategoryNames(allNames);
   }, [currentTab, selectedMonth, validExpenseCategories]);
 
   // Robust getter for category budget

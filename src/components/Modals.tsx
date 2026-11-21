@@ -37,7 +37,7 @@ import {
 } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
-import { APP_VERSION, forceAppUpdateRefresh } from '../utils/updateChecker';
+import { APP_VERSION, forceAppUpdateRefresh, getAppLastUpdateTime } from '../utils/updateChecker';
 import { CategoryIcon } from './CategoryIcon';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
@@ -2637,10 +2637,10 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     updateInfo?.apkDownloadUrl ||
     'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
-  const currentVersionStr = updateInfo?.currentVersion || APP_VERSION || 'v1.1.4';
-  const currentDateTimeStr = updateInfo?.currentDateTime || '2026-11-15 12:22 PM';
-  const newVersionStr = updateInfo?.newVersion || APP_VERSION || 'v1.1.4';
-  const newDateTimeStr = updateInfo?.newDateTime || '2026-11-15 12:30 PM';
+  const currentVersionStr = updateInfo?.currentVersion || APP_VERSION;
+  const currentDateTimeStr = updateInfo?.currentDateTime || getAppLastUpdateTime();
+  const newVersionStr = updateInfo?.newVersion || APP_VERSION;
+  const newDateTimeStr = updateInfo?.newDateTime || getAppLastUpdateTime();
 
   const defaultTotalBytes = updateInfo?.apkSizeBytes || Math.round(4.37 * 1024 * 1024);
 
@@ -2707,6 +2707,36 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     window.location.reload();
   }, [markUpdateShaInstalled]);
 
+  const notifyBrowserDownload = React.useCallback(async (title: string, body: string) => {
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      let permission = Notification.permission;
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== 'granted') return;
+
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && typeof reg.showNotification === 'function') {
+          await reg.showNotification(title, {
+            body,
+            icon: '/pwa-192x192.png',
+            badge: '/pwa-192x192.png',
+            tag: 'hatkhoroc-apk-update',
+            renotify: true
+          } as NotificationOptions);
+          return;
+        }
+      }
+      new Notification(title, {
+        body,
+        icon: '/pwa-192x192.png',
+        tag: 'hatkhoroc-apk-update'
+      });
+    } catch {}
+  }, []);
+
   const handleStartDownload = React.useCallback(async () => {
     clearWebResources();
     setDownloadError('');
@@ -2730,6 +2760,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     }
 
     // Web / Browser / PWA flow: download real APK via /api/proxy-apk into Downloads (File Manager)
+    void notifyBrowserDownload(
+      t('হাত খরচ — Downloading Update', 'হাত খরচ — আপডেট ডাউনলোড হচ্ছে'),
+      t('Downloading hatkhoroc.apk...', 'নতুন hatkhoroc.apk ফাইল ডাউনলোড হচ্ছে...')
+    );
+
     const controller = new AbortController();
     webAbortRef.current = controller;
 
@@ -2795,6 +2830,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setDownloadedBytes(received);
       setDownloadProgress(100);
       triggerBrowserApkSave(blobUrl);
+      const mbStr = (received / (1024 * 1024)).toFixed(2);
+      void notifyBrowserDownload(
+        t('হাত খরচ — Update Ready', 'হাত খরচ — আপডেট ডাউনলোড সম্পন্ন'),
+        t(`Saved hatkhoroc.apk (${mbStr} MB) to Downloads.`, `Downloads ফোল্ডারে hatkhoroc.apk (${mbStr} MB) সেভ হয়েছে।`)
+      );
       setUpdatePhase('ready');
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
@@ -2803,7 +2843,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setUpdatePhase('idle');
       setDownloadError(err?.message || t('Download failed. Please try again.', 'ডাউনলোড ব্যর্থ হয়েছে।'));
     }
-  }, [apkUrl, clearWebResources, defaultTotalBytes, t, triggerBrowserApkSave]);
+  }, [apkUrl, clearWebResources, defaultTotalBytes, notifyBrowserDownload, t, triggerBrowserApkSave]);
 
   const handleInstallNow = React.useCallback(() => {
     setDownloadError('');

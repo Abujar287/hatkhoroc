@@ -80,6 +80,7 @@ jobs:
 
               permissions = """
               <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
               <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
               <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -87,6 +88,8 @@ jobs:
               """
               if "REQUEST_INSTALL_PACKAGES" not in content:
                   content = content.replace("<application", permissions + "\n    <application", 1)
+              elif "POST_NOTIFICATIONS" not in content:
+                  content = content.replace("<application", '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application', 1)
 
               file_provider = """
                   <provider
@@ -111,7 +114,11 @@ jobs:
           cat << 'EOF' > android/app/src/main/java/com/abujar/hatkhoroc/MainActivity.java
           package com.abujar.hatkhoroc;
 
+          import android.Manifest;
           import android.app.DownloadManager;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
           import android.content.ContentResolver;
           import android.content.ContentValues;
           import android.content.Context;
@@ -130,6 +137,9 @@ jobs:
           import android.webkit.DownloadListener;
           import android.webkit.WebView;
           import android.widget.Toast;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.app.NotificationCompat;
+          import androidx.core.content.ContextCompat;
           import androidx.core.content.FileProvider;
           import com.getcapacitor.BridgeActivity;
           import org.json.JSONObject;
@@ -143,9 +153,15 @@ jobs:
           import java.net.URL;
           import java.util.Arrays;
           import java.util.List;
+          import java.util.Locale;
 
           public class MainActivity extends BridgeActivity {
               private static final String APK_FILENAME = "hatkhoroc.apk";
+              private static final String UPDATE_CHANNEL_ID = "hatkhoroc_app_updates";
+              private static final int UPDATE_NOTIF_ID = 7701;
+              private static final int REQ_POST_NOTIFICATIONS = 7702;
+              private static final String ACTION_INSTALL_DOWNLOADED_APK = "com.abujar.hatkhoroc.ACTION_INSTALL_UPDATE";
+
               private boolean pendingInstall = false;
               private boolean pendingForceUninstall = false;
               private boolean waitingForInstallResult = false;
@@ -158,6 +174,8 @@ jobs:
               private volatile String savedFilePath = "Downloads/" + APK_FILENAME;
               private volatile boolean signatureMismatch = false;
               private volatile String downloadError = "";
+              private volatile long lastSystemNotifMs = 0L;
+              private volatile int lastSystemNotifPct = -1;
 
               private File downloadedApkFile = null;
               private Thread downloadThread = null;
@@ -299,7 +317,189 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  ensureUpdateNotificationChannel();
+                  ensureNotificationPermission();
                   setupDownloadListener();
+                  handleInstallNotificationIntent(getIntent());
+              }
+
+              @Override
+              public void onNewIntent(Intent intent) {
+                  super.onNewIntent(intent);
+                  setIntent(intent);
+                  handleInstallNotificationIntent(intent);
+              }
+
+              private void handleInstallNotificationIntent(Intent intent) {
+                  if (intent != null && ACTION_INSTALL_DOWNLOADED_APK.equals(intent.getAction())) {
+                      if (downloadedApkFile == null || !downloadedApkFile.exists()) {
+                          File internalApk = new File(new File(getFilesDir(), "updates"), APK_FILENAME);
+                          if (internalApk.exists()) {
+                              downloadedApkFile = internalApk;
+                          }
+                      }
+                      if (downloadedApkFile != null && downloadedApkFile.exists()) {
+                          installOrForceUpdateApk(false);
+                      }
+                  }
+              }
+
+              private void ensureUpdateNotificationChannel() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      try {
+                          NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                          if (nm == null) return;
+                          NotificationChannel existing = nm.getNotificationChannel(UPDATE_CHANNEL_ID);
+                          if (existing == null) {
+                              NotificationChannel channel = new NotificationChannel(
+                                  UPDATE_CHANNEL_ID,
+                                  "App Updates & Downloads",
+                                  NotificationManager.IMPORTANCE_DEFAULT
+                              );
+                              channel.setDescription("Live APK download progress and update ready alerts");
+                              channel.setShowBadge(true);
+                              nm.createNotificationChannel(channel);
+                          }
+                      } catch (Exception ignored) {}
+                  }
+              }
+
+              private boolean hasNotificationPermission() {
+                  if (Build.VERSION.SDK_INT >= 33) {
+                      return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                          == PackageManager.PERMISSION_GRANTED;
+                  }
+                  return true;
+              }
+
+              private void ensureNotificationPermission() {
+                  if (Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission()) {
+                      try {
+                          ActivityCompat.requestPermissions(
+                              this,
+                              new String[] { Manifest.permission.POST_NOTIFICATIONS },
+                              REQ_POST_NOTIFICATIONS
+                          );
+                      } catch (Exception ignored) {}
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == REQ_POST_NOTIFICATIONS && hasNotificationPermission()) {
+                      if ("downloading".equals(downloadState)) {
+                          showDownloadProgressNotification(downloadProgress, downloadedBytes, totalBytes, true);
+                      } else if ("ready".equals(downloadState)) {
+                          showDownloadCompleteNotification(savedFilePath, totalBytes);
+                      }
+                  }
+              }
+
+              private String formatMb(long bytes) {
+                  if (bytes <= 0L) return "0.00 MB";
+                  return String.format(Locale.US, "%.2f MB", bytes / (1024.0 * 1024.0));
+              }
+
+              private PendingIntent createOpenAppPendingIntent(String action) {
+                  Intent intent = new Intent(this, MainActivity.class);
+                  if (action != null) {
+                      intent.setAction(action);
+                  }
+                  intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      flags |= PendingIntent.FLAG_IMMUTABLE;
+                  }
+                  return PendingIntent.getActivity(this, action != null ? 102 : 101, intent, flags);
+              }
+
+              private void showDownloadProgressNotification(int pct, long received, long total, boolean force) {
+                  if (!hasNotificationPermission()) return;
+                  long now = System.currentTimeMillis();
+                  if (!force && pct == lastSystemNotifPct) return;
+                  if (!force && (now - lastSystemNotifMs) < 350 && Math.abs(pct - lastSystemNotifPct) < 3) return;
+                  lastSystemNotifMs = now;
+                  lastSystemNotifPct = pct;
+
+                  try {
+                      ensureUpdateNotificationChannel();
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      if (nm == null) return;
+
+                      String progressText = received > 0
+                          ? (pct + "% • " + formatMb(received) + (total > 0 ? " / " + formatMb(total) : ""))
+                          : "ডাউনলোড শুরু হচ্ছে...";
+
+                      NotificationCompat.Builder builder = new NotificationCompat.Builder(this, UPDATE_CHANNEL_ID)
+                          .setSmallIcon(android.R.drawable.stat_sys_download)
+                          .setContentTitle("হাত খরচ — আপডেট ডাউনলোড হচ্ছে")
+                          .setContentText(progressText)
+                          .setSubText(APK_FILENAME)
+                          .setProgress(100, Math.max(0, Math.min(100, pct)), total <= 0 && pct <= 2)
+                          .setOngoing(true)
+                          .setOnlyAlertOnce(true)
+                          .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                          .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                          .setContentIntent(createOpenAppPendingIntent(null));
+
+                      nm.notify(UPDATE_NOTIF_ID, builder.build());
+                  } catch (Exception ignored) {}
+              }
+
+              private void showDownloadCompleteNotification(String filePath, long fileSize) {
+                  if (!hasNotificationPermission()) return;
+                  try {
+                      ensureUpdateNotificationChannel();
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      if (nm == null) return;
+
+                      PendingIntent installPendingIntent = createOpenAppPendingIntent(ACTION_INSTALL_DOWNLOADED_APK);
+                      String sizePart = fileSize > 0 ? (" (" + formatMb(fileSize) + ")") : "";
+                      String shortText = filePath + sizePart + " • ইনস্টল করতে ট্যাপ করুন";
+                      String bigText = "নতুন আপডেট ডাউনলোড সম্পন্ন হয়েছে এবং পুরনো APK রিপ্লেস করা হয়েছে।\nফাইল: "
+                          + filePath + sizePart + "\nএখন ইনস্টল করতে ট্যাপ করুন।";
+
+                      NotificationCompat.Builder builder = new NotificationCompat.Builder(this, UPDATE_CHANNEL_ID)
+                          .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                          .setContentTitle("হাত খরচ — আপডেট ডাউনলোড সম্পন্ন")
+                          .setContentText(shortText)
+                          .setStyle(new NotificationCompat.BigTextStyle().bigText(bigText))
+                          .setSubText("Ready to Install")
+                          .setProgress(0, 0, false)
+                          .setOngoing(false)
+                          .setAutoCancel(true)
+                          .setOnlyAlertOnce(false)
+                          .setPriority(NotificationCompat.PRIORITY_HIGH)
+                          .setCategory(NotificationCompat.CATEGORY_STATUS)
+                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                          .setContentIntent(installPendingIntent)
+                          .addAction(android.R.drawable.stat_sys_download_done, "ইনস্টল করুন", installPendingIntent);
+
+                      nm.notify(UPDATE_NOTIF_ID, builder.build());
+                  } catch (Exception ignored) {}
+              }
+
+              private void showDownloadFailedNotification(String errorMsg) {
+                  if (!hasNotificationPermission()) return;
+                  try {
+                      ensureUpdateNotificationChannel();
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      if (nm == null) return;
+
+                      NotificationCompat.Builder builder = new NotificationCompat.Builder(this, UPDATE_CHANNEL_ID)
+                          .setSmallIcon(android.R.drawable.stat_notify_error)
+                          .setContentTitle("হাত খরচ — আপডেট ডাউনলোড ব্যর্থ")
+                          .setContentText(errorMsg != null && !errorMsg.isEmpty() ? errorMsg : "পুনরায় চেষ্টা করুন")
+                          .setProgress(0, 0, false)
+                          .setOngoing(false)
+                          .setAutoCancel(true)
+                          .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                          .setContentIntent(createOpenAppPendingIntent(null));
+
+                      nm.notify(UPDATE_NOTIF_ID, builder.build());
+                  } catch (Exception ignored) {}
               }
 
               private void setupDownloadListener() {
@@ -437,6 +637,7 @@ jobs:
                               lastPct = pct;
                               lastNotifyMs = now;
                               notifyWebDownloadState("downloading", pct, "");
+                              showDownloadProgressNotification(pct, received, len, pct >= 99);
                           }
                       }
 
@@ -496,6 +697,11 @@ jobs:
                               MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                               MediaStore.Downloads.DISPLAY_NAME + " LIKE ?",
                               new String[] { "hatkhoroc%.apk" }
+                          );
+                          resolver.delete(
+                              MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                              MediaStore.Downloads.DISPLAY_NAME + " LIKE ?",
+                              new String[] { "হাত খরচ%.apk" }
                           );
                       } catch (Exception ignored) {}
                   }
@@ -560,21 +766,38 @@ jobs:
 
                           Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
                           if (uri != null) {
-                              OutputStream os = resolver.openOutputStream(uri);
-                              InputStream is = new FileInputStream(sourceApk);
-                              byte[] buf = new byte[16384];
-                              int len;
-                              while ((len = is.read(buf)) != -1) {
-                                  os.write(buf, 0, len);
+                              try (OutputStream os = resolver.openOutputStream(uri);
+                                   InputStream is = new FileInputStream(sourceApk)) {
+                                  if (os != null) {
+                                      byte[] buf = new byte[16384];
+                                      int len;
+                                      while ((len = is.read(buf)) != -1) {
+                                          os.write(buf, 0, len);
+                                      }
+                                      os.flush();
+                                  }
                               }
-                              os.flush();
-                              os.close();
-                              is.close();
 
                               values.clear();
                               values.put(MediaStore.Downloads.IS_PENDING, 0);
                               resolver.update(uri, values, null, null);
-                              return "Downloads/" + APK_FILENAME;
+
+                              String actualName = APK_FILENAME;
+                              try (android.database.Cursor cursor = resolver.query(
+                                  uri,
+                                  new String[] { MediaStore.Downloads.DISPLAY_NAME },
+                                  null,
+                                  null,
+                                  null
+                              )) {
+                                  if (cursor != null && cursor.moveToFirst()) {
+                                      String queried = cursor.getString(0);
+                                      if (queried != null && !queried.trim().isEmpty()) {
+                                          actualName = queried.trim();
+                                      }
+                                  }
+                              } catch (Exception ignored) {}
+                              return "Downloads/" + actualName;
                           }
                       } else {
                           File pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
@@ -598,6 +821,20 @@ jobs:
                                   new String[] { "application/vnd.android.package-archive" },
                                   null
                               );
+                              try {
+                                  DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                                  if (dm != null) {
+                                      dm.addCompletedDownload(
+                                          APK_FILENAME,
+                                          "হাত খরচ অ্যাপ আপডেট",
+                                          false,
+                                          "application/vnd.android.package-archive",
+                                          dest.getAbsolutePath(),
+                                          dest.length(),
+                                          false
+                                      );
+                                  }
+                              } catch (Exception ignored) {}
                               return "Downloads/" + APK_FILENAME;
                           }
                       }
@@ -631,11 +868,17 @@ jobs:
                       return;
                   }
 
+                  ensureUpdateNotificationChannel();
+                  ensureNotificationPermission();
+
                   downloadedBytes = 0L;
                   totalBytes = 0L;
+                  lastSystemNotifMs = 0L;
+                  lastSystemNotifPct = -1;
                   signatureMismatch = false;
                   savedFilePath = "Downloads/" + APK_FILENAME;
                   notifyWebDownloadState("downloading", 2, "");
+                  showDownloadProgressNotification(2, 0L, 0L, true);
 
                   downloadThread = new Thread(new Runnable() {
                       @Override
@@ -684,10 +927,13 @@ jobs:
                               // 4. Save/replace the APK inside user's File Manager (Downloads/hatkhoroc.apk)
                               savedFilePath = saveApkToFileManager(internalApk);
 
-                              // 5. Notify UI that APK is ready to install
+                              // 5. Post completion notification in status bar & notify UI that APK is ready
+                              showDownloadCompleteNotification(savedFilePath, internalApk.length());
                               notifyWebDownloadState("ready", 100, "");
                           } catch (Exception e) {
-                              notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "Download failed");
+                              String errMsg = e.getMessage() != null ? e.getMessage() : "Download failed";
+                              showDownloadFailedNotification(errMsg);
+                              notifyWebDownloadState("failed", 0, errMsg);
                           }
                       }
                   });
@@ -774,6 +1020,11 @@ jobs:
                       for (ResolveInfo resolveInfo : resInfoList) {
                           grantUriPermission(resolveInfo.activityInfo.packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       }
+                      try {
+                          NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                          if (nm != null) nm.cancel(UPDATE_NOTIF_ID);
+                      } catch (Exception ignored) {}
+
                       startActivity(installIntent);
                   } catch (Exception e) {
                       waitingForInstallResult = false;

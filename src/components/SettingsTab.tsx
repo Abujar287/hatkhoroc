@@ -13,7 +13,7 @@ import {
   RotateCcw,
   RefreshCw
 } from 'lucide-react';
-import { AppUser, Transaction } from '../types';
+import { AppUser, PocketAuditMetrics, Transaction } from '../types';
 import { APP_VERSION, getAppLastUpdateTime } from '../utils/updateChecker';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
@@ -39,6 +39,9 @@ interface SettingsTabProps {
   onSetDefaultMonth?: (monthLabel: string) => void;
   onCheckForUpdates?: () => void;
   appLastUpdateTime?: string;
+  pocketAuditMap?: Record<string, PocketAuditMetrics>;
+  pocketAuditVersion?: number;
+  onSavePocketAudit?: (month: string, metrics: PocketAuditMetrics) => void;
 }
 
 const getRoleLabel = (role?: string) => {
@@ -63,7 +66,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onDeleteMonthMapping,
   onSetDefaultMonth,
   onCheckForUpdates,
-  appLastUpdateTime
+  appLastUpdateTime,
+  pocketAuditMap,
+  pocketAuditVersion = 0,
+  onSavePocketAudit
 }) => {
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [currentAppUpdateTime, setCurrentAppUpdateTime] = useState<string>(() => getAppLastUpdateTime());
@@ -162,55 +168,81 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const monthNet = monthInc - monthExp;
 
   // ----------------------------------------------------
-  // MATRICS AMOUNT (ASSET RECONCILIATION) STATE & CALCULATION
+  // MATRICS AMOUNT (ASSET RECONCILIATION) STATE & SHEET SYNC
   // ----------------------------------------------------
-  const [metrics, setMetrics] = useState<{
-    cityBank: string;
-    bkash: string;
-    nagad: string;
-    cash: string;
-    moneyBag: string;
-  }>(() => {
+  const emptyMetrics: PocketAuditMetrics = {
+    cityBank: '',
+    bkash: '',
+    nagad: '',
+    cash: '',
+    moneyBag: ''
+  };
+
+  const resolveRemotePocketAudit = (month: string): PocketAuditMetrics | null => {
+    if (!pocketAuditMap || typeof pocketAuditMap !== 'object') return null;
+    const cleanM = cleanMappingLabel(month) || month;
+    const key = getMonthKeyFromLabel(cleanM);
+    const candidates = [month, cleanM, key, '_default', 'default'].filter(Boolean);
+    for (const c of candidates) {
+      if (pocketAuditMap[c]) return pocketAuditMap[c];
+      const matchKey = Object.keys(pocketAuditMap).find(k => k.toLowerCase() === c.toLowerCase());
+      if (matchKey) return pocketAuditMap[matchKey];
+    }
+    return null;
+  };
+
+  const [metrics, setMetrics] = useState<PocketAuditMetrics>(() => {
+    const remote = resolveRemotePocketAudit(selectedMonth);
+    if (remote) return { ...emptyMetrics, ...remote };
     try {
       const userKey = currentUser?.username || 'user';
       const saved = localStorage.getItem(`app_matrics_amount_${userKey}_${selectedMonth}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) return { ...emptyMetrics, ...JSON.parse(saved) };
       const fallback = localStorage.getItem(`app_matrics_amount_${userKey}`);
-      if (fallback) return JSON.parse(fallback);
+      if (fallback) return { ...emptyMetrics, ...JSON.parse(fallback) };
     } catch {}
-    return {
-      cityBank: '',
-      bkash: '',
-      nagad: '',
-      cash: '',
-      moneyBag: ''
-    };
+    return { ...emptyMetrics };
   });
 
+  const auditDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const auditDirtyRef = React.useRef(false);
+
   useEffect(() => {
+    if (auditDirtyRef.current) return;
+    const remote = resolveRemotePocketAudit(selectedMonth);
+    const userKey = currentUser?.username || 'user';
+    if (remote) {
+      const next = { ...emptyMetrics, ...remote };
+      setMetrics(next);
+      try {
+        localStorage.setItem(`app_matrics_amount_${userKey}_${selectedMonth}`, JSON.stringify(next));
+      } catch {}
+      return;
+    }
+    if (pocketAuditVersion > 0 && pocketAuditMap && Object.keys(pocketAuditMap).length === 0) {
+      setMetrics({ ...emptyMetrics });
+      try {
+        localStorage.removeItem(`app_matrics_amount_${userKey}_${selectedMonth}`);
+      } catch {}
+      return;
+    }
     try {
-      const userKey = currentUser?.username || 'user';
       const saved = localStorage.getItem(`app_matrics_amount_${userKey}_${selectedMonth}`);
       if (saved) {
-        setMetrics(JSON.parse(saved));
+        setMetrics({ ...emptyMetrics, ...JSON.parse(saved) });
         return;
       }
       const fallback = localStorage.getItem(`app_matrics_amount_${userKey}`);
       if (fallback) {
-        setMetrics(JSON.parse(fallback));
+        setMetrics({ ...emptyMetrics, ...JSON.parse(fallback) });
         return;
       }
     } catch {}
-    setMetrics({
-      cityBank: '',
-      bkash: '',
-      nagad: '',
-      cash: '',
-      moneyBag: ''
-    });
-  }, [selectedMonth, currentUser?.username]);
+    setMetrics({ ...emptyMetrics });
+  }, [selectedMonth, currentUser?.username, pocketAuditMap, pocketAuditVersion]);
 
   const updateMetric = (field: 'cityBank' | 'bkash' | 'nagad' | 'cash' | 'moneyBag', value: string) => {
+    auditDirtyRef.current = true;
     setMetrics(prev => {
       const next = { ...prev, [field]: value };
       try {
@@ -218,18 +250,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         localStorage.setItem(`app_matrics_amount_${userKey}_${selectedMonth}`, JSON.stringify(next));
         localStorage.setItem(`app_matrics_amount_${userKey}`, JSON.stringify(next));
       } catch {}
+      if (auditDebounceRef.current) clearTimeout(auditDebounceRef.current);
+      auditDebounceRef.current = setTimeout(() => {
+        auditDirtyRef.current = false;
+        onSavePocketAudit?.(selectedMonth, next);
+      }, 650);
       return next;
     });
   };
 
   const handleResetMetrics = () => {
-    const empty = { cityBank: '', bkash: '', nagad: '', cash: '', moneyBag: '' };
+    if (auditDebounceRef.current) clearTimeout(auditDebounceRef.current);
+    auditDirtyRef.current = false;
+    const empty = { ...emptyMetrics };
     setMetrics(empty);
     try {
       const userKey = currentUser?.username || 'user';
       localStorage.setItem(`app_matrics_amount_${userKey}_${selectedMonth}`, JSON.stringify(empty));
       localStorage.setItem(`app_matrics_amount_${userKey}`, JSON.stringify(empty));
     } catch {}
+    onSavePocketAudit?.(selectedMonth, empty);
   };
 
   // Active Month Transactions & Real-time Monthly Balance Calculation

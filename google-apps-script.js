@@ -1,8 +1,8 @@
 // ====================================================================
 // হাত খরচ: গুগল শিট Apps Script কোড (Code.gs)
-// ভার্সন: 7.0 (Unified 1-Tab Multi-User Architecture)
-// প্রতিটি ইউজারের (যেমন: abujar287, munni) জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
-// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Notepad: BB-BF]
+// ভার্সন: 7.1 (Unified 1-Tab Multi-User Architecture - 100% Dynamic Sync)
+// প্রতিটি ইউজারের জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
+// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ (+AR meta)] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Notepad: BB-BF] [Pocket Audit: BH-BM]
 // কোনো এন্ট্রি ডিলিট করলে শুধুমাত্র সেই কলাম রেঞ্জ ডিলিট হবে, ডানের কলামের ডেটা অক্ষত থাকবে!
 // ====================================================================
 
@@ -93,15 +93,30 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.৩ সব ক্যাটাগরি নিরাপদ সিঙ্ক (SAVE CATEGORIES - O-P কলামে মার্জ)
+    // ৫.৩ সব ক্যাটাগরি নিরাপদ সিঙ্ক (SAVE CATEGORIES - O-P কলামে মার্জ বা রিপ্লেস)
     if (action === 'savecategories' || action === 'savecategory') {
       var cats = Array.isArray(data.categories) ? data.categories : [];
+      if (data.replace === true) {
+        var targetCatType = String(data.type || '').trim();
+        var replacedCount = replaceCategoriesInRange(sheet, targetCatType, cats);
+        return ContentService.createTextOutput(JSON.stringify({
+          result: 'success',
+          sheetTab: sheet.getName(),
+          message: 'ক্যাটাগরি লিস্ট সম্পূর্ণ আপডেট হয়েছে',
+          count: replacedCount
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
       var addedCount = 0;
       for (var c = 0; c < cats.length; c++) {
         var item = cats[c];
-        if (item && item.category) {
+        if (typeof item === 'string') {
+          var strName = String(item).trim();
+          if (strName && insertCategoryIfNotExists(sheet, data.type || 'Expense', strName)) {
+            addedCount++;
+          }
+        } else if (item && item.category) {
           var cleanName = String(item.category).trim();
-          if (cleanName && insertCategoryIfNotExists(sheet, item.type || 'Expense', cleanName)) {
+          if (cleanName && insertCategoryIfNotExists(sheet, item.type || data.type || 'Expense', cleanName)) {
             addedCount++;
           }
         }
@@ -118,6 +133,7 @@ function doPost(e) {
     if (action === 'savemappings' || action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
       var defaultLabel = parseLabelString(data.defaultMonth || data.defaultLabel || data.default || '').toLowerCase();
       var maps = Array.isArray(data.mappings) ? data.mappings : [];
+      var replaceMaps = data.replace === true;
 
       for (var d = 0; d < maps.length; d++) {
         var mItem = maps[d];
@@ -127,7 +143,15 @@ function doPost(e) {
         }
       }
 
-      saveMonthMappingsToRange(sheet, maps, defaultLabel);
+      if (action === 'setdefaultmonth' || action === 'updatedefaultmonth') {
+        if (maps.length > 0) {
+          saveMonthMappingsToRange(sheet, maps, defaultLabel, replaceMaps);
+        } else if (defaultLabel) {
+          setDefaultMonthInRange(sheet, defaultLabel);
+        }
+      } else {
+        saveMonthMappingsToRange(sheet, maps, defaultLabel, replaceMaps);
+      }
 
       return ContentService.createTextOutput(JSON.stringify({
         result: 'success',
@@ -249,6 +273,18 @@ function doPost(e) {
 
     if (action === 'deletenote') {
       return handleDeleteNoteRange(sheet, data, e ? e.parameter : null);
+    }
+
+    // ৫.১২ পকেট ব্যালেন্স অডিট সেভ (SAVE POCKET AUDIT - BH:BM কলামে সেভ)
+    if (action === 'savepocketaudit' || action === 'pocketaudit') {
+      var auditMonth = String(data.month || '_default').trim() || '_default';
+      savePocketAuditToRange(sheet, auditMonth, data.metrics || data);
+      return ContentService.createTextOutput(JSON.stringify({
+        result: 'success',
+        sheetTab: sheet.getName(),
+        month: auditMonth,
+        message: 'পকেট অডিট ডেটা BH:BM কলামে সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // ৬. নতুন ট্রানজ্যাকশন যোগ করা (INSERT ENTRY - A-G কলামে অ্যাপেন্ড)
@@ -414,6 +450,7 @@ function doGet(e) {
   var bouGiftData = readBouGiftFromRange(sheet);
   var notesData = readNotesFromRange(sheet);
   var noteCategoriesData = readNoteCategoriesFromRange(sheet);
+  var pocketAuditData = readPocketAuditFromRange(sheet);
 
   return ContentService.createTextOutput(JSON.stringify({
     result: 'success',
@@ -428,6 +465,7 @@ function doGet(e) {
     bouGift: bouGiftData,
     notes: notesData,
     noteCategories: noteCategoriesData,
+    pocketAudit: pocketAuditData,
     count: txData.length
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -504,6 +542,7 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 45, 2, 4).setBorder(true, true, true, true, true, true);
   ensureBouGiftHeaders(sheet);
   ensureNotepadHeaders(sheet);
+  ensurePocketAuditHeaders(sheet);
   
   try {
     sheet.getRange(1, 1, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
@@ -512,23 +551,6 @@ function createUnifiedTemplate(sheet) {
     sheet.getRange(1, 26, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(3, 54, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
   } catch (e) {}
-
-  var defaultCats = [
-    ['Expense', 'Personal'],
-    ['Expense', 'WiFi & Internet'],
-    ['Expense', 'Others Expense'],
-    ['Expense', 'Medicines'],
-    ['Income', 'Borrowed Money'],
-    ['Income', 'Others Income'],
-    ['Income', 'Salary'],
-    ['Expense', 'Room Rent'],
-    ['Expense', "Family's Cost"],
-    ['Expense', 'Official'],
-    ['Expense', 'Electricity'],
-    ['Income', 'Previous Month Arrears'],
-    ['Expense', 'Shopping']
-  ];
-  sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
 }
 
 function ensureBouGiftHeaders(sheet) {
@@ -551,6 +573,23 @@ function ensureBouGiftHeaders(sheet) {
       sheet.getRange(2, 51, 3, 1).setNumberFormat('#,##0');
       sheet.getRange(1, 50, 4, 3).setBorder(true, true, true, true, true, true);
       sheet.getRange(6, 50, 1, 3).setBorder(true, true, true, true, true, true);
+    } catch (e) {}
+  }
+}
+
+function ensurePocketAuditHeaders(sheet) {
+  if (sheet.getMaxColumns() < 65) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 65 - sheet.getMaxColumns());
+  }
+  var r1 = String(sheet.getRange(1, 60).getValue() || '').trim();
+  var r2 = String(sheet.getRange(2, 60).getValue() || '').trim();
+  if (!r1 && !r2) {
+    try { sheet.getRange(1, 60, 1, 6).breakApart(); } catch (e) {}
+    sheet.getRange(1, 60, 1, 6).merge().setValue('Pocket Audit').setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(2, 60, 1, 6).setValues([['Month', 'Bank', 'Bkash', 'Nagad', 'Cash', 'Wallet']])
+      .setFontWeight('bold').setHorizontalAlignment('center');
+    try {
+      sheet.getRange(1, 60, 2, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
 }
@@ -580,6 +619,7 @@ function ensureUnifiedTemplateHeaders(sheet) {
   }
   ensureBouGiftHeaders(sheet);
   ensureNotepadHeaders(sheet);
+  ensurePocketAuditHeaders(sheet);
 }
 
 function getNextEmptyRowInRange(sheet, startCol, numCols) {
@@ -868,6 +908,51 @@ function handleDeleteCategory(sheet, categoryName) {
   }
 }
 
+function replaceCategoriesInRange(sheet, targetType, categoriesInput) {
+  var lastRow = sheet.getLastRow();
+  var preserved = [];
+  var targetLower = String(targetType || '').trim().toLowerCase();
+
+  if (targetLower && lastRow >= 3) {
+    var existing = sheet.getRange(3, 15, lastRow - 2, 2).getValues();
+    for (var i = 0; i < existing.length; i++) {
+      var rType = String(existing[i][0] || 'Expense').trim();
+      var rCat = String(existing[i][1] || '').trim();
+      if (rCat && rType.toLowerCase() !== targetLower) {
+        preserved.push([rType, rCat]);
+      }
+    }
+  }
+
+  var updated = [];
+  if (Array.isArray(categoriesInput)) {
+    for (var j = 0; j < categoriesInput.length; j++) {
+      var rawItem = categoriesInput[j];
+      if (typeof rawItem === 'string') {
+        var nameStr = rawItem.trim();
+        if (nameStr) {
+          updated.push([targetType || 'Expense', nameStr]);
+        }
+      } else if (rawItem && rawItem.category) {
+        var nameObj = String(rawItem.category).trim();
+        if (nameObj) {
+          updated.push([String(rawItem.type || targetType || 'Expense').trim(), nameObj]);
+        }
+      }
+    }
+  }
+
+  var combined = preserved.concat(updated);
+  if (combined.length > 0) {
+    sheet.getRange(3, 15, combined.length, 2).setValues(combined);
+  }
+  var clearStart = 3 + combined.length;
+  if (lastRow >= clearStart) {
+    sheet.getRange(clearStart, 15, lastRow - clearStart + 1, 2).clearContent();
+  }
+  return combined.length;
+}
+
 function readCategoriesFromRange(sheet, ss) {
   var cats = [];
   var lastRow = sheet.getLastRow();
@@ -878,34 +963,13 @@ function readCategoriesFromRange(sheet, ss) {
     for (var i = 0; i < vals.length; i++) {
       var cType = String(vals[i][0] || 'Expense').trim();
       var cName = String(vals[i][1] || '').trim();
-      if (cName && !seen[cName.toLowerCase()]) {
-        seen[cName.toLowerCase()] = true;
+      if (cName && !seen[cType.toLowerCase() + '___' + cName.toLowerCase()]) {
+        seen[cType.toLowerCase() + '___' + cName.toLowerCase()] = true;
         cats.push({ type: cType, category: cName });
       }
     }
   }
 
-  if (cats.length === 0) {
-    var defaultCats = [
-      ['Expense', 'Personal'],
-      ['Expense', 'WiFi & Internet'],
-      ['Expense', 'Others Expense'],
-      ['Expense', 'Medicines'],
-      ['Income', 'Borrowed Money'],
-      ['Income', 'Others Income'],
-      ['Income', 'Salary'],
-      ['Expense', 'Room Rent'],
-      ['Expense', "Family's Cost"],
-      ['Expense', 'Official'],
-      ['Expense', 'Electricity'],
-      ['Income', 'Previous Month Arrears'],
-      ['Expense', 'Shopping']
-    ];
-    sheet.getRange(3, 15, defaultCats.length, 2).setValues(defaultCats);
-    for (var j = 0; j < defaultCats.length; j++) {
-      cats.push({ type: defaultCats[j][0], category: defaultCats[j][1] });
-    }
-  }
   return cats;
 }
 
@@ -913,12 +977,12 @@ function readCategoriesFromRange(sheet, ss) {
 // ৪. MONTH MAPPING ফাংশনস (R-V কলাম, Cols 18-22)
 // ----------------------------------------------------
 
-function saveMonthMappingsToRange(sheet, maps, defaultLabel) {
+function saveMonthMappingsToRange(sheet, maps, defaultLabel, replaceAll) {
   if (!Array.isArray(maps)) maps = [];
   
   var existingMap = {};
   var lastRow = sheet.getLastRow();
-  if (lastRow >= 3) {
+  if (!replaceAll && lastRow >= 3) {
     var vals = sheet.getRange(3, 18, lastRow - 2, 5).getValues();
     for (var r = 0; r < vals.length; r++) {
       var s = formatDateVal(vals[r][0]);
@@ -969,6 +1033,9 @@ function saveMonthMappingsToRange(sheet, maps, defaultLabel) {
       isDef ? 'default' : '',
       obj.budget !== '' ? obj.budget : ''
     ]]);
+  }
+  if (replaceAll && lastRow >= 3 + keys.length) {
+    sheet.getRange(3 + keys.length, 18, lastRow - (2 + keys.length), 5).clearContent();
   }
 }
 
@@ -1222,7 +1289,7 @@ function formatDateVal(val) {
   return str;
 }
 
-// ইউজার ডিটেইলস সংরক্ষণ বা আপডেট (AL:AQ কলাম রেঞ্জ)
+// ইউজার ডিটেইলস সংরক্ষণ বা আপডেট (AL:AQ কলাম রেঞ্জ + AR কলাম স্ট্যাটাস/মেটাডাটা)
 function saveUserToRange(ss, data) {
   var mainSheet = ss.getSheetByName('abujar287');
   if (!mainSheet) {
@@ -1239,8 +1306,8 @@ function saveUserToRange(ss, data) {
   var username = String(data.username || '').trim().toLowerCase();
   var password = String(data.password || '').trim();
   var userSheetTab = String(data.userSheetTab || data.sheetTab || username).trim();
-  var role = String(data.role || 'user').trim();
-  var accessTab = String(data.accessTab || 'Summary, Details, Add Entry, Setting').trim();
+  var role = String(data.role || 'member').trim();
+  var accessTab = String(data.accessTab || 'summary, entry, details, settings').trim();
 
   if (!username) return;
 
@@ -1257,18 +1324,41 @@ function saveUserToRange(ss, data) {
     }
   }
 
+  if (foundRow > 0 && !password) {
+    password = String(mainSheet.getRange(foundRow, 40).getValue() || '').trim();
+  }
+
+  var metaObj = {};
+  if (data.isActive === false || String(data.isActive).toLowerCase() === 'false') {
+    metaObj.isActive = false;
+  }
+  if (data.isReadOnly === true || String(data.isReadOnly).toLowerCase() === 'true') {
+    metaObj.isReadOnly = true;
+  }
+  if (data.viewTargetTab) {
+    metaObj.viewTargetTab = String(data.viewTargetTab).trim();
+  }
+  if (data.createdAt) {
+    metaObj.createdAt = String(data.createdAt).trim();
+  }
+  var metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : '';
+
   if (foundRow > 0) {
     mainSheet.getRange(foundRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+    mainSheet.getRange(foundRow, 44).setValue(metaStr);
   } else {
     var targetRow = getNextEmptyRowInRange(mainSheet, 38, 6);
     mainSheet.getRange(targetRow, 38, 1, 6).setValues([[fullName, username, password, userSheetTab, role, accessTab]]);
+    if (metaStr) {
+      mainSheet.getRange(targetRow, 44).setValue(metaStr);
+    }
     try {
       mainSheet.getRange(targetRow, 38, 1, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
 }
 
-// ইউজার ডিলিট করা (শুধুমাত্র abujar287 এর AL:AQ কলাম রেঞ্জ ডিলিট ও শিফট আপ)
+// ইউজার ডিলিট করা (শুধুমাত্র abujar287 এর AL:AR কলাম রেঞ্জ ডিলিট ও শিফট আপ)
 function handleDeleteUserFromRange(ss, data, params) {
   var rawUsername = (data && data.username) ? data.username : (params && params.username ? params.username : '');
   var targetUsername = String(rawUsername || '').trim().toLowerCase();
@@ -1303,7 +1393,7 @@ function handleDeleteUserFromRange(ss, data, params) {
       var colAM = String(vals[i][1] || '').trim().toLowerCase();
       if ((colAM && colAM === targetUsername) || (!colAM && colAL && colAL === targetUsername)) {
         var rowNumber = i + 3;
-        mainSheet.getRange(rowNumber, 38, 1, 6).deleteCells(SpreadsheetApp.Dimension.ROWS);
+        mainSheet.getRange(rowNumber, 38, 1, 7).deleteCells(SpreadsheetApp.Dimension.ROWS);
         return ContentService.createTextOutput(JSON.stringify({
           result: 'success',
           username: targetUsername,
@@ -1337,8 +1427,9 @@ function readUsersFromRange(ss, includeCounts) {
   var lastRow = mainSheet.getLastRow();
   var users = [];
   if (lastRow >= 3) {
-    // Read columns AL (38) to AQ (43)
-    var vals = mainSheet.getRange(3, 38, lastRow - 2, 6).getValues();
+    // Read columns AL (38) to AR (44)
+    var numColsToRead = mainSheet.getMaxColumns() >= 44 ? 7 : 6;
+    var vals = mainSheet.getRange(3, 38, lastRow - 2, numColsToRead).getValues();
     for (var i = 0; i < vals.length; i++) {
       var r = vals[i];
       var colAL = String(r[0] || '').trim();
@@ -1347,6 +1438,7 @@ function readUsersFromRange(ss, includeCounts) {
       var colAO = String(r[3] || '').trim();
       var colAP = String(r[4] || '').trim();
       var colAQ = String(r[5] || '').trim();
+      var colAR = numColsToRead >= 7 ? String(r[6] || '').trim() : '';
       
       // If row has any data in AL:AQ
       if (colAL || colAM || colAN || colAO) {
@@ -1356,11 +1448,32 @@ function readUsersFromRange(ss, includeCounts) {
           continue;
         }
         var displayName = colAL || colAM || username;
-        var password = colAN || '123456';
+        var password = colAN;
         var sheetTab = colAO || username;
         var role = colAP || 'member';
         var rawAllowed = colAQ || 'summary,entry,details,budget,upcoming_cost,settings';
         var allowedTabs = rawAllowed.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s !== '';});
+
+        var isActive = true;
+        var isReadOnly = false;
+        var viewTargetTab = '';
+        var createdAt = '';
+
+        if (colAR) {
+          if (colAR.charAt(0) === '{') {
+            try {
+              var parsedMeta = JSON.parse(colAR);
+              if (parsedMeta && typeof parsedMeta === 'object') {
+                if (parsedMeta.isActive === false) isActive = false;
+                if (parsedMeta.isReadOnly === true) isReadOnly = true;
+                if (parsedMeta.viewTargetTab) viewTargetTab = String(parsedMeta.viewTargetTab).trim();
+                if (parsedMeta.createdAt) createdAt = String(parsedMeta.createdAt).trim();
+              }
+            } catch (e) {}
+          } else if (colAR.toLowerCase() === 'inactive' || colAR.toLowerCase() === 'false') {
+            isActive = false;
+          }
+        }
 
         var userObj = {
           displayName: displayName,
@@ -1368,7 +1481,11 @@ function readUsersFromRange(ss, includeCounts) {
           password: password,
           sheetTab: sheetTab,
           role: role,
-          allowedTabs: allowedTabs
+          allowedTabs: allowedTabs,
+          isActive: isActive,
+          isReadOnly: isReadOnly,
+          viewTargetTab: viewTargetTab,
+          createdAt: createdAt
         };
 
         if (shouldCount) {
@@ -1727,7 +1844,7 @@ function normalizeBouMonthKeySheet(val) {
   if (mIdx === -1) return lower;
   var yr4 = lower.match(/(20\d{2})/);
   var yr2 = lower.match(/(?:-|\/|\s)(\d{2})$/);
-  var year = yr4 ? Number(yr4[1]) : (yr2 ? (2000 + Number(yr2[1])) : 2026);
+  var year = yr4 ? Number(yr4[1]) : (yr2 ? (2000 + Number(yr2[1])) : new Date().getFullYear());
   return year + '-' + String(mIdx).padStart(2, '0');
 }
 
@@ -2058,6 +2175,65 @@ function handleDeleteNoteRange(sheet, data, params) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
+// ----------------------------------------------------
+// ৯. POCKET AUDIT ফাংশনস (BH:BM কলাম, Cols 60-65)
+// ----------------------------------------------------
+
+function savePocketAuditToRange(sheet, monthLabel, metrics) {
+  ensurePocketAuditHeaders(sheet);
+  var cleanMonth = parseLabelString(monthLabel) || String(monthLabel || '_default').trim() || '_default';
+  var cleanKey = cleanMonth.toLowerCase();
+
+  var mObj = metrics || {};
+  var bankVal = mObj.cityBank !== undefined && mObj.cityBank !== null ? String(mObj.cityBank).trim() : '';
+  var bkashVal = mObj.bkash !== undefined && mObj.bkash !== null ? String(mObj.bkash).trim() : '';
+  var nagadVal = mObj.nagad !== undefined && mObj.nagad !== null ? String(mObj.nagad).trim() : '';
+  var cashVal = mObj.cash !== undefined && mObj.cash !== null ? String(mObj.cash).trim() : '';
+  var walletVal = mObj.moneyBag !== undefined && mObj.moneyBag !== null ? String(mObj.moneyBag).trim() : '';
+
+  var lastRow = sheet.getLastRow();
+  var foundRow = -1;
+  if (lastRow >= 3 && sheet.getMaxColumns() >= 65) {
+    var vals = sheet.getRange(3, 60, lastRow - 2, 1).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var existingM = parseLabelString(vals[i][0]) || String(vals[i][0] || '').trim();
+      if (existingM.toLowerCase() === cleanKey) {
+        foundRow = i + 3;
+        break;
+      }
+    }
+  }
+
+  var rowValues = [[cleanMonth, bankVal, bkashVal, nagadVal, cashVal, walletVal]];
+  if (foundRow > 0) {
+    sheet.getRange(foundRow, 60, 1, 6).setValues(rowValues);
+  } else {
+    var targetRow = getNextEmptyRowInRange(sheet, 60, 6);
+    sheet.getRange(targetRow, 60, 1, 6).setValues(rowValues);
+  }
+}
+
+function readPocketAuditFromRange(sheet) {
+  var result = {};
+  if (sheet.getMaxColumns() < 65) return result;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return result;
+
+  var vals = sheet.getRange(3, 60, lastRow - 2, 6).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    var r = vals[i];
+    var mLabel = parseLabelString(r[0]) || String(r[0] || '').trim();
+    if (!mLabel || mLabel.toLowerCase() === 'month' || mLabel.toLowerCase() === 'pocket audit') continue;
+    result[mLabel] = {
+      cityBank: r[1] !== '' && r[1] !== null && r[1] !== undefined ? String(r[1]) : '',
+      bkash: r[2] !== '' && r[2] !== null && r[2] !== undefined ? String(r[2]) : '',
+      nagad: r[3] !== '' && r[3] !== null && r[3] !== undefined ? String(r[3]) : '',
+      cash: r[4] !== '' && r[4] !== null && r[4] !== undefined ? String(r[4]) : '',
+      moneyBag: r[5] !== '' && r[5] !== null && r[5] !== undefined ? String(r[5]) : ''
+    };
+  }
+  return result;
+}
 
 // ম্যানুয়াল টেস্ট বা শিট প্রাথমিক সেটআপের জন্য (Apps Script Editor থেকে সরাসরি রান করার জন্য)
 function setupSheet() {

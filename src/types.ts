@@ -110,6 +110,14 @@ export interface Upcoming3MonthPlan {
 
 export type NotificationKind = 'due_today' | 'overdue' | 'upcoming' | 'budget' | 'offline_sync' | 'update' | 'info';
 
+export interface PocketAuditMetrics {
+  cityBank: string;
+  bkash: string;
+  nagad: string;
+  cash: string;
+  moneyBag: string;
+}
+
 export interface AppNotification {
   id: string;
   kind: NotificationKind;

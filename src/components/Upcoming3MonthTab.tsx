@@ -72,7 +72,7 @@ function normalizeBouMonthKey(raw: string): string {
 
   const yr4 = lower.match(/(20\d{2})/);
   const yr2 = lower.match(/(?:-|\/|\s)(\d{2})$/);
-  const year = yr4 ? Number(yr4[1]) : yr2 ? 2000 + Number(yr2[1]) : 2026;
+  const year = yr4 ? Number(yr4[1]) : yr2 ? 2000 + Number(yr2[1]) : new Date().getFullYear();
   return `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
 }
 
@@ -258,7 +258,17 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
 
   // Hydrate from Google Sheet AS2:AV on sync
   useEffect(() => {
-    if (!remotePlan || isDirtyRef.current) return;
+    if (!remotePlanVersion || isDirtyRef.current) return;
+    if (remotePlan === null) {
+      const fresh = createDefaultPlan();
+      lastSavedJsonRef.current = '';
+      setPlan(fresh);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+      return;
+    }
+    if (!remotePlan) return;
     const normalized = normalizeLoadedPlan(remotePlan);
     if (!normalized) return;
 
@@ -1168,7 +1178,9 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
             </h3>
           </div>
           <span className="text-[10px] font-semibold text-teal-300/75">
-            {calc.bouGiftRows[0]?.month || '17-Feb-26'} – {calc.bouGiftRows[calc.bouGiftRows.length - 1]?.month || ''}
+            {calc.bouGiftRows.length > 0
+              ? `${calc.bouGiftRows[0]?.month || '—'} – ${calc.bouGiftRows[calc.bouGiftRows.length - 1]?.month || '—'}`
+              : '—'}
           </span>
         </div>
 
