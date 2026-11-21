@@ -3662,6 +3662,7 @@ export default function App() {
                   entryNote={entryNote} setEntryNote={setEntryNote}
                   calcDisplay={calcDisplay} setCalcDisplay={setCalcDisplay}
                   expenseCategories={expenseCategories} incomeCategories={incomeCategories}
+                  transactions={transactions}
                   onReorderCategories={handleUpdateCategories}
                   onOpenCategoryManager={() => setShowCategoryManager(true)}
                   onSubmit={handleSaveTransaction} isSubmitting={isSubmitting}

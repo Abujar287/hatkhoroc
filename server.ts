@@ -436,12 +436,30 @@ async function startServer() {
   });
 
   // Proxy APK download endpoint to stream binary with Content-Length for in-app percentage tracking
-  app.get('/api/proxy-apk', async (req, res) => {
+  app.get('/api/proxy-apk', async (_req, res) => {
     try {
-      const apkUrl = 'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
-      const response = await fetch(apkUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch APK from GitHub release' });
+      const candidateUrls = [
+        'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk',
+        'https://github.com/Abujar287/hatkhoroc/releases/latest/download/hatkhoroc.apk'
+      ];
+
+      let response: Response | null = null;
+      for (const apkUrl of candidateUrls) {
+        try {
+          const r = await fetch(apkUrl, {
+            headers: { 'User-Agent': 'HatKhorocUpdater/1.0', Accept: 'application/vnd.android.package-archive,*/*' },
+            signal: AbortSignal.timeout(30000)
+          });
+          const ct = (r.headers.get('content-type') || '').toLowerCase();
+          if (r.ok && !ct.includes('text/html')) {
+            response = r;
+            break;
+          }
+        } catch {}
+      }
+
+      if (!response) {
+        return res.status(502).json({ error: 'Valid APK release file not available yet' });
       }
 
       const contentLength = response.headers.get('content-length');
@@ -450,6 +468,7 @@ async function startServer() {
       }
       res.setHeader('Content-Type', 'application/vnd.android.package-archive');
       res.setHeader('Content-Disposition', 'attachment; filename="hatkhoroc.apk"');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
       if (response.body) {
         const reader = response.body.getReader();

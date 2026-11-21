@@ -82,22 +82,29 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
   // Extract unique categories directly from Google Sheet BD column (sheetCategories + synced notes)
   const categories = useMemo(() => {
     const map = new Map<string, string>();
+    map.set('uncategorized', 'Uncategorized');
     const pushCat = (raw?: string) => {
       const c = String(raw || '').trim();
       if (!c) return;
       const key = c.toLowerCase();
       if (key === 'category' || key === 'notepad') return;
+      if (key === 'uncategorized') {
+        map.set('uncategorized', c);
+        return;
+      }
       if (!map.has(key)) {
         map.set(key, c);
       }
     };
     sheetCategories.forEach(pushCat);
     notes.forEach(n => pushCat(n.category));
-    if (map.size === 0) {
-      map.set('uncategorized', 'Uncategorized');
-    }
     return Array.from(map.values());
   }, [sheetCategories, notes]);
+
+  const defaultUncategorized = useMemo(
+    () => categories.find(c => c.toLowerCase() === 'uncategorized') || 'Uncategorized',
+    [categories]
+  );
 
   React.useEffect(() => {
     if (
@@ -448,6 +455,8 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
       });
       setShowCreateModal(false);
       setFormName('');
+      setFormCategory(defaultUncategorized);
+      setFormCustomCat('');
       setFormBody('');
     } finally {
       setIsSaving(false);
@@ -878,7 +887,7 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             whileTap={{ scale: 0.92 }}
             onClick={() => {
               setFormName('');
-              setFormCategory(categories[0] || 'Uncategorized');
+              setFormCategory(defaultUncategorized);
               setFormCustomCat('');
               setFormBody('');
               setShowCreateModal(true);
@@ -1223,16 +1232,29 @@ export const NotepadTab: React.FC<NotepadTabProps> = ({
             >
               <div className="px-4 py-3 bg-[#062423] border-b border-teal-800/80 flex items-center justify-between gap-3">
                 <h3 className="text-xs sm:text-sm font-bold text-[#F0FDFA]">New Note</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="w-8 h-8 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {(formName.trim().length > 0 || formBody.trim().length > 0) && (
+                    <button
+                      type="submit"
+                      form="create-note-form"
+                      disabled={isSaving}
+                      className="min-h-[32px] px-3 py-1 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-60"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="w-8 h-8 rounded-full bg-[#0B3C39] text-teal-300 hover:text-white flex items-center justify-center cursor-pointer border border-teal-700/60"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handleSaveNew} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+              <form id="create-note-form" onSubmit={handleSaveNew} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-teal-200">Note Title</label>
                   <input

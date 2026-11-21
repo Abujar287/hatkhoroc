@@ -58,6 +58,7 @@ export interface UpdateInfo {
   releaseUrl: string;
   actionsUrl: string;
   apkDownloadUrl: string;
+  apkSizeBytes?: number;
 }
 
 /**
@@ -66,11 +67,20 @@ export interface UpdateInfo {
 export async function checkGitHubForUpdates(force: boolean = false): Promise<UpdateInfo | null> {
   try {
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}?_t=${Date.now()}`;
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json'
-      }
-    });
+    const releaseMetaUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/latest?_t=${Date.now()}`;
+
+    const [res, releaseRes] = await Promise.all([
+      fetch(url, {
+        headers: {
+          Accept: 'application/vnd.github.v3+json'
+        }
+      }),
+      fetch(releaseMetaUrl, {
+        headers: {
+          Accept: 'application/vnd.github.v3+json'
+        }
+      }).catch(() => null)
+    ]);
 
     if (!res.ok) {
       console.warn('GitHub API check failed with status:', res.status);
@@ -87,7 +97,24 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const formattedCommitDate = formatAppUpdateDateTime(commitDate);
     setAppLastUpdateTime(formattedCommitDate);
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
-    const apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
+    let apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
+    let apkSizeBytes: number | undefined;
+
+    if (releaseRes && releaseRes.ok) {
+      try {
+        const relJson = await releaseRes.json();
+        const apkAsset = Array.isArray(relJson?.assets)
+          ? relJson.assets.find((a: any) => a?.name === 'hatkhoroc.apk') ||
+            relJson.assets.find((a: any) => typeof a?.name === 'string' && a.name.endsWith('.apk'))
+          : null;
+        if (apkAsset?.browser_download_url) {
+          apkDownloadUrl = apkAsset.browser_download_url;
+        }
+        if (typeof apkAsset?.size === 'number' && apkAsset.size > 0) {
+          apkSizeBytes = apkAsset.size;
+        }
+      } catch {}
+    }
 
     const installedSha = localStorage.getItem('app_installed_sha');
     const dismissedSha = localStorage.getItem('app_dismissed_sha');
@@ -118,7 +145,8 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       htmlUrl,
       releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
       actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`,
-      apkDownloadUrl
+      apkDownloadUrl,
+      apkSizeBytes
     };
   } catch (err) {
     console.warn('Error checking GitHub updates:', err);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModalPortal } from './Modals';
 import {
@@ -8,7 +8,7 @@ import {
   X,
   Plus
 } from 'lucide-react';
-import { TransactionType } from '../types';
+import { Transaction, TransactionType } from '../types';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { formatNumberLocale } from '../utils/dateUtils';
@@ -27,6 +27,7 @@ interface EntryTabProps {
   setCalcDisplay: (val: string) => void;
   expenseCategories: string[];
   incomeCategories: string[];
+  transactions?: Transaction[];
   onReorderCategories?: (newCats: string[], type: TransactionType) => void;
   onOpenCategoryManager: () => void;
   onSubmit: (evaluatedAmount?: number) => Promise<void>;
@@ -48,6 +49,7 @@ export const EntryTab: React.FC<EntryTabProps> = ({
   setCalcDisplay,
   expenseCategories,
   incomeCategories,
+  transactions = [],
   onReorderCategories,
   onOpenCategoryManager,
   onSubmit,
@@ -93,7 +95,30 @@ export const EntryTab: React.FC<EntryTabProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCalculatorOpen, calcDisplay]);
 
-  const currentCategories = entryType === 'Expense' ? expenseCategories : incomeCategories;
+  const currentCategories = useMemo(() => {
+    const base = entryType === 'Expense' ? expenseCategories : incomeCategories;
+    if (!transactions || transactions.length === 0) return base;
+
+    const counts = new Map<string, number>();
+    for (const tx of transactions) {
+      if (tx.type !== entryType) continue;
+      const key = cleanCategoryName(tx.category, 'en').toLowerCase().trim();
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return base
+      .map((cat, idx) => ({
+        cat,
+        idx,
+        count: counts.get(cleanCategoryName(cat, 'en').toLowerCase().trim()) || 0
+      }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.idx - b.idx;
+      })
+      .map(item => item.cat);
+  }, [entryType, expenseCategories, incomeCategories, transactions]);
 
   // Drag-and-drop category reordering state (supports both touch & mouse)
   const [orderedCategories, setOrderedCategories] = useState<string[]>(currentCategories);

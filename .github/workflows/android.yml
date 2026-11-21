@@ -50,7 +50,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: hatkhoroc-debug-keystore-v1
+          key: hatkhoroc-debug-keystore-v2-${{ github.run_id }}
+          restore-keys: |
+            hatkhoroc-debug-keystore-v2-
+            hatkhoroc-debug-keystore-v1
 
       - name: Configure Android Permissions, FileProvider and Auto-Installer
         run: |
@@ -109,17 +112,20 @@ jobs:
           package com.abujar.hatkhoroc;
 
           import android.app.DownloadManager;
+          import android.content.ContentResolver;
+          import android.content.ContentValues;
           import android.content.Context;
           import android.content.Intent;
-          import android.content.SharedPreferences;
           import android.content.pm.PackageInfo;
           import android.content.pm.PackageManager;
           import android.content.pm.ResolveInfo;
           import android.content.pm.Signature;
+          import android.media.MediaScannerConnection;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
           import android.os.Environment;
+          import android.provider.MediaStore;
           import android.provider.Settings;
           import android.webkit.DownloadListener;
           import android.webkit.WebView;
@@ -132,23 +138,27 @@ jobs:
           import java.io.FileInputStream;
           import java.io.FileOutputStream;
           import java.io.InputStream;
+          import java.io.OutputStream;
           import java.net.HttpURLConnection;
           import java.net.URL;
           import java.util.Arrays;
           import java.util.List;
-          import java.util.zip.ZipEntry;
-          import java.util.zip.ZipInputStream;
 
           public class MainActivity extends BridgeActivity {
-              private static final int REQUEST_INSTALL_APK = 9001;
-              private static final String OTA_PREFS = "hatkhoroc_ota";
-              private static final String KEY_OTA_INSTALLED_AT = "ota_installed_at_ms";
-              private static final String OTA_BUNDLE_URL = "https://github.com/Abujar287/hatkhoroc/releases/download/latest/web-bundle.zip";
+              private static final String APK_FILENAME = "hatkhoroc.apk";
               private boolean pendingInstall = false;
               private boolean pendingForceUninstall = false;
+              private boolean waitingForInstallResult = false;
+              private long preInstallVersionCode = -1L;
+
               private volatile String downloadState = "idle";
               private volatile int downloadProgress = 0;
+              private volatile long downloadedBytes = 0L;
+              private volatile long totalBytes = 0L;
+              private volatile String savedFilePath = "Downloads/" + APK_FILENAME;
+              private volatile boolean signatureMismatch = false;
               private volatile String downloadError = "";
+
               private File downloadedApkFile = null;
               private Thread downloadThread = null;
 
@@ -158,7 +168,7 @@ jobs:
                       runOnUiThread(new Runnable() {
                           @Override
                           public void run() {
-                              startApkDownload(apkUrl, "HatKhorocApp");
+                              startApkDownload(apkUrl, "HatKhorocUpdater/1.0");
                           }
                       });
                   }
@@ -170,6 +180,10 @@ jobs:
                           obj.put("state", downloadState);
                           obj.put("progress", downloadProgress);
                           obj.put("error", downloadError);
+                          obj.put("downloadedBytes", downloadedBytes);
+                          obj.put("totalBytes", totalBytes);
+                          obj.put("filePath", savedFilePath);
+                          obj.put("signatureMismatch", signatureMismatch);
                           return obj.toString();
                       } catch (Exception e) {
                           return "{\"state\":\"idle\",\"progress\":0,\"error\":\"\"}";
@@ -181,9 +195,7 @@ jobs:
                       runOnUiThread(new Runnable() {
                           @Override
                           public void run() {
-                              if (!"installing".equals(downloadState) && !"installed".equals(downloadState)) {
-                                  installOrForceUpdateApk(false);
-                              }
+                              installOrForceUpdateApk(false);
                           }
                       });
                   }
@@ -194,17 +206,9 @@ jobs:
                           @Override
                           public void run() {
                               try {
-                                  File otaDir = new File(getFilesDir(), "ota_public");
-                                  File otaIndex = new File(otaDir, "index.html");
-                                  if (otaIndex.exists() && bridge != null) {
-                                      downloadState = "idle";
-                                      downloadProgress = 0;
-                                      downloadError = "";
-                                      bridge.setServerBasePath(otaDir.getAbsolutePath());
-                                      return;
-                                  }
-                              } catch (Exception ignored) {}
-                              try {
+                                  downloadState = "idle";
+                                  downloadProgress = 0;
+                                  downloadError = "";
                                   Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
                                   if (launchIntent != null) {
                                       launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -227,6 +231,9 @@ jobs:
                       if (!"downloading".equals(downloadState) && !"installing".equals(downloadState)) {
                           downloadState = "idle";
                           downloadProgress = 0;
+                          downloadedBytes = 0L;
+                          totalBytes = 0L;
+                          signatureMismatch = false;
                           downloadError = "";
                       }
                   }
@@ -261,7 +268,7 @@ jobs:
                                   File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                                   if (!downloadsDir.exists()) downloadsDir.mkdirs();
                                   File outputFile = new File(downloadsDir, fileName);
-                                  java.io.FileOutputStream fos = new java.io.FileOutputStream(outputFile);
+                                  FileOutputStream fos = new FileOutputStream(outputFile);
                                   fos.write(decodedBytes);
                                   fos.flush();
                                   fos.close();
@@ -292,31 +299,7 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  applySavedOtaBundleIfNewer();
                   setupDownloadListener();
-              }
-
-              private void applySavedOtaBundleIfNewer() {
-                  try {
-                      SharedPreferences prefs = getSharedPreferences(OTA_PREFS, Context.MODE_PRIVATE);
-                      long otaInstalledAt = prefs.getLong(KEY_OTA_INSTALLED_AT, 0L);
-                      File otaDir = new File(getFilesDir(), "ota_public");
-                      File otaIndex = new File(otaDir, "index.html");
-                      if (otaInstalledAt <= 0L || !otaIndex.exists()) return;
-
-                      long apkUpdatedAt = 0L;
-                      try {
-                          PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
-                          apkUpdatedAt = pi.lastUpdateTime;
-                      } catch (Exception ignored) {}
-
-                      if (otaInstalledAt >= apkUpdatedAt && bridge != null) {
-                          bridge.setServerBasePath(otaDir.getAbsolutePath());
-                      } else if (apkUpdatedAt > otaInstalledAt) {
-                          deleteRecursive(otaDir);
-                          prefs.edit().remove(KEY_OTA_INSTALLED_AT).apply();
-                      }
-                  } catch (Exception ignored) {}
               }
 
               private void setupDownloadListener() {
@@ -345,9 +328,14 @@ jobs:
                               if (bridge == null) return;
                               WebView webView = bridge.getWebView();
                               if (webView == null) return;
+                              JSONObject extra = new JSONObject();
+                              extra.put("downloadedBytes", downloadedBytes);
+                              extra.put("totalBytes", totalBytes);
+                              extra.put("filePath", savedFilePath);
+                              extra.put("signatureMismatch", signatureMismatch);
                               String safeErr = JSONObject.quote(downloadError);
                               String js = "if (window.__onNativeApkDownloadState) window.__onNativeApkDownloadState('"
-                                  + state + "', " + progress + ", " + safeErr + ");";
+                                  + state + "', " + progress + ", " + safeErr + ", " + extra.toString() + ");";
                               webView.evaluateJavascript(js, null);
                           } catch (Exception ignored) {}
                       }
@@ -357,14 +345,14 @@ jobs:
               private HttpURLConnection openWithRedirects(String urlStr, String userAgent) throws Exception {
                   String currentUrl = urlStr;
                   int redirects = 0;
-                  while (redirects < 8) {
+                  while (redirects < 10) {
                       URL parsed = new URL(currentUrl);
                       HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
                       conn.setInstanceFollowRedirects(false);
                       conn.setConnectTimeout(20000);
-                      conn.setReadTimeout(30000);
+                      conn.setReadTimeout(35000);
                       conn.setRequestProperty("User-Agent", (userAgent != null && !userAgent.trim().isEmpty()) ? userAgent : "HatKhorocUpdater/1.0");
-                      conn.setRequestProperty("Accept", "*/*");
+                      conn.setRequestProperty("Accept", "application/vnd.android.package-archive,*/*");
                       int code = conn.getResponseCode();
                       if (code == HttpURLConnection.HTTP_MOVED_PERM
                           || code == HttpURLConnection.HTTP_MOVED_TEMP
@@ -399,18 +387,26 @@ jobs:
                           throw new Exception("Server returned HTTP " + responseCode);
                       }
 
-                      long totalBytes = -1;
+                      String contentType = conn.getContentType();
+                      if (contentType != null && contentType.toLowerCase().contains("text/html")) {
+                          throw new Exception("APK file is not available yet");
+                      }
+
+                      long len = -1L;
                       String clHeader = conn.getHeaderField("Content-Length");
                       if (clHeader != null) {
                           try {
-                              totalBytes = Long.parseLong(clHeader.trim());
+                              len = Long.parseLong(clHeader.trim());
                           } catch (Exception ignored) {}
                       }
-                      if (totalBytes <= 0) {
-                          totalBytes = conn.getContentLength();
+                      if (len <= 0) {
+                          len = conn.getContentLength();
                       }
+                      totalBytes = len > 0 ? len : 0L;
 
-                      File tempFile = new File(outFile.getParentFile(), outFile.getName() + ".tmp");
+                      File parent = outFile.getParentFile();
+                      if (parent != null && !parent.exists()) parent.mkdirs();
+                      File tempFile = new File(parent, outFile.getName() + ".tmp");
                       if (outFile.exists()) outFile.delete();
                       if (tempFile.exists()) tempFile.delete();
 
@@ -418,22 +414,26 @@ jobs:
                       output = new FileOutputStream(tempFile);
 
                       byte[] buffer = new byte[16384];
-                      long downloaded = 0;
+                      long received = 0L;
                       int count;
                       int lastPct = 2;
-                      long lastNotifyMs = 0;
+                      long lastNotifyMs = 0L;
 
                       while ((count = input.read(buffer)) != -1) {
                           output.write(buffer, 0, count);
-                          downloaded += count;
+                          received += count;
+                          downloadedBytes = received;
+                          if (totalBytes <= 0 && received > 0) {
+                              totalBytes = received;
+                          }
                           int pct;
-                          if (totalBytes > 0) {
-                              pct = (int) Math.min(99, Math.max(3, (downloaded * 100L) / totalBytes));
+                          if (len > 0) {
+                              pct = (int) Math.min(99, Math.max(3, (received * 100L) / len));
                           } else {
                               pct = Math.min(92, lastPct + 1);
                           }
                           long now = System.currentTimeMillis();
-                          if (pct != lastPct && (now - lastNotifyMs >= 160 || pct >= 99)) {
+                          if (pct != lastPct && (now - lastNotifyMs >= 140 || pct >= 99)) {
                               lastPct = pct;
                               lastNotifyMs = now;
                               notifyWebDownloadState("downloading", pct, "");
@@ -446,9 +446,26 @@ jobs:
                       input.close();
                       input = null;
 
-                      if (!tempFile.renameTo(outFile)) {
-                          throw new Exception("Failed to prepare update file");
+                      if (tempFile.length() < 500000L) {
+                          tempFile.delete();
+                          throw new Exception("Downloaded APK file is incomplete");
                       }
+
+                      // Verify ZIP/APK magic header PK\x03\x04
+                      FileInputStream magicCheck = new FileInputStream(tempFile);
+                      byte[] magic = new byte[4];
+                      int readMagic = magicCheck.read(magic);
+                      magicCheck.close();
+                      if (readMagic < 4 || magic[0] != 0x50 || magic[1] != 0x4B || magic[2] != 0x03 || magic[3] != 0x04) {
+                          tempFile.delete();
+                          throw new Exception("Downloaded file is not a valid APK package");
+                      }
+
+                      if (!tempFile.renameTo(outFile)) {
+                          throw new Exception("Failed to prepare update APK file");
+                      }
+                      downloadedBytes = outFile.length();
+                      totalBytes = outFile.length();
                       return true;
                   } finally {
                       try { if (output != null) output.close(); } catch (Exception ignored) {}
@@ -457,66 +474,155 @@ jobs:
                   }
               }
 
-              private void deleteRecursive(File fileOrDir) {
-                  if (fileOrDir == null || !fileOrDir.exists()) return;
-                  if (fileOrDir.isDirectory()) {
-                      File[] children = fileOrDir.listFiles();
-                      if (children != null) {
-                          for (File child : children) {
-                              deleteRecursive(child);
-                          }
-                      }
-                  }
-                  fileOrDir.delete();
-              }
+              private void deleteOldApkFiles() {
+                  String[] oldNames = new String[] {
+                      "hatkhoroc.apk",
+                      "hatkhoroc_update.apk",
+                      "হাত খরচ.apk"
+                  };
 
-              private void unzipBundle(File zipFile, File targetDir) throws Exception {
-                  if (targetDir.exists()) {
-                      deleteRecursive(targetDir);
+                  // 1. Delete from public MediaStore Downloads (Android 10+)
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                      try {
+                          ContentResolver resolver = getContentResolver();
+                          for (String name : oldNames) {
+                              resolver.delete(
+                                  MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                  MediaStore.Downloads.DISPLAY_NAME + "=?",
+                                  new String[] { name }
+                              );
+                          }
+                          resolver.delete(
+                              MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                              MediaStore.Downloads.DISPLAY_NAME + " LIKE ?",
+                              new String[] { "hatkhoroc%.apk" }
+                          );
+                      } catch (Exception ignored) {}
                   }
-                  if (!targetDir.mkdirs()) {
-                      throw new Exception("Could not create update directory");
-                  }
-                  String canonicalTarget = targetDir.getCanonicalPath();
-                  ZipInputStream zis = null;
+
+                  // 2. Delete from public Downloads directory (legacy & direct path)
                   try {
-                      zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)));
-                      ZipEntry entry;
-                      byte[] buffer = new byte[16384];
-                      while ((entry = zis.getNextEntry()) != null) {
-                          String name = entry.getName();
-                          if (name == null || name.trim().isEmpty()) {
-                              zis.closeEntry();
-                              continue;
+                      File pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                      if (pubDownloads != null && pubDownloads.exists()) {
+                          for (String name : oldNames) {
+                              File f = new File(pubDownloads, name);
+                              if (f.exists()) f.delete();
                           }
-                          File outFile = new File(targetDir, name);
-                          String canonicalOut = outFile.getCanonicalPath();
-                          if (!canonicalOut.equals(canonicalTarget) && !canonicalOut.startsWith(canonicalTarget + File.separator)) {
-                              throw new Exception("Invalid zip entry path");
-                          }
-                          if (entry.isDirectory()) {
-                              outFile.mkdirs();
-                          } else {
-                              File parent = outFile.getParentFile();
-                              if (parent != null && !parent.exists()) parent.mkdirs();
-                              FileOutputStream fos = new FileOutputStream(outFile);
-                              try {
-                                  int len;
-                                  while ((len = zis.read(buffer)) != -1) {
-                                      fos.write(buffer, 0, len);
+                          File[] files = pubDownloads.listFiles();
+                          if (files != null) {
+                              for (File f : files) {
+                                  String n = f.getName().toLowerCase();
+                                  if (n.startsWith("hatkhoroc") && n.endsWith(".apk")) {
+                                      f.delete();
                                   }
-                                  fos.flush();
-                              } finally {
-                                  fos.close();
                               }
                           }
-                          zis.closeEntry();
                       }
-                  } finally {
-                      if (zis != null) {
-                          try { zis.close(); } catch (Exception ignored) {}
+                  } catch (Exception ignored) {}
+
+                  // 3. Delete old cached / internal update APKs
+                  try {
+                      File extDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                      if (extDir != null && extDir.exists()) {
+                          File[] files = extDir.listFiles();
+                          if (files != null) {
+                              for (File f : files) {
+                                  if (f.getName().toLowerCase().endsWith(".apk") || f.getName().toLowerCase().endsWith(".tmp")) {
+                                      f.delete();
+                                  }
+                              }
+                          }
                       }
+                  } catch (Exception ignored) {}
+
+                  try {
+                      File updatesDir = new File(getFilesDir(), "updates");
+                      if (updatesDir.exists()) {
+                          File[] files = updatesDir.listFiles();
+                          if (files != null) {
+                              for (File f : files) {
+                                  f.delete();
+                              }
+                          }
+                      }
+                  } catch (Exception ignored) {}
+              }
+
+              private String saveApkToFileManager(File sourceApk) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                          ContentResolver resolver = getContentResolver();
+                          ContentValues values = new ContentValues();
+                          values.put(MediaStore.Downloads.DISPLAY_NAME, APK_FILENAME);
+                          values.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
+                          values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                          values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                          Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                          if (uri != null) {
+                              OutputStream os = resolver.openOutputStream(uri);
+                              InputStream is = new FileInputStream(sourceApk);
+                              byte[] buf = new byte[16384];
+                              int len;
+                              while ((len = is.read(buf)) != -1) {
+                                  os.write(buf, 0, len);
+                              }
+                              os.flush();
+                              os.close();
+                              is.close();
+
+                              values.clear();
+                              values.put(MediaStore.Downloads.IS_PENDING, 0);
+                              resolver.update(uri, values, null, null);
+                              return "Downloads/" + APK_FILENAME;
+                          }
+                      } else {
+                          File pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                          if (pubDownloads != null) {
+                              if (!pubDownloads.exists()) pubDownloads.mkdirs();
+                              File dest = new File(pubDownloads, APK_FILENAME);
+                              if (dest.exists()) dest.delete();
+                              InputStream is = new FileInputStream(sourceApk);
+                              OutputStream os = new FileOutputStream(dest);
+                              byte[] buf = new byte[16384];
+                              int len;
+                              while ((len = is.read(buf)) != -1) {
+                                  os.write(buf, 0, len);
+                              }
+                              os.flush();
+                              os.close();
+                              is.close();
+                              MediaScannerConnection.scanFile(
+                                  getApplicationContext(),
+                                  new String[] { dest.getAbsolutePath() },
+                                  new String[] { "application/vnd.android.package-archive" },
+                                  null
+                              );
+                              return "Downloads/" + APK_FILENAME;
+                          }
+                      }
+                  } catch (Exception ignored) {}
+                  return "Downloads/" + APK_FILENAME;
+              }
+
+              private long getInstalledVersionCode() {
+                  try {
+                      PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                          return pi.getLongVersionCode();
+                      }
+                      return pi.versionCode;
+                  } catch (Exception e) {
+                      return 0L;
                   }
+              }
+
+              private long getArchiveVersionCode(PackageInfo info) {
+                  if (info == null) return 0L;
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                      return info.getLongVersionCode();
+                  }
+                  return info.versionCode;
               }
 
               private void startApkDownload(final String urlStr, final String userAgent) {
@@ -525,67 +631,61 @@ jobs:
                       return;
                   }
 
+                  downloadedBytes = 0L;
+                  totalBytes = 0L;
+                  signatureMismatch = false;
+                  savedFilePath = "Downloads/" + APK_FILENAME;
                   notifyWebDownloadState("downloading", 2, "");
 
                   downloadThread = new Thread(new Runnable() {
                       @Override
                       public void run() {
                           try {
-                              // 1. Try 100% in-app OTA web-bundle.zip first (no external page or leaving app)
-                              File zipFile = new File(getCacheDir(), "web-bundle.zip");
-                              boolean gotOtaZip = false;
-                              try {
-                                  gotOtaZip = downloadFileWithProgress(OTA_BUNDLE_URL, userAgent, zipFile);
-                              } catch (Exception zipErr) {
-                                  gotOtaZip = false;
-                              }
+                              // 1. Delete any previous old APK files in File Manager & internal updates dir
+                              deleteOldApkFiles();
 
-                              if (gotOtaZip && zipFile.exists() && zipFile.length() > 1024) {
-                                  notifyWebDownloadState("installing", 100, "");
-                                  File stagingDir = new File(getFilesDir(), "ota_public_staging");
-                                  File otaDir = new File(getFilesDir(), "ota_public");
-                                  unzipBundle(zipFile, stagingDir);
-                                  zipFile.delete();
+                              File updatesDir = new File(getFilesDir(), "updates");
+                              if (!updatesDir.exists()) updatesDir.mkdirs();
+                              File internalApk = new File(updatesDir, APK_FILENAME);
 
-                                  File stagingIndex = new File(stagingDir, "index.html");
-                                  if (!stagingIndex.exists()) {
-                                      deleteRecursive(stagingDir);
-                                      throw new Exception("Invalid update bundle");
-                                  }
-
-                                  deleteRecursive(otaDir);
-                                  if (!stagingDir.renameTo(otaDir)) {
-                                      throw new Exception("Failed to activate update bundle");
-                                  }
-
-                                  getSharedPreferences(OTA_PREFS, Context.MODE_PRIVATE)
-                                      .edit()
-                                      .putLong(KEY_OTA_INSTALLED_AT, System.currentTimeMillis())
-                                      .apply();
-
-                                  notifyWebDownloadState("installed", 100, "");
-                                  return;
-                              }
-
-                              // 2. Fallback: download APK cleanly in-app
-                              File targetDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-                              if (targetDir == null) targetDir = getCacheDir();
-                              if (!targetDir.exists()) targetDir.mkdirs();
-
-                              File finalFile = new File(targetDir, "hatkhoroc_update.apk");
-                              boolean gotApk = downloadFileWithProgress(urlStr, userAgent, finalFile);
+                              // 2. Download new APK cleanly
+                              boolean gotApk = downloadFileWithProgress(urlStr, userAgent, internalApk);
                               if (!gotApk) {
-                                  throw new Exception("Update file not found on server");
+                                  throw new Exception("Update APK file not found on release server");
                               }
-                              downloadedApkFile = finalFile;
 
-                              notifyWebDownloadState("installing", 100, "");
-                              runOnUiThread(new Runnable() {
-                                  @Override
-                                  public void run() {
-                                      installOrForceUpdateApk(false);
-                                  }
-                              });
+                              // 3. Validate APK package integrity BEFORE offering Install
+                              PackageManager pm = getPackageManager();
+                              int flags = PackageManager.GET_ACTIVITIES
+                                  | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                                      ? PackageManager.GET_SIGNING_CERTIFICATES
+                                      : PackageManager.GET_SIGNATURES);
+
+                              PackageInfo archiveInfo = pm.getPackageArchiveInfo(internalApk.getAbsolutePath(), flags);
+                              if (archiveInfo == null) {
+                                  internalApk.delete();
+                                  throw new Exception("Downloaded APK could not be verified. Please retry.");
+                              }
+                              if (!getPackageName().equals(archiveInfo.packageName)) {
+                                  internalApk.delete();
+                                  throw new Exception("Package ID mismatch in downloaded APK.");
+                              }
+
+                              long installedVc = getInstalledVersionCode();
+                              long archiveVc = getArchiveVersionCode(archiveInfo);
+                              if (archiveVc > 0 && installedVc > 0 && archiveVc < installedVc) {
+                                  signatureMismatch = true;
+                              } else {
+                                  signatureMismatch = !isApkSignatureCompatible(internalApk);
+                              }
+
+                              downloadedApkFile = internalApk;
+
+                              // 4. Save/replace the APK inside user's File Manager (Downloads/hatkhoroc.apk)
+                              savedFilePath = saveApkToFileManager(internalApk);
+
+                              // 5. Notify UI that APK is ready to install
+                              notifyWebDownloadState("ready", 100, "");
                           } catch (Exception e) {
                               notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "Download failed");
                           }
@@ -596,7 +696,7 @@ jobs:
 
               private boolean isApkSignatureCompatible(File apkFile) {
                   try {
-                      if (apkFile == null || !apkFile.exists()) return true;
+                      if (apkFile == null || !apkFile.exists()) return false;
                       PackageManager pm = getPackageManager();
                       int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                           ? PackageManager.GET_SIGNING_CERTIFICATES
@@ -604,7 +704,7 @@ jobs:
 
                       PackageInfo installedInfo = pm.getPackageInfo(getPackageName(), flags);
                       PackageInfo archiveInfo = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(), flags);
-                      if (archiveInfo == null) return true;
+                      if (archiveInfo == null) return false;
 
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                           if (installedInfo.signingInfo == null || archiveInfo.signingInfo == null) return true;
@@ -619,13 +719,13 @@ jobs:
                           return Arrays.equals(s1[0].toByteArray(), s2[0].toByteArray());
                       }
                   } catch (Exception e) {
-                      return true;
+                      return false;
                   }
               }
 
               private void launchUninstallOnly() {
                   try {
-                      Toast.makeText(getApplicationContext(), "🗑️ পুরনো ভার্সন আনইনস্টল করুন", Toast.LENGTH_LONG).show();
+                      Toast.makeText(getApplicationContext(), "পুরনো ভার্সন রিমুভ করে Downloads/hatkhoroc.apk ইনস্টল করুন", Toast.LENGTH_LONG).show();
                       Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
                       uninstallIntent.setData(Uri.parse("package:" + getPackageName()));
                       uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -648,45 +748,36 @@ jobs:
                           }
                       }
 
-                      if (forceUninstall || !isApkSignatureCompatible(downloadedApkFile)) {
-                          notifyWebDownloadState("failed", 0, "অ্যাপ সিগনেচার ভিন্ন। পুরনো অ্যাপ আনইনস্টল করে নতুন আপডেট ইনস্টল করুন।");
-                          launchUninstallOnly();
-                          return;
-                      }
-
                       if (downloadedApkFile == null || !downloadedApkFile.exists()) {
                           notifyWebDownloadState("failed", 0, "ডাউনলোড করা APK ফাইল খুঁজে পাওয়া যায়নি");
                           return;
                       }
 
-                      Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedApkFile);
+                      if (forceUninstall || !isApkSignatureCompatible(downloadedApkFile)) {
+                          signatureMismatch = true;
+                          notifyWebDownloadState("ready", 100, "");
+                          launchUninstallOnly();
+                          return;
+                      }
 
+                      preInstallVersionCode = getInstalledVersionCode();
+                      waitingForInstallResult = true;
+
+                      Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedApkFile);
                       notifyWebDownloadState("installing", 100, "");
 
                       Intent installIntent = new Intent(Intent.ACTION_VIEW);
                       installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                      installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      installIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+                      installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
 
                       List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
                       for (ResolveInfo resolveInfo : resInfoList) {
                           grantUriPermission(resolveInfo.activityInfo.packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       }
-                      startActivityForResult(installIntent, REQUEST_INSTALL_APK);
+                      startActivity(installIntent);
                   } catch (Exception e) {
-                      notifyWebDownloadState("failed", 0, e.getMessage() != null ? e.getMessage() : "ইনস্টল শুরু করা যায়নি");
-                  }
-              }
-
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  super.onActivityResult(requestCode, resultCode, data);
-                  if (requestCode == REQUEST_INSTALL_APK) {
-                      if (resultCode == android.app.Activity.RESULT_OK) {
-                          notifyWebDownloadState("installed", 100, "");
-                      } else {
-                          notifyWebDownloadState("failed", 0, "ইনস্টলেশন বাতিল হয়েছে। আবার চেষ্টা করুন।");
-                      }
+                      waitingForInstallResult = false;
+                      notifyWebDownloadState("ready", 100, e.getMessage() != null ? e.getMessage() : "ইনস্টল শুরু করা যায়নি");
                   }
               }
 
@@ -700,9 +791,21 @@ jobs:
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                           if (getPackageManager().canRequestPackageInstalls()) {
                               installOrForceUpdateApk(force);
+                              return;
                           } else {
-                              notifyWebDownloadState("failed", 0, "ইনস্টল পারমিশন দেওয়া হয়নি।");
+                              notifyWebDownloadState("ready", 100, "ইনস্টল পারমিশন দেওয়া হয়নি।");
+                              return;
                           }
+                      }
+                  }
+
+                  if (waitingForInstallResult) {
+                      waitingForInstallResult = false;
+                      long currentVc = getInstalledVersionCode();
+                      if (preInstallVersionCode >= 0 && currentVc > preInstallVersionCode) {
+                          notifyWebDownloadState("installed", 100, "");
+                      } else {
+                          notifyWebDownloadState("ready", 100, "");
                       }
                   }
               }
@@ -773,6 +876,11 @@ jobs:
         run: |
           mkdir -p apk_output
           find android/app/build/outputs/apk/release/ -name "*.apk" -exec cp {} "apk_output/hatkhoroc.apk" \; || true
+          test -s "apk_output/hatkhoroc.apk"
+          APKSIGNER_BIN=$(find "${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools" -name "apksigner" | sort -V | tail -n 1 || true)
+          if [ -n "$APKSIGNER_BIN" ]; then
+            "$APKSIGNER_BIN" verify --verbose "apk_output/hatkhoroc.apk"
+          fi
           cp apk_output/hatkhoroc.apk "apk_output/হাত খরচ.apk"
           (cd android/app/src/main/assets/public && zip -rq "${GITHUB_WORKSPACE}/apk_output/web-bundle.zip" .) || true
           ls -lh apk_output/
