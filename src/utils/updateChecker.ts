@@ -10,9 +10,10 @@ export const GITHUB_BRANCH = 'main';
 export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.4';
 export const CURRENT_BUILD_NUMBER = 0;
 export const APP_VERSION = 'v1.1.4';
-export const APP_BUILD_DATETIME = '2026-11-14 09:30 PM';
+export const APP_BUILD_DATETIME = '2026-11-22T06:22:00Z';
 
-const FALLBACK_BUILD_DATETIME = '2026-11-14 09:30 PM';
+const FALLBACK_BUILD_DATETIME = '2026-11-22 12:22 PM';
+const STALE_PLACEHOLDER_DATETIME = '2026-11-14 09:30 PM';
 
 function getResolvedDefaultBuildDateTime(): string {
   if (/^\d{4}-\d{2}-\d{2}T/.test(APP_BUILD_DATETIME)) {
@@ -45,11 +46,19 @@ export function formatAppUpdateDateTime(dateInput?: string | number | Date | nul
 }
 
 export function getAppLastUpdateTime(): string {
+  const defaultFormatted = getResolvedDefaultBuildDateTime();
   try {
     const saved = localStorage.getItem('app_last_update_datetime');
-    if (saved) return saved;
+    if (saved && saved !== STALE_PLACEHOLDER_DATETIME) {
+      const savedMs = Date.parse(saved);
+      const buildMs = Date.parse(APP_BUILD_DATETIME);
+      if (!Number.isNaN(savedMs) && !Number.isNaN(buildMs) && savedMs < buildMs) {
+        return defaultFormatted;
+      }
+      return saved;
+    }
   } catch {}
-  return getResolvedDefaultBuildDateTime();
+  return defaultFormatted;
 }
 
 export function setAppLastUpdateTime(val: string): void {
@@ -206,9 +215,55 @@ function parseReleaseMetadataFromBody(body: string): { runNumber: number; buildN
   return { runNumber, buildNumber, sha };
 }
 
+function compareSemver(a?: string | null, b?: string | null): number {
+  const parse = (v?: string | null): number[] => {
+    const cleaned = String(v || '')
+      .trim()
+      .replace(/^v/i, '')
+      .split('-')[0];
+    if (!cleaned) return [];
+    return cleaned.split('.').map((part) => {
+      const n = Number.parseInt(part, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  const len = Math.max(pa.length, pb.length);
+  if (len === 0) return 0;
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] ?? 0;
+    const nb = pb[i] ?? 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+async function fetchRemoteAppMetadata(): Promise<{ appVersion: string; buildDateTime: string }> {
+  try {
+    const rawUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/src/utils/updateChecker.ts?_t=${Date.now()}`;
+    const res = await fetch(rawUrl, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) return { appVersion: '', buildDateTime: '' };
+    const text = await res.text();
+    const versionMatch = text.match(/export\s+const\s+APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+    const dateMatch = text.match(/export\s+const\s+APP_BUILD_DATETIME\s*=\s*['"]([^'"]+)['"]/);
+    return {
+      appVersion: versionMatch ? versionMatch[1].trim() : '',
+      buildDateTime: dateMatch ? dateMatch[1].trim() : ''
+    };
+  } catch {
+    return { appVersion: '', buildDateTime: '' };
+  }
+}
+
 /**
- * Checks GitHub Releases + successful Android APK builds to verify whether a newer APK actually exists.
- * Never prompts for commits whose APK hasn't been built/published yet.
+ * Checks GitHub (remote APP_VERSION + GitHub Releases + successful Android APK builds)
+ * to verify whether a newer version actually exists.
+ * Never prompts when the running Web/PWA or installed Android APK is already on the latest version.
  */
 export async function checkGitHubForUpdates(force: boolean = false): Promise<UpdateInfo | null> {
   try {
@@ -218,11 +273,14 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const headers = { Accept: 'application/vnd.github.v3+json' };
     const releaseMetaUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/latest?_t=${Date.now()}`;
 
-    const releaseRes = await fetch(releaseMetaUrl, {
-      headers,
-      cache: 'no-store',
-      signal: AbortSignal.timeout(9000)
-    }).catch(() => null);
+    const [remoteMeta, releaseRes] = await Promise.all([
+      fetchRemoteAppMetadata(),
+      fetch(releaseMetaUrl, {
+        headers,
+        cache: 'no-store',
+        signal: AbortSignal.timeout(9000)
+      }).catch(() => null)
+    ]);
 
     let apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
     let apkSizeBytes: number | undefined;
@@ -251,7 +309,7 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       } catch {}
     }
 
-    // If release body doesn't contain build metadata yet, query the latest SUCCESSFUL Android APK workflow run
+    // Query latest successful Android APK workflow run when release body doesn't contain build metadata
     let actionsBuildNumber = 0;
     let actionsSha = '';
     let actionsUpdatedAt = '';
@@ -286,12 +344,12 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       }
     }
 
-    // Only fall back to commits/main if we still lack a SHA from both Release body and successful Android workflow
+    // Query latest commit on main when we lack a SHA or when manually checking on Web/PWA to get latest timestamp
     let fallbackCommitSha = '';
     let fallbackCommitDate = '';
     let htmlUrl = releaseHtmlUrl;
 
-    if (!bodyMeta.sha && !actionsSha) {
+    if ((!bodyMeta.sha && !actionsSha) || (!nativeInfo.isNative && force)) {
       const commitUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}?_t=${Date.now()}`;
       const commitRes = await fetch(commitUrl, {
         headers,
@@ -321,9 +379,27 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
 
     const latestApkBuildNumber = Math.max(bodyMeta.buildNumber || 0, actionsBuildNumber || 0);
     const latestSha = bodyMeta.sha || actionsSha || fallbackCommitSha;
-    const rawReleaseDate = releaseUpdatedAt || actionsUpdatedAt || fallbackCommitDate;
+    const pickLatestDate = (...candidates: Array<string | undefined | null>): string => {
+      let bestStr = '';
+      let bestMs = 0;
+      for (const raw of candidates) {
+        if (!raw) continue;
+        const ms = Date.parse(raw);
+        if (!Number.isNaN(ms) && ms > bestMs) {
+          bestMs = ms;
+          bestStr = raw;
+        }
+      }
+      return bestStr;
+    };
+    const rawReleaseDate = nativeInfo.isNative
+      ? (releaseUpdatedAt || actionsUpdatedAt || fallbackCommitDate || remoteMeta.buildDateTime || APP_BUILD_DATETIME)
+      : pickLatestDate(fallbackCommitDate, releaseUpdatedAt, actionsUpdatedAt, remoteMeta.buildDateTime, APP_BUILD_DATETIME);
+    const remoteAppVersion = remoteMeta.appVersion || APP_VERSION;
+    const isRemoteSemverNewer = Boolean(remoteMeta.appVersion) && compareSemver(remoteMeta.appVersion, APP_VERSION) > 0;
+    const isRemoteSemverSameOrOlder = Boolean(remoteMeta.appVersion) && compareSemver(remoteMeta.appVersion, APP_VERSION) <= 0;
 
-    if (!latestSha && !releaseUpdatedAt && latestApkBuildNumber === 0) {
+    if (!latestSha && !releaseUpdatedAt && latestApkBuildNumber === 0 && !remoteMeta.appVersion) {
       return null;
     }
 
@@ -344,25 +420,35 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
         isAlreadyOnLatest = nativeInfo.buildNumber >= latestApkBuildNumber;
       } else if (isRealBuildSha && latestSha && CURRENT_BUILD_SHA === latestSha) {
         isAlreadyOnLatest = true;
+      } else if (
+        (Boolean(releaseUpdatedAt) && Boolean(installedReleaseAt) && installedReleaseAt === releaseUpdatedAt) ||
+        (Boolean(latestSha) && Boolean(installedSha) && installedSha === latestSha)
+      ) {
+        isAlreadyOnLatest = true;
+      } else if (latestApkBuildNumber === 0 && isRemoteSemverSameOrOlder) {
+        // When GitHub Actions API couldn't supply a build number and app version matches GitHub, don't falsely prompt
+        isAlreadyOnLatest = true;
+      }
+    } else {
+      if (isRealBuildSha && latestSha) {
+        isAlreadyOnLatest = CURRENT_BUILD_SHA === latestSha;
+      } else if (remoteMeta.appVersion) {
+        // On Web/PWA: compare running APP_VERSION against GitHub's APP_VERSION
+        isAlreadyOnLatest = !isRemoteSemverNewer;
       } else {
         isAlreadyOnLatest =
+          (installedBuildSaved > 0 && latestApkBuildNumber > 0 && installedBuildSaved >= latestApkBuildNumber) ||
           (Boolean(releaseUpdatedAt) && Boolean(installedReleaseAt) && installedReleaseAt === releaseUpdatedAt) ||
           (Boolean(latestSha) && Boolean(installedSha) && installedSha === latestSha);
       }
-    } else {
-      isAlreadyOnLatest =
-        (isRealBuildSha && Boolean(latestSha) && CURRENT_BUILD_SHA === latestSha) ||
-        (installedBuildSaved > 0 && latestApkBuildNumber > 0 && installedBuildSaved >= latestApkBuildNumber) ||
-        (Boolean(releaseUpdatedAt) && Boolean(installedReleaseAt) && installedReleaseAt === releaseUpdatedAt) ||
-        (Boolean(latestSha) && Boolean(installedSha) && installedSha === latestSha);
     }
 
     if (isAlreadyOnLatest) {
-      // Keep local state synced cleanly when verified on the latest native/CI build
+      // Always sync the displayed last update timestamp when verified on the latest version
+      if (formattedReleaseDate) {
+        setAppLastUpdateTime(formattedReleaseDate);
+      }
       if (nativeInfo.isNative || isRealBuildSha) {
-        if (formattedReleaseDate) {
-          setAppLastUpdateTime(formattedReleaseDate);
-        }
         if (latestSha) {
           localStorage.setItem('app_installed_sha', latestSha);
         }
@@ -394,12 +480,14 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const currentVersionLabel =
       nativeInfo.buildNumber > 0 ? `${APP_VERSION} (#${nativeInfo.buildNumber})` : APP_VERSION;
     const newVersionLabel =
-      latestApkBuildNumber > 0 ? `${APP_VERSION} (#${latestApkBuildNumber})` : APP_VERSION;
+      nativeInfo.isNative && latestApkBuildNumber > 0
+        ? `${remoteAppVersion} (#${latestApkBuildNumber})`
+        : remoteAppVersion;
 
     return {
       hasUpdate,
       currentSha: CURRENT_BUILD_SHA,
-      latestSha: latestSha || releaseUpdatedAt || `build-${latestApkBuildNumber}`,
+      latestSha: latestSha || releaseUpdatedAt || remoteAppVersion || `build-${latestApkBuildNumber}`,
       currentVersion: currentVersionLabel,
       currentDateTime: getAppLastUpdateTime(),
       newVersion: newVersionLabel,

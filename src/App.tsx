@@ -325,7 +325,16 @@ export default function App() {
       setAppLastUpdateTime(getAppLastUpdateTime());
 
       if (isManual) {
-        if (!info || !info.hasUpdate) {
+        if (!info) {
+          showToast(
+            lang === 'en'
+              ? 'Could not reach GitHub to check updates. Check your internet.'
+              : 'GitHub থেকে আপডেট চেক করা যায়নি। ইন্টারনেট সংযোগ দেখুন।',
+            'error'
+          );
+          return;
+        }
+        if (!info.hasUpdate) {
           // Versions match! Notify user cleanly that they are already on the latest version!
           showToast(
             lang === 'en'
@@ -336,7 +345,7 @@ export default function App() {
           return;
         }
 
-        // Genuine newer APK release exists on GitHub! Show version diff modal so user can confirm Update
+        // Genuine newer release exists on GitHub! Show version diff modal so user can confirm Update
         setUpdateInfoModal(info);
         setUpdateAutoStart(false);
         setShowUpdateModal(true);
@@ -349,9 +358,9 @@ export default function App() {
       if (isManual) {
         showToast(
           lang === 'en'
-            ? `Already installed latest version (হাত খরচ ${APP_VERSION})`
-            : `অলরেডি লেটেস্ট ভার্সন ইনস্টল করা আছে (হাত খরচ ${APP_VERSION})`,
-          'success'
+            ? 'Could not reach GitHub to check updates. Check your internet.'
+            : 'GitHub থেকে আপডেট চেক করা যায়নি। ইন্টারনেট সংযোগ দেখুন।',
+          'error'
         );
       }
     }
@@ -3785,7 +3794,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
               <span className={`w-2 h-2 rounded-full shrink-0 ${
                 toast.type === 'error' ? 'bg-rose-400' : toast.type === 'info' ? 'bg-amber-300' : 'bg-emerald-400'
               }`} />
-              <span className="truncate">{toast.message}</span>
+              <span className="leading-snug text-center">{toast.message}</span>
             </motion.div>
           )}
         </AnimatePresence>
