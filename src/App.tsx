@@ -127,11 +127,11 @@ import { usePWAInstall } from './usePWAInstall';
 import {
   checkGitHubForUpdates,
   getAppLastUpdateTime,
+  getDisplayAppVersion,
   getNativeInstalledInfo,
   reconcilePendingUpdateInstall,
   recordUpdateDismissed,
-  UpdateInfo,
-  APP_VERSION
+  UpdateInfo
 } from './utils/updateChecker';
 
 function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[]): AppTab[] {
@@ -336,10 +336,11 @@ export default function App() {
         }
         if (!info.hasUpdate) {
           // Versions match! Notify user cleanly that they are already on the latest version!
+          const activeVer = getDisplayAppVersion();
           showToast(
             lang === 'en'
-              ? `Already installed latest version (হাত খরচ ${APP_VERSION})`
-              : `অলরেডি লেটেস্ট ভার্সন ইনস্টল করা আছে (হাত খরচ ${APP_VERSION})`,
+              ? `Already installed latest version (হাত খরচ ${activeVer})`
+              : `অলরেডি লেটেস্ট ভার্সন ইনস্টল করা আছে (হাত খরচ ${activeVer})`,
             'success'
           );
           return;

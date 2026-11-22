@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -31,15 +33,31 @@ jobs:
           npm install
           npm install @capacitor/core @capacitor/android @capacitor/cli @capacitor/assets @capacitor/app --save
 
-      - name: Inject Commit SHA into Web App
+      - name: Inject Commit SHA & Auto Version into Web App
         run: |
           COMMIT_SHA="${{ github.sha }}"
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           BUILD_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "195")
+          BASE_COMMIT=195
+          BASE_STEPS=14
+          DELTA=$((COMMIT_COUNT - BASE_COMMIT))
+          if [ "$DELTA" -lt 0 ]; then DELTA=0; fi
+          STEPS=$((BASE_STEPS + DELTA))
+          MINOR=$((STEPS / 10))
+          PATCH=$((STEPS % 10))
+          AUTO_VERSION_NUM="1.${MINOR}.${PATCH}"
+          AUTO_VERSION="v${AUTO_VERSION_NUM}"
+
+          echo "AUTO_VERSION=${AUTO_VERSION}" >> "$GITHUB_ENV"
+          echo "AUTO_VERSION_NUM=${AUTO_VERSION_NUM}" >> "$GITHUB_ENV"
+          echo "BUILD_NUM=${BUILD_NUM}" >> "$GITHUB_ENV"
+
           sed -i "s/export const CURRENT_BUILD_SHA = .*/export const CURRENT_BUILD_SHA = '${COMMIT_SHA}';/g" src/utils/updateChecker.ts || true
           sed -i "s/export const CURRENT_BUILD_NUMBER = .*/export const CURRENT_BUILD_NUMBER = ${BUILD_NUM};/g" src/utils/updateChecker.ts || true
+          sed -i "s/export const APP_VERSION = .*/export const APP_VERSION = '${AUTO_VERSION}';/g" src/utils/updateChecker.ts || true
           sed -i "s/export const APP_BUILD_DATETIME = .*/export const APP_BUILD_DATETIME = '${BUILD_ISO}';/g" src/utils/updateChecker.ts || true
-          echo "Injected build SHA: $COMMIT_SHA | Build: $BUILD_NUM | Time: $BUILD_ISO"
+          echo "Injected version: $AUTO_VERSION | SHA: $COMMIT_SHA | Build: $BUILD_NUM | Commits: $COMMIT_COUNT | Time: $BUILD_ISO"
 
       - name: Build Web App
         run: npm run build --if-present
@@ -1106,7 +1124,7 @@ jobs:
         run: |
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUM/g" android/app/build.gradle || true
-          sed -i "s/versionName \".*\"/versionName \"1.$BUILD_NUM.0\"/g" android/app/build.gradle || true
+          sed -i "s/versionName \".*\"/versionName \"${AUTO_VERSION_NUM:-1.1.4}\"/g" android/app/build.gradle || true
 
           cat << 'EOF' >> android/app/proguard-rules.pro
           -keep class com.abujar.hatkhoroc.** { *; }
@@ -1188,8 +1206,8 @@ jobs:
         if: startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: latest
-          name: "হাত খরচ - Latest Release"
-          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)। [run:${{ github.run_number }}] [sha:${{ github.sha }}]"
+          name: "হাত খরচ - ${{ env.AUTO_VERSION }}"
+          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)। [version:${{ env.AUTO_VERSION }}] [run:${{ github.run_number }}] [build:${{ env.BUILD_NUM }}] [sha:${{ github.sha }}]"
           files: "apk_output/*"
           clobber: true
         env:

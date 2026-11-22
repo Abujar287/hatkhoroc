@@ -14,7 +14,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { AppUser, PocketAuditMetrics, Transaction } from '../types';
-import { APP_VERSION, getAppLastUpdateTime } from '../utils/updateChecker';
+import { getAppLastUpdateTime, getDisplayAppVersion } from '../utils/updateChecker';
 import { cleanCategoryName } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import {
@@ -73,9 +73,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 }) => {
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [currentAppUpdateTime, setCurrentAppUpdateTime] = useState<string>(() => getAppLastUpdateTime());
+  const [currentAppVersion, setCurrentAppVersion] = useState<string>(() => getDisplayAppVersion());
 
   useEffect(() => {
     setCurrentAppUpdateTime(getAppLastUpdateTime());
+    setCurrentAppVersion(getDisplayAppVersion());
   }, [selectedMonth, transactions.length, appLastUpdateTime]);
 
   // Custom Month Mapping State
@@ -740,7 +742,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Small Clean Version Footer */}
       <div className="pt-3 pb-6 text-center select-none space-y-0.5">
         <p className="text-xs font-bold text-teal-300/80 tracking-wide font-mono">
-          হাত খরচ - {APP_VERSION} {appLastUpdateTime || currentAppUpdateTime}
+          হাত খরচ - {currentAppVersion} {appLastUpdateTime || currentAppUpdateTime}
         </p>
         <p className="text-[10px] text-teal-400/50">
           Smart Personal Expense, Task Reminder & Budget Tracker

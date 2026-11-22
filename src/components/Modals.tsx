@@ -38,9 +38,9 @@ import {
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
 import {
-  APP_VERSION,
   forceAppUpdateRefresh,
   getAppLastUpdateTime,
+  getDisplayAppVersion,
   getNativeInstalledInfo,
   recordPendingUpdateInstall,
   recordUpdateAcknowledged
@@ -2604,7 +2604,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {t('Logout from App', 'লগআউট করুন')}
             </button>
             <p className="text-[10px] text-center text-teal-400/60 italic font-medium pt-1">
-              হাত খরচ - {APP_VERSION}
+              হাত খরচ - {getDisplayAppVersion()}
             </p>
           </div>
         </div>
@@ -2645,20 +2645,21 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
     updateInfo?.apkDownloadUrl ||
     'https://github.com/Abujar287/hatkhoroc/releases/download/latest/hatkhoroc.apk';
 
-  const currentVersionStr = updateInfo?.currentVersion || APP_VERSION;
+  const currentVersionStr = updateInfo?.currentVersion || getDisplayAppVersion();
   const currentDateTimeStr = updateInfo?.currentDateTime || getAppLastUpdateTime();
-  const newVersionStr = updateInfo?.newVersion || APP_VERSION;
+  const newVersionStr = updateInfo?.newVersion || getDisplayAppVersion();
   const newDateTimeStr = updateInfo?.newDateTime || getAppLastUpdateTime();
 
   const defaultTotalBytes = updateInfo?.apkSizeBytes || Math.round(4.37 * 1024 * 1024);
 
   const markUpdateShaInstalled = React.useCallback(() => {
-    if (updateInfo?.latestSha || updateInfo?.releaseUpdatedAt || updateInfo?.latestBuildNumber) {
+    if (updateInfo?.latestSha || updateInfo?.releaseUpdatedAt || updateInfo?.latestBuildNumber || updateInfo?.newVersion) {
       recordUpdateAcknowledged(
         updateInfo?.latestSha || '',
         updateInfo?.newDateTime,
         updateInfo?.releaseUpdatedAt,
-        updateInfo?.latestBuildNumber
+        updateInfo?.latestBuildNumber,
+        updateInfo?.newVersion
       );
     }
   }, [updateInfo]);
@@ -3248,7 +3249,10 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => forceAppUpdateRefresh()}
+                  onClick={() => {
+                    markUpdateShaInstalled();
+                    void forceAppUpdateRefresh();
+                  }}
                   className="w-full py-2.5 rounded-xl bg-[#062423] hover:bg-teal-900/80 text-teal-200 border border-teal-700/70 text-xs font-bold cursor-pointer transition-all"
                 >
                   Force Refresh Web App (Clear Cache)

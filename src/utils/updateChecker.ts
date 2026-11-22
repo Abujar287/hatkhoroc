@@ -10,9 +10,11 @@ export const GITHUB_BRANCH = 'main';
 export const CURRENT_BUILD_SHA = 'forced-update-sha-v1.1.4';
 export const CURRENT_BUILD_NUMBER = 0;
 export const APP_VERSION = 'v1.1.4';
-export const APP_BUILD_DATETIME = '2026-11-22T06:22:00Z';
+export const APP_BUILD_DATETIME = '2026-11-22T06:28:00Z';
 
-const FALLBACK_BUILD_DATETIME = '2026-11-22 12:22 PM';
+const BASE_COMMIT_COUNT = 195;
+const BASE_VERSION_STEPS = 14; // v1.1.4 => 1*10 + 4 = 14
+const FALLBACK_BUILD_DATETIME = '2026-11-22 12:28 PM';
 const STALE_PLACEHOLDER_DATETIME = '2026-11-14 09:30 PM';
 
 function getResolvedDefaultBuildDateTime(): string {
@@ -203,16 +205,18 @@ export function reconcilePendingUpdateInstall(currentNativeBuildNumber: number):
   } catch {}
 }
 
-function parseReleaseMetadataFromBody(body: string): { runNumber: number; buildNumber: number; sha: string } {
-  if (!body) return { runNumber: 0, buildNumber: 0, sha: '' };
+function parseReleaseMetadataFromBody(body: string): { runNumber: number; buildNumber: number; sha: string; version: string } {
+  if (!body) return { runNumber: 0, buildNumber: 0, sha: '', version: '' };
   const runMatch = body.match(/\[run:(\d+)\]/i);
   const buildMatch = body.match(/\[build:(\d+)\]/i);
   const shaMatch = body.match(/\[sha:([0-9a-fA-F]{7,40})\]/i);
+  const versionMatch = body.match(/\[version:(v?\d+\.\d+\.\d+)\]/i);
   const runNumber = runMatch ? parseInt(runMatch[1], 10) : 0;
   const explicitBuild = buildMatch ? parseInt(buildMatch[1], 10) : 0;
   const buildNumber = explicitBuild > 0 ? explicitBuild : (runNumber > 0 ? 10000 + runNumber : 0);
   const sha = shaMatch ? shaMatch[1] : '';
-  return { runNumber, buildNumber, sha };
+  const version = versionMatch ? (versionMatch[1].startsWith('v') ? versionMatch[1] : `v${versionMatch[1]}`) : '';
+  return { runNumber, buildNumber, sha, version };
 }
 
 function compareSemver(a?: string | null, b?: string | null): number {
@@ -220,7 +224,8 @@ function compareSemver(a?: string | null, b?: string | null): number {
     const cleaned = String(v || '')
       .trim()
       .replace(/^v/i, '')
-      .split('-')[0];
+      .split('-')[0]
+      .split(' ')[0];
     if (!cleaned) return [];
     return cleaned.split('.').map((part) => {
       const n = Number.parseInt(part, 10);
@@ -240,6 +245,34 @@ function compareSemver(a?: string | null, b?: string | null): number {
   return 0;
 }
 
+function normalizeVersionTag(raw?: string | null): string {
+  const match = String(raw || '').trim().match(/v?\d+\.\d+\.\d+/i);
+  if (!match) return '';
+  return match[0].toLowerCase().startsWith('v') ? match[0].toLowerCase() : `v${match[0]}`;
+}
+
+export function computeAutoVersionFromCommitCount(totalCommits: number): string {
+  if (!totalCommits || totalCommits <= BASE_COMMIT_COUNT) return APP_VERSION;
+  const delta = totalCommits - BASE_COMMIT_COUNT;
+  const steps = BASE_VERSION_STEPS + delta;
+  const minor = Math.floor(steps / 10);
+  const patch = steps % 10;
+  return `v1.${minor}.${patch}`;
+}
+
+export function getDisplayAppVersion(): string {
+  if (isNativeAndroidApp()) {
+    return APP_VERSION;
+  }
+  try {
+    const saved = normalizeVersionTag(localStorage.getItem('app_installed_version'));
+    if (saved && compareSemver(saved, APP_VERSION) > 0) {
+      return saved;
+    }
+  } catch {}
+  return APP_VERSION;
+}
+
 async function fetchRemoteAppMetadata(): Promise<{ appVersion: string; buildDateTime: string }> {
   try {
     const rawUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/src/utils/updateChecker.ts?_t=${Date.now()}`;
@@ -252,11 +285,47 @@ async function fetchRemoteAppMetadata(): Promise<{ appVersion: string; buildDate
     const versionMatch = text.match(/export\s+const\s+APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
     const dateMatch = text.match(/export\s+const\s+APP_BUILD_DATETIME\s*=\s*['"]([^'"]+)['"]/);
     return {
-      appVersion: versionMatch ? versionMatch[1].trim() : '',
+      appVersion: versionMatch ? normalizeVersionTag(versionMatch[1]) : '',
       buildDateTime: dateMatch ? dateMatch[1].trim() : ''
     };
   } catch {
     return { appVersion: '', buildDateTime: '' };
+  }
+}
+
+async function fetchGitHubCommitSummary(): Promise<{
+  totalCommits: number;
+  sha: string;
+  date: string;
+  message: string;
+  author: string;
+  htmlUrl: string;
+}> {
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits?sha=${GITHUB_BRANCH}&per_page=1&_t=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(9000)
+    });
+    if (!res.ok) {
+      return { totalCommits: 0, sha: '', date: '', message: '', author: '', htmlUrl: '' };
+    }
+    const linkHeader = res.headers.get('link') || '';
+    const lastMatch = linkHeader.match(/page=(\d+)>;\s*rel="last"/i);
+    const arr = await res.json();
+    const latest = Array.isArray(arr) ? arr[0] : null;
+    const totalCommits = lastMatch ? parseInt(lastMatch[1], 10) : (latest ? 1 : 0);
+    return {
+      totalCommits: Number.isFinite(totalCommits) ? totalCommits : 0,
+      sha: String(latest?.sha || ''),
+      date: String(latest?.commit?.author?.date || latest?.commit?.committer?.date || ''),
+      message: latest?.commit?.message ? String(latest.commit.message).split('\n')[0] : '',
+      author: latest?.commit?.author?.name ? String(latest.commit.author.name) : '',
+      htmlUrl: String(latest?.html_url || '')
+    };
+  } catch {
+    return { totalCommits: 0, sha: '', date: '', message: '', author: '', htmlUrl: '' };
   }
 }
 
@@ -273,20 +342,21 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const headers = { Accept: 'application/vnd.github.v3+json' };
     const releaseMetaUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/latest?_t=${Date.now()}`;
 
-    const [remoteMeta, releaseRes] = await Promise.all([
+    const [remoteMeta, releaseRes, commitSummary] = await Promise.all([
       fetchRemoteAppMetadata(),
       fetch(releaseMetaUrl, {
         headers,
         cache: 'no-store',
         signal: AbortSignal.timeout(9000)
-      }).catch(() => null)
+      }).catch(() => null),
+      fetchGitHubCommitSummary()
     ]);
 
     let apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
     let apkSizeBytes: number | undefined;
     let releaseUpdatedAt = '';
     let releaseHtmlUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tag/latest`;
-    let bodyMeta = { runNumber: 0, buildNumber: 0, sha: '' };
+    let bodyMeta = { runNumber: 0, buildNumber: 0, sha: '', version: '' };
 
     if (releaseRes && releaseRes.ok) {
       try {
@@ -313,8 +383,8 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     let actionsBuildNumber = 0;
     let actionsSha = '';
     let actionsUpdatedAt = '';
-    let commitMessage = 'নতুন কোড আপডেট ও বাগ ফিক্স';
-    let commitAuthor = 'Developer';
+    let commitMessage = commitSummary.message || 'নতুন কোড আপডেট ও বাগ ফিক্স';
+    let commitAuthor = commitSummary.author || 'Developer';
 
     if (bodyMeta.buildNumber === 0 || !bodyMeta.sha) {
       const runsUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/android.yml/runs?status=success&per_page=1&_t=${Date.now()}`;
@@ -333,10 +403,10 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
             actionsBuildNumber = runNum > 0 ? 10000 + runNum : 0;
             actionsSha = String(latestRun.head_sha || '');
             actionsUpdatedAt = String(latestRun.updated_at || latestRun.created_at || '');
-            if (latestRun.head_commit?.message) {
+            if (!commitSummary.message && latestRun.head_commit?.message) {
               commitMessage = String(latestRun.head_commit.message).split('\n')[0];
             }
-            if (latestRun.head_commit?.author?.name) {
+            if (!commitSummary.author && latestRun.head_commit?.author?.name) {
               commitAuthor = String(latestRun.head_commit.author.name);
             }
           }
@@ -344,41 +414,15 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       }
     }
 
-    // Query latest commit on main when we lack a SHA or when manually checking on Web/PWA to get latest timestamp
-    let fallbackCommitSha = '';
-    let fallbackCommitDate = '';
-    let htmlUrl = releaseHtmlUrl;
-
-    if ((!bodyMeta.sha && !actionsSha) || (!nativeInfo.isNative && force)) {
-      const commitUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}?_t=${Date.now()}`;
-      const commitRes = await fetch(commitUrl, {
-        headers,
-        cache: 'no-store',
-        signal: AbortSignal.timeout(9000)
-      }).catch(() => null);
-
-      if (commitRes && commitRes.ok) {
-        try {
-          const commitData = await commitRes.json();
-          fallbackCommitSha = String(commitData?.sha || '');
-          fallbackCommitDate = String(
-            commitData?.commit?.author?.date || commitData?.commit?.committer?.date || ''
-          );
-          if (commitData?.commit?.message) {
-            commitMessage = String(commitData.commit.message).split('\n')[0];
-          }
-          if (commitData?.commit?.author?.name) {
-            commitAuthor = String(commitData.commit.author.name);
-          }
-          if (commitData?.html_url) {
-            htmlUrl = String(commitData.html_url);
-          }
-        } catch {}
-      }
-    }
+    const fallbackCommitSha = commitSummary.sha;
+    const fallbackCommitDate = commitSummary.date;
+    const htmlUrl = commitSummary.htmlUrl || releaseHtmlUrl;
 
     const latestApkBuildNumber = Math.max(bodyMeta.buildNumber || 0, actionsBuildNumber || 0);
-    const latestSha = bodyMeta.sha || actionsSha || fallbackCommitSha;
+    const latestSha = nativeInfo.isNative
+      ? (bodyMeta.sha || actionsSha || fallbackCommitSha)
+      : (fallbackCommitSha || bodyMeta.sha || actionsSha);
+
     const pickLatestDate = (...candidates: Array<string | undefined | null>): string => {
       let bestStr = '';
       let bestMs = 0;
@@ -392,14 +436,35 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       }
       return bestStr;
     };
+
     const rawReleaseDate = nativeInfo.isNative
       ? (releaseUpdatedAt || actionsUpdatedAt || fallbackCommitDate || remoteMeta.buildDateTime || APP_BUILD_DATETIME)
       : pickLatestDate(fallbackCommitDate, releaseUpdatedAt, actionsUpdatedAt, remoteMeta.buildDateTime, APP_BUILD_DATETIME);
-    const remoteAppVersion = remoteMeta.appVersion || APP_VERSION;
-    const isRemoteSemverNewer = Boolean(remoteMeta.appVersion) && compareSemver(remoteMeta.appVersion, APP_VERSION) > 0;
-    const isRemoteSemverSameOrOlder = Boolean(remoteMeta.appVersion) && compareSemver(remoteMeta.appVersion, APP_VERSION) <= 0;
 
-    if (!latestSha && !releaseUpdatedAt && latestApkBuildNumber === 0 && !remoteMeta.appVersion) {
+    const autoCommitVersion = commitSummary.totalCommits > 0
+      ? computeAutoVersionFromCommitCount(commitSummary.totalCommits)
+      : '';
+
+    const pickHighestVersion = (...candidates: Array<string | undefined | null>): string => {
+      let best = APP_VERSION;
+      for (const c of candidates) {
+        const norm = normalizeVersionTag(c);
+        if (norm && compareSemver(norm, best) > 0) {
+          best = norm;
+        }
+      }
+      return best;
+    };
+
+    const installedVersion = getDisplayAppVersion();
+    const remoteAppVersion = nativeInfo.isNative
+      ? pickHighestVersion(bodyMeta.version, remoteMeta.appVersion, autoCommitVersion, APP_VERSION)
+      : pickHighestVersion(autoCommitVersion, remoteMeta.appVersion, bodyMeta.version, APP_VERSION);
+
+    const isRemoteSemverNewer = compareSemver(remoteAppVersion, installedVersion) > 0;
+    const isRemoteSemverSameOrOlder = compareSemver(remoteAppVersion, installedVersion) <= 0;
+
+    if (!latestSha && !releaseUpdatedAt && latestApkBuildNumber === 0 && !remoteMeta.appVersion && commitSummary.totalCommits === 0) {
       return null;
     }
 
@@ -431,9 +496,9 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       }
     } else {
       if (isRealBuildSha && latestSha) {
-        isAlreadyOnLatest = CURRENT_BUILD_SHA === latestSha;
-      } else if (remoteMeta.appVersion) {
-        // On Web/PWA: compare running APP_VERSION against GitHub's APP_VERSION
+        isAlreadyOnLatest = CURRENT_BUILD_SHA === latestSha && !isRemoteSemverNewer;
+      } else if (commitSummary.totalCommits > 0 || remoteMeta.appVersion) {
+        // On Web/PWA: compare installed/running version against auto-incremented GitHub version
         isAlreadyOnLatest = !isRemoteSemverNewer;
       } else {
         isAlreadyOnLatest =
@@ -444,9 +509,14 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     }
 
     if (isAlreadyOnLatest) {
-      // Always sync the displayed last update timestamp when verified on the latest version
+      // Always sync the displayed last update timestamp & version when verified on the latest version
       if (formattedReleaseDate) {
         setAppLastUpdateTime(formattedReleaseDate);
+      }
+      if (!nativeInfo.isNative && remoteAppVersion) {
+        try {
+          localStorage.setItem('app_installed_version', remoteAppVersion);
+        } catch {}
       }
       if (nativeInfo.isNative || isRealBuildSha) {
         if (latestSha) {
@@ -478,7 +548,7 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     }
 
     const currentVersionLabel =
-      nativeInfo.buildNumber > 0 ? `${APP_VERSION} (#${nativeInfo.buildNumber})` : APP_VERSION;
+      nativeInfo.buildNumber > 0 ? `${installedVersion} (#${nativeInfo.buildNumber})` : installedVersion;
     const newVersionLabel =
       nativeInfo.isNative && latestApkBuildNumber > 0
         ? `${remoteAppVersion} (#${latestApkBuildNumber})`
@@ -538,7 +608,8 @@ export function recordUpdateAcknowledged(
   sha: string,
   newDateTime?: string,
   releaseUpdatedAt?: string,
-  buildNumber?: number
+  buildNumber?: number,
+  version?: string
 ) {
   try {
     if (sha) {
@@ -551,6 +622,10 @@ export function recordUpdateAcknowledged(
     }
     if (buildNumber && buildNumber > 0) {
       localStorage.setItem('app_installed_build_number', String(buildNumber));
+    }
+    const cleanVer = normalizeVersionTag(version);
+    if (cleanVer) {
+      localStorage.setItem('app_installed_version', cleanVer);
     }
     if (newDateTime) {
       setAppLastUpdateTime(newDateTime);
