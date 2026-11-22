@@ -86,45 +86,65 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return false;
 }
 
-// System Notification Trigger for Phone Notification Bar
+// System Notification Trigger for Phone Notification Bar (Native Android APK + Web/PWA)
 export async function sendSystemNotification(title: string, options?: any): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (typeof window === 'undefined') {
     return false;
   }
 
-  if (Notification.permission !== 'granted') {
+  const tag = options?.tag || `entry-${Date.now()}`;
+  const bodyText = typeof options?.body === 'string' ? options.body : '';
+
+  // 1. Native Android APK bridge (shows directly in Android phone notification bar)
+  try {
+    const nativeUpdater = (window as any).AndroidNativeUpdater;
+    if (nativeUpdater && typeof nativeUpdater.showEntryNotification === 'function') {
+      nativeUpdater.showEntryNotification(title, bodyText, tag);
+      return true;
+    }
+  } catch (err) {
+    console.warn('Native Android notification warning:', err);
+  }
+
+  // 2. Web / Mobile Browser / Installed PWA Notification API
+  if (!('Notification' in window)) {
+    return false;
+  }
+
+  if (Notification.permission === 'default') {
+    const granted = await ensureNotificationPermission();
+    if (!granted) return false;
+  } else if (Notification.permission !== 'granted') {
     return false;
   }
 
   const notificationOptions: any = {
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    requireInteraction: true,
+    requireInteraction: false,
     renotify: true,
-    tag: options?.tag || `task-${Date.now()}`,
+    tag,
     data: { url: '/?tab=task' },
     ...options
   };
 
   try {
-    // 1. Try Service Worker registration (Primary method for Android & mobile notification bar)
+    // Primary method for mobile Chrome & PWA notification bar: Service Worker showNotification
     if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        if (registration && registration.showNotification) {
-          await registration.showNotification(title, notificationOptions);
-          return true;
-        }
-      } catch (swReadyErr) {
-        // Fallback to getRegistration
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg && reg.showNotification) {
-          await reg.showNotification(title, notificationOptions);
-          return true;
-        }
+      let reg: ServiceWorkerRegistration | undefined = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+      if (!reg) {
+        const readyOrTimeout = await Promise.race<ServiceWorkerRegistration | null>([
+          navigator.serviceWorker.ready.catch(() => null),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 700))
+        ]);
+        if (readyOrTimeout) reg = readyOrTimeout;
       }
 
-      // Also message the service worker directly
+      if (reg && typeof reg.showNotification === 'function') {
+        await reg.showNotification(title, notificationOptions);
+        return true;
+      }
+
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: 'SHOW_NOTIFICATION',
@@ -135,7 +155,7 @@ export async function sendSystemNotification(title: string, options?: any): Prom
       }
     }
 
-    // 2. Desktop fallback to standard Notification
+    // Desktop / fallback standard Notification
     try {
       new Notification(title, notificationOptions);
       return true;
@@ -146,6 +166,78 @@ export async function sendSystemNotification(title: string, options?: any): Prom
     console.warn('System Notification error:', err);
     return false;
   }
+}
+
+export type EntryNotificationKind = 'Expense' | 'Income' | 'Task' | 'Note' | 'Category';
+
+export interface EntryAddedNotificationInput {
+  kind: EntryNotificationKind;
+  title?: string;
+  category?: string;
+  amount?: number;
+  date?: string;
+  time?: string;
+  note?: string;
+  targetTab?: string;
+}
+
+export async function notifyEntryAdded(input: EntryAddedNotificationInput): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+
+  const amountText =
+    typeof input.amount === 'number' && !isNaN(input.amount) && input.amount > 0
+      ? `৳${input.amount.toLocaleString()}`
+      : '';
+
+  let title = 'হাত খরচ — New Entry Added';
+  const detailParts: string[] = [];
+
+  if (input.kind === 'Expense') {
+    title = 'New Expense Added';
+    if (amountText) detailParts.push(amountText);
+    if (input.category) detailParts.push(input.category);
+    if (input.date) detailParts.push(input.date);
+  } else if (input.kind === 'Income') {
+    title = 'New Income Added';
+    if (amountText) detailParts.push(amountText);
+    if (input.category) detailParts.push(input.category);
+    if (input.date) detailParts.push(input.date);
+  } else if (input.kind === 'Task') {
+    title = 'New Task Entry Added';
+    if (input.title) detailParts.push(input.title);
+    if (amountText) detailParts.push(amountText);
+    if (input.date) detailParts.push(input.time ? `${input.date} ${input.time}` : input.date);
+  } else if (input.kind === 'Note') {
+    title = 'New Note Added';
+    if (input.title) detailParts.push(input.title);
+    if (input.category) detailParts.push(input.category);
+  } else if (input.kind === 'Category') {
+    title = 'New Category Added';
+    if (input.category) detailParts.push(input.category);
+  }
+
+  let body = detailParts.join(' • ');
+  if (input.note && input.note.trim()) {
+    body = body ? `${body} — ${input.note.trim()}` : input.note.trim();
+  }
+  if (!body) {
+    body = 'Saved to হাত খরচ';
+  }
+
+  const tag = `entry_${input.kind.toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+  return sendSystemNotification(title, {
+    body,
+    tag,
+    requireInteraction: false,
+    renotify: true,
+    vibrate: [120, 60, 120],
+    data: {
+      url: '/',
+      targetTab: input.targetTab || 'details',
+      isEntryNotification: true
+    }
+  });
 }
 
 // Track notified tasks to avoid duplicate alarms within a time window

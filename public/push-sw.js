@@ -6,14 +6,15 @@ self.addEventListener('message', (event) => {
 
   if (event.data.type === 'SHOW_NOTIFICATION') {
     const { title, options } = event.data;
+    const isEntry = Boolean(options?.data?.isEntryNotification);
     const notificationOptions = {
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
-      vibrate: [500, 200, 500, 200, 500, 200, 800],
-      requireInteraction: true,
+      vibrate: isEntry ? [120, 60, 120] : [500, 200, 500, 200, 500, 200, 800],
+      requireInteraction: !isEntry,
       renotify: true,
-      tag: options?.tag || 'task-alarm',
-      data: { url: '/?tab=task', ...options?.data },
+      tag: options?.tag || (isEntry ? `entry-${Date.now()}` : 'task-alarm'),
+      data: { url: isEntry ? '/' : '/?tab=task', ...options?.data },
       ...options
     };
     self.registration.showNotification(title, notificationOptions);
@@ -80,7 +81,7 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
-          if ('navigate' in client && client.url.indexOf(targetUrl) === -1) {
+          if (targetUrl && targetUrl !== '/' && 'navigate' in client && client.url.indexOf(targetUrl) === -1) {
             client.navigate(targetUrl);
           }
           return client.focus();

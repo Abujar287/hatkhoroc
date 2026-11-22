@@ -181,8 +181,10 @@ jobs:
           public class MainActivity extends BridgeActivity {
               private static final String APK_FILENAME = "hatkhoroc.apk";
               private static final String UPDATE_CHANNEL_ID = "hatkhoroc_app_updates";
+              private static final String ENTRY_CHANNEL_ID = "hatkhoroc_entry_alerts";
               private static final int UPDATE_NOTIF_ID = 7701;
               private static final int REQ_POST_NOTIFICATIONS = 7702;
+              private static final int ENTRY_NOTIF_BASE_ID = 7800;
               private static final String ACTION_INSTALL_DOWNLOADED_APK = "com.abujar.hatkhoroc.ACTION_INSTALL_UPDATE";
 
               private boolean pendingInstall = false;
@@ -199,6 +201,9 @@ jobs:
               private volatile String downloadError = "";
               private volatile long lastSystemNotifMs = 0L;
               private volatile int lastSystemNotifPct = -1;
+              private volatile String pendingEntryNotifTitle = null;
+              private volatile String pendingEntryNotifBody = null;
+              private volatile String pendingEntryNotifTag = null;
 
               private File downloadedApkFile = null;
               private Thread downloadThread = null;
@@ -349,12 +354,23 @@ jobs:
                           }
                       });
                   }
+
+                  @android.webkit.JavascriptInterface
+                  public void showEntryNotification(final String title, final String body, final String tag) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              postEntrySystemNotification(title, body, tag);
+                          }
+                      });
+                  }
               }
 
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   ensureUpdateNotificationChannel();
+                  ensureEntryNotificationChannel();
                   ensureNotificationPermission();
                   setupDownloadListener();
                   handleInstallNotificationIntent(getIntent());
@@ -401,6 +417,68 @@ jobs:
                   }
               }
 
+              private void ensureEntryNotificationChannel() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      try {
+                          NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                          if (nm == null) return;
+                          NotificationChannel existing = nm.getNotificationChannel(ENTRY_CHANNEL_ID);
+                          if (existing == null) {
+                              NotificationChannel channel = new NotificationChannel(
+                                  ENTRY_CHANNEL_ID,
+                                  "Entry & Transaction Alerts",
+                                  NotificationManager.IMPORTANCE_HIGH
+                              );
+                              channel.setDescription("Instant notifications when a new expense, income, task, or note entry is added");
+                              channel.setShowBadge(true);
+                              channel.enableLights(true);
+                              nm.createNotificationChannel(channel);
+                          }
+                      } catch (Exception ignored) {}
+                  }
+              }
+
+              private void postEntrySystemNotification(String title, String body, String tag) {
+                  String safeTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "হাত খরচ — New Entry Added";
+                  String safeBody = body != null ? body.trim() : "";
+                  String safeTag = (tag != null && !tag.trim().isEmpty()) ? tag.trim() : ("entry_" + System.currentTimeMillis());
+
+                  if (!hasNotificationPermission()) {
+                      pendingEntryNotifTitle = safeTitle;
+                      pendingEntryNotifBody = safeBody;
+                      pendingEntryNotifTag = safeTag;
+                      ensureNotificationPermission();
+                      return;
+                  }
+
+                  try {
+                      ensureEntryNotificationChannel();
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      if (nm == null) return;
+
+                      int notifId = ENTRY_NOTIF_BASE_ID + (Math.abs(safeTag.hashCode()) % 1000);
+
+                      NotificationCompat.Builder builder = new NotificationCompat.Builder(this, ENTRY_CHANNEL_ID)
+                          .setSmallIcon(android.R.drawable.ic_dialog_info)
+                          .setColor(0xFF0D9488)
+                          .setContentTitle(safeTitle)
+                          .setContentText(safeBody)
+                          .setStyle(new NotificationCompat.BigTextStyle().bigText(safeBody))
+                          .setSubText("হাত খরচ")
+                          .setAutoCancel(true)
+                          .setOnlyAlertOnce(false)
+                          .setWhen(System.currentTimeMillis())
+                          .setShowWhen(true)
+                          .setPriority(NotificationCompat.PRIORITY_HIGH)
+                          .setCategory(NotificationCompat.CATEGORY_STATUS)
+                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                          .setDefaults(NotificationCompat.DEFAULT_ALL)
+                          .setContentIntent(createOpenAppPendingIntent(null));
+
+                      nm.notify(notifId, builder.build());
+                  } catch (Exception ignored) {}
+              }
+
               private boolean hasNotificationPermission() {
                   if (Build.VERSION.SDK_INT >= 33) {
                       return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -429,6 +507,15 @@ jobs:
                           showDownloadProgressNotification(downloadProgress, downloadedBytes, totalBytes, true);
                       } else if ("ready".equals(downloadState)) {
                           showDownloadCompleteNotification(savedFilePath, totalBytes);
+                      }
+                      if (pendingEntryNotifTitle != null) {
+                          String pTitle = pendingEntryNotifTitle;
+                          String pBody = pendingEntryNotifBody;
+                          String pTag = pendingEntryNotifTag;
+                          pendingEntryNotifTitle = null;
+                          pendingEntryNotifBody = null;
+                          pendingEntryNotifTag = null;
+                          postEntrySystemNotification(pTitle, pBody, pTag);
                       }
                   }
               }

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import {
   initAudioUnlock,
+  notifyEntryAdded,
   setupWebPushSubscription,
   syncTasksToPushServer
 } from './utils/taskAlarmManager';
@@ -1046,6 +1047,15 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     const updated = [newTask, ...tasks];
     saveTasks(updated);
     playSound('success');
+    void notifyEntryAdded({
+      kind: 'Task',
+      title: newTask.title,
+      amount: newTask.amount,
+      date: newTask.dueDate,
+      time: newTask.dueTime,
+      note: newTask.notes,
+      targetTab: 'upcoming_cost'
+    });
 
     const payload = { action: 'insertTask', sheetTab: currentTab, ...newTask };
 
@@ -2041,6 +2051,12 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
       return updatedCats;
     });
     playSound('success');
+    void notifyEntryAdded({
+      kind: 'Note',
+      title: newNote.notename,
+      category: newNote.category,
+      targetTab: 'notepad'
+    });
 
     const payload = {
       action: 'addnote',
@@ -2900,6 +2916,14 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     pendingInsertMapRef.current.set(newTx.id, newTx);
     saveTransactionsLocally([newTx, ...transactions]);
     playSound('success');
+    void notifyEntryAdded({
+      kind: newTx.type === 'Income' ? 'Income' : 'Expense',
+      category: cleanCategoryName(newTx.category, 'en') || newTx.category,
+      amount: newTx.value,
+      date: newTx.date,
+      note: newTx.note,
+      targetTab: 'details'
+    });
     setCalcDisplay('0');
     setEntryCategory('');
     setEntryNote('');
@@ -2949,6 +2973,14 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     saveTransactionsLocally([newTx, ...transactions]);
     handleDeleteTask(task.id);
     playSound('success');
+    void notifyEntryAdded({
+      kind: 'Expense',
+      category: cleanCategoryName(newTx.category, 'en') || newTx.category,
+      amount: newTx.value,
+      date: newTx.date,
+      note: task.title,
+      targetTab: 'details'
+    });
 
     const payload = { action: 'insert', sheetTab: currentTab, ...newTx };
 
@@ -3056,6 +3088,11 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     } catch {}
 
     showToast(lang === 'en' ? `Category '${cleanCat}' added!` : `'${cleanCat}' ক্যাটাগরি গুগল শিটে যুক্ত হয়েছে!`, 'success');
+    void notifyEntryAdded({
+      kind: 'Category',
+      category: `${cleanCategoryName(cleanCat, 'en') || cleanCat} (${type})`,
+      targetTab: 'entry'
+    });
 
     const payload = {
       action: 'addcategory',
