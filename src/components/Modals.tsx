@@ -37,7 +37,14 @@ import {
 } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
-import { APP_VERSION, forceAppUpdateRefresh, getAppLastUpdateTime, recordUpdateAcknowledged } from '../utils/updateChecker';
+import {
+  APP_VERSION,
+  forceAppUpdateRefresh,
+  getAppLastUpdateTime,
+  getNativeInstalledInfo,
+  recordPendingUpdateInstall,
+  recordUpdateAcknowledged
+} from '../utils/updateChecker';
 import { CategoryIcon } from './CategoryIcon';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
@@ -2632,6 +2639,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   const webAbortRef = React.useRef<AbortController | null>(null);
   const webBlobUrlRef = React.useRef<string | null>(null);
   const webTimersRef = React.useRef<number[]>([]);
+  const nativeBuildNumberRef = React.useRef<number>(0);
 
   const apkUrl =
     updateInfo?.apkDownloadUrl ||
@@ -2645,11 +2653,12 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
   const defaultTotalBytes = updateInfo?.apkSizeBytes || Math.round(4.37 * 1024 * 1024);
 
   const markUpdateShaInstalled = React.useCallback(() => {
-    if (updateInfo?.latestSha) {
+    if (updateInfo?.latestSha || updateInfo?.releaseUpdatedAt || updateInfo?.latestBuildNumber) {
       recordUpdateAcknowledged(
-        updateInfo.latestSha,
-        updateInfo.newDateTime,
-        updateInfo.releaseUpdatedAt
+        updateInfo?.latestSha || '',
+        updateInfo?.newDateTime,
+        updateInfo?.releaseUpdatedAt,
+        updateInfo?.latestBuildNumber
       );
     }
   }, [updateInfo]);
@@ -2830,6 +2839,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setDownloadedBytes(received);
       setDownloadProgress(100);
       triggerBrowserApkSave(blobUrl);
+      markUpdateShaInstalled();
       const mbStr = (received / (1024 * 1024)).toFixed(2);
       void notifyBrowserDownload(
         t('হাত খরচ — Update Ready', 'হাত খরচ — আপডেট ডাউনলোড সম্পন্ন'),
@@ -2843,13 +2853,22 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setUpdatePhase('idle');
       setDownloadError(err?.message || t('Download failed. Please try again.', 'ডাউনলোড ব্যর্থ হয়েছে।'));
     }
-  }, [apkUrl, clearWebResources, defaultTotalBytes, notifyBrowserDownload, t, triggerBrowserApkSave]);
+  }, [apkUrl, clearWebResources, defaultTotalBytes, markUpdateShaInstalled, notifyBrowserDownload, t, triggerBrowserApkSave]);
 
   const handleInstallNow = React.useCallback(() => {
     setDownloadError('');
     const nativeUpdater = typeof window !== 'undefined' ? (window as any).AndroidNativeUpdater : null;
 
     if (nativeUpdater && typeof nativeUpdater.openInstaller === 'function') {
+      // Save pending update metadata BEFORE Android PackageInstaller kills/replaces this process
+      recordPendingUpdateInstall({
+        sha: updateInfo?.latestSha,
+        releaseUpdatedAt: updateInfo?.releaseUpdatedAt,
+        newDateTime: updateInfo?.newDateTime,
+        targetBuildNumber: updateInfo?.latestBuildNumber,
+        previousBuildNumber: nativeBuildNumberRef.current
+      });
+
       if (signatureMismatch && typeof nativeUpdater.forceUninstallAndInstall === 'function') {
         try {
           setUpdatePhase('installing');
@@ -2878,7 +2897,7 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       setUpdatePhase('installed');
     }, 1000);
     webTimersRef.current.push(timer);
-  }, [markUpdateShaInstalled, signatureMismatch, triggerBrowserApkSave]);
+  }, [markUpdateShaInstalled, signatureMismatch, triggerBrowserApkSave, updateInfo]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2898,6 +2917,9 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
       } catch {}
       return;
     }
+    void getNativeInstalledInfo().then((info) => {
+      nativeBuildNumberRef.current = info.buildNumber || 0;
+    });
     if (autoStartDownload) {
       void handleStartDownload();
     }

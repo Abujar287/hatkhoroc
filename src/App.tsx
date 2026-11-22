@@ -124,7 +124,15 @@ import {
   AppUpdateModal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
-import { checkGitHubForUpdates, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime, APP_VERSION } from './utils/updateChecker';
+import {
+  checkGitHubForUpdates,
+  getAppLastUpdateTime,
+  getNativeInstalledInfo,
+  reconcilePendingUpdateInstall,
+  recordUpdateDismissed,
+  UpdateInfo,
+  APP_VERSION
+} from './utils/updateChecker';
 
 function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[]): AppTab[] {
   const isSuper = role === 'super_admin' || username?.toLowerCase() === 'abujar287';
@@ -299,6 +307,15 @@ export default function App() {
 
   const [appLastUpdateTime, setAppLastUpdateTime] = useState<string>(() => getAppLastUpdateTime());
 
+  useEffect(() => {
+    void getNativeInstalledInfo().then((nativeInfo) => {
+      if (nativeInfo.buildNumber > 0) {
+        reconcilePendingUpdateInstall(nativeInfo.buildNumber);
+        setAppLastUpdateTime(getAppLastUpdateTime());
+      }
+    });
+  }, []);
+
   const handleCheckForUpdates = useCallback(async (isManual = false) => {
     try {
       if (isManual) {
@@ -319,9 +336,9 @@ export default function App() {
           return;
         }
 
-        // New version exists on GitHub! Start auto-download -> install -> Open flow immediately in-app
+        // Genuine newer APK release exists on GitHub! Show version diff modal so user can confirm Update
         setUpdateInfoModal(info);
-        setUpdateAutoStart(true);
+        setUpdateAutoStart(false);
         setShowUpdateModal(true);
       } else if (info && info.hasUpdate) {
         setUpdateInfoModal(info);
@@ -4184,8 +4201,8 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
       <AppUpdateModal 
         isOpen={showUpdateModal} 
         onClose={() => {
-          if (updateInfoModal?.latestSha) {
-            recordUpdateDismissed(updateInfoModal.latestSha);
+          if (updateInfoModal?.latestSha || updateInfoModal?.releaseUpdatedAt) {
+            recordUpdateDismissed(updateInfoModal.latestSha, updateInfoModal.releaseUpdatedAt);
           }
           setUpdateAutoStart(false);
           setShowUpdateModal(false);

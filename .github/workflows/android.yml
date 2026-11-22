@@ -34,8 +34,12 @@ jobs:
       - name: Inject Commit SHA into Web App
         run: |
           COMMIT_SHA="${{ github.sha }}"
+          BUILD_NUM=$((10000 + ${{ github.run_number }}))
+          BUILD_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           sed -i "s/export const CURRENT_BUILD_SHA = .*/export const CURRENT_BUILD_SHA = '${COMMIT_SHA}';/g" src/utils/updateChecker.ts || true
-          echo "Injected build SHA: $COMMIT_SHA"
+          sed -i "s/export const CURRENT_BUILD_NUMBER = .*/export const CURRENT_BUILD_NUMBER = ${BUILD_NUM};/g" src/utils/updateChecker.ts || true
+          sed -i "s/export const APP_BUILD_DATETIME = .*/export const APP_BUILD_DATETIME = '${BUILD_ISO}';/g" src/utils/updateChecker.ts || true
+          echo "Injected build SHA: $COMMIT_SHA | Build: $BUILD_NUM | Time: $BUILD_ISO"
 
       - name: Build Web App
         run: npm run build --if-present
@@ -275,6 +279,20 @@ jobs:
                               launchUninstallOnly();
                           }
                       });
+                  }
+
+                  @android.webkit.JavascriptInterface
+                  public String getAppBuildInfo() {
+                      try {
+                          PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                          long vc = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? pi.getLongVersionCode() : pi.versionCode;
+                          JSONObject obj = new JSONObject();
+                          obj.put("versionCode", vc);
+                          obj.put("versionName", pi.versionName != null ? pi.versionName : "");
+                          return obj.toString();
+                      } catch (Exception e) {
+                          return "{}";
+                      }
                   }
 
                   @android.webkit.JavascriptInterface
@@ -1171,7 +1189,7 @@ jobs:
         with:
           tag_name: latest
           name: "হাত খরচ - Latest Release"
-          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)।"
+          body: "স্বয়ংক্রিয়ভাবে জেনারেট হওয়া হাত খরচ অ্যান্ড্রয়েড অ্যাপ (hatkhoroc.apk)। [run:${{ github.run_number }}] [sha:${{ github.sha }}]"
           files: "apk_output/*"
           clobber: true
         env:
