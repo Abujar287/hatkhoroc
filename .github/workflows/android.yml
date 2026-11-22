@@ -38,8 +38,8 @@ jobs:
           COMMIT_SHA="${{ github.sha }}"
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           BUILD_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "195")
-          BASE_COMMIT=195
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "196")
+          BASE_COMMIT=196
           BASE_STEPS=14
           DELTA=$((COMMIT_COUNT - BASE_COMMIT))
           if [ "$DELTA" -lt 0 ]; then DELTA=0; fi
@@ -1141,18 +1141,18 @@ jobs:
           with open(gradle_path, "r", encoding="utf-8") as f:
               content = f.read()
 
-          signing_block = """
-    signingConfigs {
-        release {
-            storeFile file('../../keystore/hatkhoroc.keystore')
-            storePassword 'hatkhoroc2026'
-            keyAlias 'hatkhoroc'
-            keyPassword 'hatkhoroc2026'
-            v1SigningEnabled true
-            v2SigningEnabled true
-        }
-    }
-"""
+          signing_block = (
+              "\n    signingConfigs {\n"
+              "        release {\n"
+              "            storeFile file('../../keystore/hatkhoroc.keystore')\n"
+              "            storePassword 'hatkhoroc2026'\n"
+              "            keyAlias 'hatkhoroc'\n"
+              "            keyPassword 'hatkhoroc2026'\n"
+              "            v1SigningEnabled true\n"
+              "            v2SigningEnabled true\n"
+              "        }\n"
+              "    }\n"
+          )
           if "signingConfigs {" not in content:
               content = content.replace("android {", "android {\n" + signing_block, 1)
 
