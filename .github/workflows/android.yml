@@ -38,8 +38,8 @@ jobs:
           COMMIT_SHA="${{ github.sha }}"
           BUILD_NUM=$((10000 + ${{ github.run_number }}))
           BUILD_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "196")
-          BASE_COMMIT=196
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "197")
+          BASE_COMMIT=197
           BASE_STEPS=14
           DELTA=$((COMMIT_COUNT - BASE_COMMIT))
           if [ "$DELTA" -lt 0 ]; then DELTA=0; fi
@@ -1153,22 +1153,24 @@ jobs:
               "        }\n"
               "    }\n"
           )
-          if "signingConfigs {" not in content:
-              content = content.replace("android {", "android {\n" + signing_block, 1)
-
           if "resConfigs" not in content:
               content = content.replace("defaultConfig {", 'defaultConfig {\n        resConfigs "en", "bn"', 1)
 
           content = re.sub(r"minifyEnabled\s+false", "minifyEnabled true", content)
           if "shrinkResources" not in content:
               content = content.replace("minifyEnabled true", "minifyEnabled true\n            shrinkResources true")
+
           if "signingConfig signingConfigs.release" not in content and "buildTypes {" in content:
-              content = content.replace(
-                  "release {",
-                  "release {\n            signingConfig signingConfigs.release",
-                  1
+              content = re.sub(
+                  r"(buildTypes\s*\{[\s\S]*?\brelease\s*\{)",
+                  r"\1\n            signingConfig signingConfigs.release",
+                  content,
+                  count=1
               )
           content = re.sub(r'signingConfig\s+signingConfigs\.\w+', 'signingConfig signingConfigs.release', content)
+
+          if "signingConfigs {" not in content:
+              content = content.replace("android {", "android {\n" + signing_block, 1)
 
           with open(gradle_path, "w", encoding="utf-8") as f:
               f.write(content)
