@@ -59,6 +59,17 @@ export interface UpdateInfo {
   actionsUrl: string;
   apkDownloadUrl: string;
   apkSizeBytes?: number;
+  releaseUpdatedAt?: string;
+}
+
+export function isNativeAndroidApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    Boolean((window as any).AndroidNativeUpdater) ||
+    Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'file:'
+  );
 }
 
 /**
@@ -95,10 +106,10 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
     const commitAuthor = data.commit?.author?.name || 'Developer';
     const commitDate = data.commit?.author?.date || data.commit?.committer?.date || new Date().toISOString();
     const formattedCommitDate = formatAppUpdateDateTime(commitDate);
-    setAppLastUpdateTime(formattedCommitDate);
     const htmlUrl = data.html_url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
     let apkDownloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/latest/hatkhoroc.apk`;
     let apkSizeBytes: number | undefined;
+    let releaseUpdatedAt = '';
 
     if (releaseRes && releaseRes.ok) {
       try {
@@ -113,20 +124,34 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
         if (typeof apkAsset?.size === 'number' && apkAsset.size > 0) {
           apkSizeBytes = apkAsset.size;
         }
+        releaseUpdatedAt = String(apkAsset?.updated_at || relJson?.published_at || '');
       } catch {}
     }
 
     const installedSha = localStorage.getItem('app_installed_sha');
     const dismissedSha = localStorage.getItem('app_dismissed_sha');
+    const installedReleaseAt = localStorage.getItem('app_installed_release_at');
+    const isRealBuildSha = Boolean(CURRENT_BUILD_SHA && !CURRENT_BUILD_SHA.startsWith('forced-update-sha'));
+    const isNative = isNativeAndroidApp();
 
-    const isAlreadyOnLatest = 
-      (CURRENT_BUILD_SHA && CURRENT_BUILD_SHA === latestSha) ||
-      (installedSha && installedSha === latestSha);
+    const isAlreadyOnLatest =
+      (isRealBuildSha && CURRENT_BUILD_SHA === latestSha) ||
+      (Boolean(installedSha) && installedSha === latestSha) ||
+      (Boolean(releaseUpdatedAt) && Boolean(installedReleaseAt) && installedReleaseAt === releaseUpdatedAt);
+
+    if (isAlreadyOnLatest && isRealBuildSha) {
+      setAppLastUpdateTime(formattedCommitDate);
+    }
 
     let hasUpdate = !isAlreadyOnLatest;
 
+    // On automatic background checks (!force):
+    // 1. Never nag again for the same SHA once dismissed.
+    // 2. On hosted Web/PWA where CURRENT_BUILD_SHA isn't stamped by Android CI, don't auto-popup APK installer.
     if (!force && hasUpdate) {
-      if (dismissedSha === latestSha && isUpdateDismissedRecently()) {
+      if (dismissedSha === latestSha) {
+        hasUpdate = false;
+      } else if (!isNative && !isRealBuildSha) {
         hasUpdate = false;
       }
     }
@@ -136,7 +161,7 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       currentSha: CURRENT_BUILD_SHA,
       latestSha,
       currentVersion: APP_VERSION,
-      currentDateTime: APP_BUILD_DATETIME,
+      currentDateTime: getAppLastUpdateTime(),
       newVersion: APP_VERSION,
       newDateTime: formattedCommitDate,
       commitMessage,
@@ -146,7 +171,8 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
       releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
       actionsUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`,
       apkDownloadUrl,
-      apkSizeBytes
+      apkSizeBytes,
+      releaseUpdatedAt
     };
   } catch (err) {
     console.warn('Error checking GitHub updates:', err);
@@ -156,10 +182,12 @@ export async function checkGitHubForUpdates(force: boolean = false): Promise<Upd
 
 export function isUpdateDismissedRecently(): boolean {
   try {
+    const dismissedSha = localStorage.getItem('app_dismissed_sha');
+    if (dismissedSha) return true;
     const dismissedAt = localStorage.getItem('app_update_dismissed_at');
     if (!dismissedAt) return false;
     const diffHours = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60);
-    return diffHours < 4;
+    return diffHours < 24;
   } catch {
     return false;
   }
@@ -174,10 +202,18 @@ export function recordUpdateDismissed(sha?: string) {
   } catch {}
 }
 
-export function recordUpdateAcknowledged(sha: string) {
+export function recordUpdateAcknowledged(sha: string, newDateTime?: string, releaseUpdatedAt?: string) {
   try {
-    localStorage.setItem('app_installed_sha', sha);
-    localStorage.setItem('app_dismissed_sha', sha);
+    if (sha) {
+      localStorage.setItem('app_installed_sha', sha);
+      localStorage.setItem('app_dismissed_sha', sha);
+    }
+    if (releaseUpdatedAt) {
+      localStorage.setItem('app_installed_release_at', releaseUpdatedAt);
+    }
+    if (newDateTime) {
+      setAppLastUpdateTime(newDateTime);
+    }
     localStorage.removeItem('app_update_dismissed_at');
   } catch {}
 }
@@ -196,8 +232,6 @@ export async function forceAppUpdateRefresh() {
         await caches.delete(name);
       }
     }
-    localStorage.removeItem('app_installed_sha');
-    localStorage.removeItem('app_dismissed_sha');
   } catch (err) {
     console.warn('Error clearing caches/SW:', err);
   }

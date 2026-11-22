@@ -124,7 +124,7 @@ import {
   AppUpdateModal
 } from './components/Modals';
 import { usePWAInstall } from './usePWAInstall';
-import { checkGitHubForUpdates, isUpdateDismissedRecently, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime, APP_VERSION } from './utils/updateChecker';
+import { checkGitHubForUpdates, recordUpdateDismissed, UpdateInfo, getAppLastUpdateTime, APP_VERSION } from './utils/updateChecker';
 
 function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[]): AppTab[] {
   const isSuper = role === 'super_admin' || username?.toLowerCase() === 'abujar287';
@@ -345,12 +345,14 @@ export default function App() {
     if (!isAuthenticated) return;
     const checkUpdate = async () => {
       try {
-        const info = await checkGitHubForUpdates();
+        const info = await checkGitHubForUpdates(false);
         setAppLastUpdateTime(getAppLastUpdateTime());
-        if (info && info.hasUpdate && !isUpdateDismissedRecently()) {
+        if (info && info.hasUpdate) {
           setUpdateInfoModal(info);
           setUpdateAutoStart(false);
           setShowUpdateModal(true);
+        } else {
+          setUpdateInfoModal(null);
         }
       } catch (err) {
         console.warn('Auto update check failed', err);
@@ -679,11 +681,13 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
 
   useEffect(() => {
     const syncUsers = () => {
+      // On login screen, only pre-fetch if local user cache is empty (fresh install)
+      if (!isAuthenticated && usersRef.current.length > 1) return;
       if (isAuthenticated) {
         setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
       }
-      const url = `/api/sheet-proxy?action=getusers`;
-      fetchSheetApi(url)
+      const url = `/api/sheet-proxy?action=getusers&fast=1`;
+      fetchSheetApi(url, undefined, 8000)
         .then(async res => {
           if (!res.ok) {
             const text = await res.text();
@@ -735,6 +739,14 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                   u.username && u.username.toLowerCase() === myLower
                 );
                 if (updatedMe) {
+                  if (updatedMe.isActive === false && myLower !== 'abujar287') {
+                    setIsAuthenticated(false);
+                    setCurrentUser(null);
+                    localStorage.removeItem('active_user_v2');
+                    localStorage.removeItem('app_remember_login');
+                    showToast(lang === 'en' ? 'This account is currently inactive' : 'এই একাউন্টটি বর্তমানে নিষ্ক্রিয় আছে', 'error');
+                    return;
+                  }
                   setCurrentUser(updatedMe);
                   localStorage.setItem('active_user_v2', JSON.stringify(updatedMe));
                 }
@@ -776,7 +788,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
   }, [isAuthenticated, currentUser?.username, mapUserFromSheet, refreshMissingUserRecordCounts]);
 
   // Login form state
-  const [loginUsername, setLoginUsername] = useState<string>('abujar287');
+  const [loginUsername, setLoginUsername] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string>('');
@@ -2572,7 +2584,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
         if (Array.isArray(data.users) && data.users.length > 0) {
           applySyncedUsers(data.users);
         } else {
-          fetchSheetApi('/api/sheet-proxy?action=getusers')
+          fetchSheetApi('/api/sheet-proxy?action=getusers&fast=1', undefined, 8000)
             .then(async uRes => {
               if (!uRes.ok) return;
               const uText = await uRes.text();
@@ -3081,62 +3093,25 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoggingIn(true);
     setLoginError('');
     const cleanU = loginUsername.trim().toLowerCase();
     const cleanP = loginPassword.trim();
 
     if (!cleanU || !cleanP) {
       setLoginError(lang === 'en' ? 'Please enter username and password' : 'ইউজারনেম এবং পাসওয়ার্ড দিন');
-      setIsLoggingIn(false);
       return;
     }
 
-    let candidateUsers = users;
-
-    // Fetch latest Sheet users before authentication when online so fresh installs or updated Sheet passwords always work
-    if (typeof navigator === 'undefined' || navigator.onLine) {
-      try {
-        const res = await fetchSheetApi('/api/sheet-proxy?action=getusers');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && Array.isArray(data.users) && data.users.length > 0) {
-            const pendingDeleteUsernames = getDeletedUsernamesSet();
-            const syncedList = data.users
-              .map((rawU: any) => mapUserFromSheet(rawU, usersRef.current))
-              .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
-            candidateUsers = syncedList;
-            setUsers(syncedList);
-            try {
-              localStorage.setItem('app_registered_users_v2', JSON.stringify(syncedList));
-            } catch {}
-          }
-        }
-      } catch {}
-    }
-
-    if (!candidateUsers.some(u => u.username.toLowerCase() === 'abujar287')) {
-      candidateUsers = [DEFAULT_SUPERADMIN_USER, ...candidateUsers];
-    }
-
-    const target = candidateUsers.find(u => u.username.toLowerCase() === cleanU);
-
-    if (target && target.isActive === false) {
-      setLoginError(lang === 'en' ? 'This account is currently inactive' : 'এই একাউন্টটি বর্তমানে নিষ্ক্রিয় আছে');
-      showToast(lang === 'en' ? 'This account is currently inactive' : 'এই একাউন্টটি বর্তমানে নিষ্ক্রিয় আছে', 'error');
-      setIsLoggingIn(false);
-      return;
-    }
-
-    const isSuperAdminMatch = cleanU === 'abujar287' && cleanP === 'abujar';
-    const isPasswordCorrect = isSuperAdminMatch || (target && target.password && target.password === cleanP);
-
-    if (target && isPasswordCorrect) {
+    const completeLogin = (target: AppUser, isSuperAdminMatch: boolean) => {
       const normalizedTarget: AppUser = {
         ...target,
         password: isSuperAdminMatch ? 'abujar' : (target.password || cleanP),
-        role: target.username === 'abujar287' ? 'super_admin' : target.role,
-        allowedTabs: normalizeUserTabs(target.username === 'abujar287' ? 'super_admin' : target.role, target.username, target.allowedTabs)
+        role: target.username.toLowerCase() === 'abujar287' ? 'super_admin' : target.role,
+        allowedTabs: normalizeUserTabs(
+          target.username.toLowerCase() === 'abujar287' ? 'super_admin' : target.role,
+          target.username,
+          target.allowedTabs
+        )
       };
       setCurrentUser(normalizedTarget);
       setIsAuthenticated(true);
@@ -3149,16 +3124,79 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
       }
       showToast(lang === 'en' ? `Welcome, ${normalizedTarget.displayName}!` : `স্বাগতম, ${normalizedTarget.displayName}!`, 'success');
       setLoginError('');
+      setIsLoggingIn(false);
+    };
+
+    const withSuperAdminFallback = (list: AppUser[]) =>
+      list.some(u => u.username.toLowerCase() === 'abujar287')
+        ? list
+        : [DEFAULT_SUPERADMIN_USER, ...list];
+
+    // 1. Check local cache first for instant sign-in
+    const localCandidates = withSuperAdminFallback(usersRef.current);
+    const localTarget = localCandidates.find(u => u.username.toLowerCase() === cleanU);
+    const isSuperAdminMatch = cleanU === 'abujar287' && cleanP === 'abujar';
+    const isLocalMatch = Boolean(
+      localTarget &&
+      localTarget.isActive !== false &&
+      (isSuperAdminMatch || (localTarget.password && localTarget.password === cleanP))
+    );
+
+    if (localTarget && isLocalMatch) {
+      completeLogin(localTarget, isSuperAdminMatch);
+      return;
+    }
+
+    // 2. If not matched locally (fresh device, new user, or updated Sheet password), fetch Sheet users in fast mode
+    setIsLoggingIn(true);
+    let candidateUsers = localCandidates;
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      try {
+        const res = await fetchSheetApi('/api/sheet-proxy?action=getusers&fast=1', undefined, 7000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.users) && data.users.length > 0) {
+            const pendingDeleteUsernames = getDeletedUsernamesSet();
+            const syncedList = data.users
+              .map((rawU: any) => mapUserFromSheet(rawU, usersRef.current))
+              .filter((u: AppUser) => !pendingDeleteUsernames.has(u.username.trim().toLowerCase()));
+            candidateUsers = withSuperAdminFallback(syncedList);
+            setUsers(candidateUsers);
+            try {
+              localStorage.setItem('app_registered_users_v2', JSON.stringify(candidateUsers));
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    const target = candidateUsers.find(u => u.username.toLowerCase() === cleanU);
+
+    if (target && target.isActive === false) {
+      setLoginError(lang === 'en' ? 'This account is currently inactive' : 'এই একাউন্টটি বর্তমানে নিষ্ক্রিয় আছে');
+      showToast(lang === 'en' ? 'This account is currently inactive' : 'এই একাউন্টটি বর্তমানে নিষ্ক্রিয় আছে', 'error');
+      setIsLoggingIn(false);
+      return;
+    }
+
+    const isPasswordCorrect = isSuperAdminMatch || (target && target.password && target.password === cleanP);
+
+    if (target && isPasswordCorrect) {
+      completeLogin(target, isSuperAdminMatch);
     } else {
       setLoginError(lang === 'en' ? 'Invalid username or password' : 'ইউজারনেম অথবা পাসওয়ার্ড ভুল হয়েছে');
       showToast(lang === 'en' ? 'Invalid username or password' : 'ইউজারনেম অথবা পাসওয়ার্ড ভুল হয়েছে', 'error');
+      setIsLoggingIn(false);
     }
-    setIsLoggingIn(false);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setLoginUsername('');
+    setLoginPassword('');
+    setLoginError('');
     localStorage.removeItem('active_user_v2');
     localStorage.removeItem('app_remember_login');
   };
@@ -3642,7 +3680,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
               type="text"
               value={loginUsername}
               onChange={e => setLoginUsername(e.target.value)}
-              placeholder="Username"
+              placeholder="Enter your username"
               className="w-full p-3 bg-white border border-teal-700/70 text-slate-900 rounded-xl focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 placeholder:text-slate-400 font-medium"
               required
             />
@@ -3900,6 +3938,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                 <Upcoming3MonthTab
                   expenseCategories={expenseCategories}
                   monthMappings={monthMappings}
+                  transactions={transactions}
                   selectedMonth={selectedMonth}
                   currentTab={currentTab}
                   remotePlan={upcoming3MonthRemotePlan}
@@ -3940,7 +3979,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                   onOpenSettings={() => setActiveTab('settings')}
                   onManualSync={() => {
                     setUserSyncStatus(prev => ({ ...prev, loading: true, error: null }));
-                    fetchSheetApi(`/api/sheet-proxy?action=getusers`)
+                    fetchSheetApi(`/api/sheet-proxy?action=getusers&fast=1`, undefined, 8000)
                       .then(async res => {
                         if (!res.ok) throw new Error(`HTTP ${res.status}`);
                         return res.json();

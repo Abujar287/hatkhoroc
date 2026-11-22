@@ -16,20 +16,23 @@ import {
   Edit3,
   X
 } from 'lucide-react';
-import { BouGiftEntry, MonthMapping, Upcoming3MonthPlan } from '../types';
+import { BouGiftEntry, MonthMapping, Transaction, Upcoming3MonthPlan } from '../types';
 import {
   cleanMappingLabel,
+  findMonthMapping,
   formatNumberLocale,
   getMonthKeyFromLabel,
   normalizeDate,
   formatMonth2DigitYear
 } from '../utils/dateUtils';
 import { cleanCategoryName } from '../utils/categoryUtils';
+import { evaluateExpression } from '../utils/calcUtils';
 import { CategoryIcon } from './CategoryIcon';
 
 interface Upcoming3MonthTabProps {
   expenseCategories: string[];
   monthMappings: MonthMapping[];
+  transactions: Transaction[];
   selectedMonth: string;
   currentTab: string;
   remotePlan?: Upcoming3MonthPlan | null;
@@ -154,9 +157,21 @@ function parseNumericInput(raw: string): number {
   return isNaN(num) ? 0 : Math.max(0, num);
 }
 
+function parseSignedNumericInput(raw: string): number {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '-') return 0;
+  const isNeg = trimmed.startsWith('-');
+  const cleaned = trimmed.replace(/[^0-9.]/g, '');
+  if (!cleaned) return 0;
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+  return isNeg ? -num : num;
+}
+
 export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
   expenseCategories,
   monthMappings,
+  transactions,
   selectedMonth,
   currentTab,
   remotePlan,
@@ -302,7 +317,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
     } catch {}
   }, [remoteBouGift, remoteBouGiftVersion, bouStorageKey]);
 
-  // Default month from Month Mapping -> compute next 3 months (+1, +2, +3)
+  // Default month from Month Mapping -> compute default month + next 2 months (0, +1, +2)
   const { defaultMonthLabel, upcomingMonths } = useMemo(() => {
     const defMapping = monthMappings.find(m => m.isDefault);
     const rawBaseLabel = defMapping?.label || selectedMonth || '';
@@ -329,7 +344,7 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
     }
 
     const slots: UpcomingMonthSlot[] = [];
-    for (let offset = 1; offset <= 3; offset++) {
+    for (let offset = 0; offset <= 2; offset++) {
       const d = new Date(baseYear, baseMonth - 1 + offset, 1);
       const y = d.getFullYear();
       const m = d.getMonth() + 1;
@@ -380,6 +395,112 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
     ],
     [upcomingMonths]
   );
+
+  // Month-wise Monthly Balance (Income - Expense) for each of the 3 slots
+  const monthlyBalanceData = useMemo(() => {
+    return upcomingMonths.map(slot => {
+      const mapping =
+        findMonthMapping(monthMappings, slot.label) ||
+        findMonthMapping(monthMappings, slot.key);
+
+      let income = 0;
+      let expense = 0;
+      let txCount = 0;
+
+      if (mapping) {
+        const start = normalizeDate(mapping.startDate);
+        const end = normalizeDate(mapping.endDate);
+        const sDate = start <= end ? start : end;
+        const eDate = start <= end ? end : start;
+        transactions.forEach(tx => {
+          const d = normalizeDate(tx.date);
+          if (d >= sDate && d <= eDate) {
+            const val = Math.abs(evaluateExpression(tx.value));
+            if (tx.type === 'Income') income += val;
+            else expense += val;
+            txCount += 1;
+          }
+        });
+      } else {
+        transactions.forEach(tx => {
+          const d = normalizeDate(tx.date);
+          if (d.startsWith(slot.key)) {
+            const val = Math.abs(evaluateExpression(tx.value));
+            if (tx.type === 'Income') income += val;
+            else expense += val;
+            txCount += 1;
+          }
+        });
+      }
+
+      return {
+        income,
+        expense,
+        balance: Math.round((income - expense) * 100) / 100,
+        hasTx: txCount > 0
+      };
+    });
+  }, [upcomingMonths, monthMappings, transactions]);
+
+  const manualSalaryOverrideRef = useRef<Set<string>>(new Set());
+
+  // Reset manual overrides when active user tab changes
+  useEffect(() => {
+    manualSalaryOverrideRef.current.clear();
+  }, [currentTab]);
+
+  // Auto-populate Funds & Arrear -> Salary with each month's Monthly Balance
+  useEffect(() => {
+    setPlan(prev => {
+      let changed = false;
+      const nextSalary: [number, number, number] = [...prev.salary] as [number, number, number];
+      const prevLabels = prev.monthLabels || ['', '', ''];
+
+      for (let i = 0; i < 3; i++) {
+        const slot = upcomingMonths[i];
+        const mStat = monthlyBalanceData[i];
+        if (!slot || !mStat) continue;
+
+        if (mStat.hasTx && !manualSalaryOverrideRef.current.has(slot.key)) {
+          if (Number(nextSalary[i]) !== mStat.balance) {
+            nextSalary[i] = mStat.balance;
+            changed = true;
+          }
+        } else if (!mStat.hasTx && prevLabels.some(Boolean)) {
+          // If default month shifted, carry forward any manually entered salary by matching month key
+          const prevKeyAtIdx = getMonthKeyFromLabel(prevLabels[i] || '');
+          if (prevKeyAtIdx && prevKeyAtIdx !== slot.key) {
+            const matchingOldIdx = prevLabels.findIndex(lbl => getMonthKeyFromLabel(lbl) === slot.key);
+            const carried = matchingOldIdx !== -1 ? (Number(prev.salary[matchingOldIdx]) || 0) : 0;
+            if (Number(nextSalary[i]) !== carried) {
+              nextSalary[i] = carried;
+              changed = true;
+            }
+          }
+        }
+      }
+
+      const labelsChanged =
+        (prev.monthLabels?.[0] || '') !== monthLabelsTuple[0] ||
+        (prev.monthLabels?.[1] || '') !== monthLabelsTuple[1] ||
+        (prev.monthLabels?.[2] || '') !== monthLabelsTuple[2];
+
+      if (!changed && !labelsChanged) return prev;
+
+      const updated: Upcoming3MonthPlan = {
+        ...prev,
+        monthLabels: monthLabelsTuple,
+        salary: nextSalary
+      };
+      if (changed) {
+        isDirtyRef.current = true;
+      }
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, [monthlyBalanceData, upcomingMonths, monthLabelsTuple, storageKey, remotePlanVersion]);
 
   // Debounced auto-save to Google Sheet AS2:AV whenever edited
   useEffect(() => {
@@ -584,7 +705,17 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
   };
 
   const handleFundingChange = (field: 'salary' | 'have' | 'loan', monthIdx: 0 | 1 | 2, rawVal: string) => {
-    const num = parseNumericInput(rawVal);
+    const num = field === 'salary' ? parseSignedNumericInput(rawVal) : parseNumericInput(rawVal);
+    if (field === 'salary') {
+      const slotKey = upcomingMonths[monthIdx]?.key;
+      if (slotKey) {
+        if (!rawVal.trim() && monthlyBalanceData[monthIdx]?.hasTx) {
+          manualSalaryOverrideRef.current.delete(slotKey);
+        } else {
+          manualSalaryOverrideRef.current.add(slotKey);
+        }
+      }
+    }
     updatePlan(prev => {
       const tuple = [...prev[field]] as [number, number, number];
       tuple[monthIdx] = num;
@@ -999,24 +1130,49 @@ export const Upcoming3MonthTab: React.FC<Upcoming3MonthTabProps> = ({
             ).map(row => {
               const rowVals = plan[row.key];
               const rowSum = (Number(rowVals[0]) || 0) + (Number(rowVals[1]) || 0) + (Number(rowVals[2]) || 0);
+              const hasAnyAutoSalary = row.key === 'salary' && monthlyBalanceData.some(m => m.hasTx);
               return (
                 <tr key={row.key} className="hover:bg-teal-900/30">
                   <td className="py-1 px-1.5 sm:px-3 font-bold border-r border-teal-800/60">
-                    {row.label}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span>{row.label}</span>
+                      {hasAnyAutoSalary && (
+                        <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-950/90 border border-emerald-600/50 text-emerald-300 font-bold uppercase tracking-wider">
+                          Auto
+                        </span>
+                      )}
+                    </div>
                   </td>
                   {[0, 1, 2].map(idx => {
                     const val = Number(rowVals[idx]) || 0;
+                    const mStat = monthlyBalanceData[idx];
+                    const isAuto = row.key === 'salary' && Boolean(mStat?.hasTx);
                     return (
                       <td key={idx} className="py-0.5 px-0.5 sm:px-2 text-center">
                         <input
                           type="text"
                           inputMode="numeric"
-                          value={val > 0 ? String(val) : ''}
+                          value={
+                            row.key === 'salary'
+                              ? (val !== 0 ? String(val) : (isAuto ? '0' : ''))
+                              : (val > 0 ? String(val) : '')
+                          }
                           onChange={e =>
                             handleFundingChange(row.key, idx as 0 | 1 | 2, e.target.value)
                           }
+                          title={
+                            isAuto
+                              ? `Auto Monthly Balance (${upcomingMonths[idx]?.displayLabel || ''}): ${formatNumberLocale(mStat.balance, lang)}`
+                              : undefined
+                          }
                           placeholder="0"
-                          className="w-full h-6 sm:h-7 bg-white border border-teal-700/70 rounded-md px-1 sm:px-1.5 text-center text-[10px] sm:text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums"
+                          className={`w-full h-6 sm:h-7 bg-white border rounded-md px-1 sm:px-1.5 text-center text-[10px] sm:text-xs font-bold placeholder:text-slate-400 focus:outline-none focus:border-emerald-400 tabular-nums ${
+                            row.key === 'salary' && val < 0
+                              ? 'text-rose-600 border-rose-500/70'
+                              : isAuto
+                                ? 'text-emerald-900 border-emerald-500/70'
+                                : 'text-slate-900 border-teal-700/70'
+                          }`}
                         />
                       </td>
                     );

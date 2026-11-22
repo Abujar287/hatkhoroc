@@ -87,7 +87,10 @@ async function startServer() {
 
         if (action === 'getusers' || action === 'users') {
           if (json && Array.isArray(json.users)) {
-            json.users = await enrichUsersWithRecordCounts(json.users);
+            const skipEnrich = req.query.fast === '1' || req.query.skipEnrich === '1' || req.body?.fast === true;
+            if (!skipEnrich) {
+              json.users = await enrichUsersWithRecordCounts(json.users);
+            }
             return res.json(json);
           }
           return res.json({
@@ -113,7 +116,10 @@ async function startServer() {
 
         if (action === 'getusers' || action === 'users') {
           if (json && Array.isArray(json.users)) {
-            json.users = await enrichUsersWithRecordCounts(json.users);
+            const skipEnrich = req.query.fast === '1' || req.query.skipEnrich === '1';
+            if (!skipEnrich) {
+              json.users = await enrichUsersWithRecordCounts(json.users);
+            }
             return res.json(json);
           }
           return res.json({

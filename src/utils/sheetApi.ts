@@ -23,7 +23,8 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 1
 
 export async function fetchSheetApi(
   endpointOrQuery: string,
-  options?: RequestInit
+  options?: RequestInit,
+  timeoutMs = 15000
 ): Promise<Response> {
   const isNativeApp =
     typeof window !== 'undefined' &&
@@ -72,7 +73,7 @@ export async function fetchSheetApi(
   }
 
   try {
-    const res = await fetchWithTimeout(targetUrl, finalOptions);
+    const res = await fetchWithTimeout(targetUrl, finalOptions, timeoutMs);
     if (res.ok) return res;
 
     // Fallback to direct URL if web proxy returned non-ok error
@@ -80,16 +81,20 @@ export async function fetchSheetApi(
       const fallbackUrl = endpointOrQuery.includes('?')
         ? `${DIRECT_GOOGLE_SCRIPT_URL}?${endpointOrQuery.split('?')[1]}`
         : DIRECT_GOOGLE_SCRIPT_URL;
-      return await fetchWithTimeout(fallbackUrl, finalOptions);
+      return await fetchWithTimeout(fallbackUrl, finalOptions, Math.min(timeoutMs, 8000));
     }
     return res;
-  } catch (err) {
+  } catch (err: any) {
+    // Do not wait a second full timeout cycle if the first call already timed out
+    if (err?.name === 'AbortError') {
+      throw err;
+    }
     // Fallback to direct Google Apps Script URL if network error / 404 on proxy
     if (targetUrl !== DIRECT_GOOGLE_SCRIPT_URL) {
       const fallbackUrl = endpointOrQuery.includes('?')
         ? `${DIRECT_GOOGLE_SCRIPT_URL}?${endpointOrQuery.split('?')[1]}`
         : DIRECT_GOOGLE_SCRIPT_URL;
-      return await fetchWithTimeout(fallbackUrl, finalOptions);
+      return await fetchWithTimeout(fallbackUrl, finalOptions, Math.min(timeoutMs, 8000));
     }
     throw err;
   }

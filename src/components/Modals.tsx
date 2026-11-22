@@ -37,7 +37,7 @@ import {
 } from '../utils/categoryUtils';
 import { evaluateExpression } from '../utils/calcUtils';
 import { GOOGLE_APPS_SCRIPT_CODE_V7 } from '../constants/appsScriptCode';
-import { APP_VERSION, forceAppUpdateRefresh, getAppLastUpdateTime } from '../utils/updateChecker';
+import { APP_VERSION, forceAppUpdateRefresh, getAppLastUpdateTime, recordUpdateAcknowledged } from '../utils/updateChecker';
 import { CategoryIcon } from './CategoryIcon';
 
 // Global Portal Wrapper to guarantee modals render at viewport center with no parent scroll displacement
@@ -2646,11 +2646,11 @@ export const AppUpdateModal: React.FC<AppUpdateModalProps> = ({
 
   const markUpdateShaInstalled = React.useCallback(() => {
     if (updateInfo?.latestSha) {
-      try {
-        localStorage.setItem('app_installed_sha', updateInfo.latestSha);
-        localStorage.setItem('app_dismissed_sha', updateInfo.latestSha);
-        localStorage.removeItem('app_update_dismissed_at');
-      } catch {}
+      recordUpdateAcknowledged(
+        updateInfo.latestSha,
+        updateInfo.newDateTime,
+        updateInfo.releaseUpdatedAt
+      );
     }
   }, [updateInfo]);
 
