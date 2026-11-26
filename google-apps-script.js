@@ -2,7 +2,7 @@
 // হাত খরচ: গুগল শিট Apps Script কোড (Code.gs)
 // ভার্সন: 7.1 (Unified 1-Tab Multi-User Architecture - 100% Dynamic Sync)
 // প্রতিটি ইউজারের জন্য সম্পূর্ণ ডেটা একটি ট্যাবেই সংরক্ষিত হবে:
-// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ (+AR meta)] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Notepad: BB-BF] [Pocket Audit: BH-BM]
+// [Entry: A-G] [Budget: I-M] [Category: O-P] [month mapping: R-V] [Tasks: X-AJ] [Users: AL-AQ (+AR meta)] [Upcoming 3 Month: AS-AV] [Bou Gift: AX-AZ] [Pocket Audit: BB-BG]
 // কোনো এন্ট্রি ডিলিট করলে শুধুমাত্র সেই কলাম রেঞ্জ ডিলিট হবে, ডানের কলামের ডেটা অক্ষত থাকবে!
 // ====================================================================
 
@@ -256,26 +256,7 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ৫.১১ নোটপ্যাড নোট যোগ, আপডেট ও ডিলিট (BB:BF কলাম - প্রতিটি ইউজারের নিজস্ব শিট ট্যাবে)
-    if (action === 'addnote' || action === 'insertnote') {
-      var addedNote = insertNoteToRange(sheet, data);
-      return ContentService.createTextOutput(JSON.stringify({
-        result: 'success',
-        sheetTab: sheet.getName(),
-        note: addedNote,
-        message: 'নোট BB:BF কলামে নিচে সেভ হয়েছে'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (action === 'updatenote') {
-      return handleUpdateNoteRange(sheet, data);
-    }
-
-    if (action === 'deletenote') {
-      return handleDeleteNoteRange(sheet, data, e ? e.parameter : null);
-    }
-
-    // ৫.১২ পকেট ব্যালেন্স অডিট সেভ (SAVE POCKET AUDIT - BH:BM কলামে সেভ)
+    // ৫.১২ পকেট ব্যালেন্স অডিট সেভ (SAVE POCKET AUDIT - BB:BG কলামে সেভ)
     if (action === 'savepocketaudit' || action === 'pocketaudit') {
       var auditMonth = String(data.month || '_default').trim() || '_default';
       savePocketAuditToRange(sheet, auditMonth, data.metrics || data);
@@ -283,7 +264,7 @@ function doPost(e) {
         result: 'success',
         sheetTab: sheet.getName(),
         month: auditMonth,
-        message: 'পকেট অডিট ডেটা BH:BM কলামে সেভ হয়েছে'
+        message: 'পকেট অডিট ডেটা BB:BG কলামে সেভ হয়েছে'
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -343,18 +324,6 @@ function doGet(e) {
       result: 'success',
       sheetTab: sheet.getName(),
       message: 'ইউজার শিট ট্যাব প্রস্তুত'
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // ১.৬ নোটপ্যাড লিস্ট (BB:BF - সংশ্লিষ্ট ইউজার ট্যাব থেকে)
-  if (action === 'getnotes') {
-    var notesOnly = readNotesFromRange(sheet);
-    var noteCatsOnly = readNoteCategoriesFromRange(sheet);
-    return ContentService.createTextOutput(JSON.stringify({
-      result: 'success',
-      sheetTab: sheet.getName(),
-      notes: notesOnly,
-      noteCategories: noteCatsOnly
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -541,7 +510,6 @@ function createUnifiedTemplate(sheet) {
   sheet.getRange(1, 1, 2, 43).setBorder(true, true, true, true, true, true);
   sheet.getRange(1, 45, 2, 4).setBorder(true, true, true, true, true, true);
   ensureBouGiftHeaders(sheet);
-  ensureNotepadHeaders(sheet);
   ensurePocketAuditHeaders(sheet);
   
   try {
@@ -549,7 +517,6 @@ function createUnifiedTemplate(sheet) {
     sheet.getRange(1, 5, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(1, 24, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
     sheet.getRange(1, 26, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
-    sheet.getRange(3, 54, Math.max(sheet.getMaxRows(), 50), 1).setNumberFormat('@');
   } catch (e) {}
 }
 
@@ -578,18 +545,18 @@ function ensureBouGiftHeaders(sheet) {
 }
 
 function ensurePocketAuditHeaders(sheet) {
-  if (sheet.getMaxColumns() < 65) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 65 - sheet.getMaxColumns());
+  if (sheet.getMaxColumns() < 59) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 59 - sheet.getMaxColumns());
   }
-  var r1 = String(sheet.getRange(1, 60).getValue() || '').trim();
-  var r2 = String(sheet.getRange(2, 60).getValue() || '').trim();
+  var r1 = String(sheet.getRange(1, 54).getValue() || '').trim();
+  var r2 = String(sheet.getRange(2, 54).getValue() || '').trim();
   if (!r1 && !r2) {
-    try { sheet.getRange(1, 60, 1, 6).breakApart(); } catch (e) {}
-    sheet.getRange(1, 60, 1, 6).merge().setValue('Pocket Audit').setFontWeight('bold').setHorizontalAlignment('center');
-    sheet.getRange(2, 60, 1, 6).setValues([['Month', 'Bank', 'Bkash', 'Nagad', 'Cash', 'Wallet']])
+    try { sheet.getRange(1, 54, 1, 6).breakApart(); } catch (e) {}
+    sheet.getRange(1, 54, 1, 6).merge().setValue('Pocket Audit').setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(2, 54, 1, 6).setValues([['Month', 'Bank', 'Bkash', 'Nagad', 'Cash', 'Wallet']])
       .setFontWeight('bold').setHorizontalAlignment('center');
     try {
-      sheet.getRange(1, 60, 2, 6).setBorder(true, true, true, true, true, true);
+      sheet.getRange(1, 54, 2, 6).setBorder(true, true, true, true, true, true);
     } catch (e) {}
   }
 }
@@ -618,7 +585,6 @@ function ensureUnifiedTemplateHeaders(sheet) {
     } catch (e) {}
   }
   ensureBouGiftHeaders(sheet);
-  ensureNotepadHeaders(sheet);
   ensurePocketAuditHeaders(sheet);
 }
 
@@ -1933,250 +1899,7 @@ function readBouGiftFromRange(sheet) {
 }
 
 // ----------------------------------------------------
-// ৮. NOTEPAD ফাংশনস (BB:BF কলাম, Cols 54-58, শুধুমাত্র abujar287)
-//    Columns: BB=Datetime, BC=Notename, BD=Category, BE=Note, BF=Action
-// ----------------------------------------------------
-
-function ensureNotepadHeaders(sheet) {
-  if (sheet.getMaxColumns() < 58) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 58 - sheet.getMaxColumns());
-  }
-  var r1 = String(sheet.getRange(1, 54).getValue() || '').trim();
-  var r2 = String(sheet.getRange(2, 54).getValue() || '').trim();
-  var r2Name = String(sheet.getRange(2, 55).getValue() || '').trim();
-  if (!r1 && !r2 && !r2Name) {
-    try { sheet.getRange(1, 54, 1, 5).breakApart(); } catch (e) {}
-    sheet.getRange(1, 54, 1, 5).merge().setValue('Notepad').setFontWeight('bold').setHorizontalAlignment('center');
-    sheet.getRange(2, 54, 1, 5).setValues([['Datetime', 'Notename', 'Category', 'Note', 'Action']])
-      .setFontWeight('bold').setHorizontalAlignment('center');
-    try {
-      sheet.getRange(1, 54, 2, 5).setBorder(true, true, true, true, true, true);
-    } catch (e) {}
-  }
-}
-
-function formatNoteDatetimeVal(val) {
-  if (!val) return '';
-  if (val instanceof Date) {
-    try {
-      return Utilities.formatDate(val, Session.getScriptTimeZone() || 'Asia/Dhaka', 'M/d/yyyy, h:mm:ss a');
-    } catch (e) {
-      return val.toLocaleString();
-    }
-  }
-  return String(val).trim();
-}
-
-function readNotesFromRange(sheet) {
-  if (sheet.getMaxColumns() < 58) return [];
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-
-  var vals = sheet.getRange(2, 54, lastRow - 1, 5).getValues();
-  var list = [];
-  for (var i = 0; i < vals.length; i++) {
-    var rowNum = i + 2;
-    var dt = formatNoteDatetimeVal(vals[i][0]);
-    var name = String(vals[i][1] || '').trim();
-    var cat = String(vals[i][2] || '').trim();
-    var body = String(vals[i][3] || '');
-    var act = String(vals[i][4] || '').trim();
-
-    if (!dt && !name && !cat && !body && !act) continue;
-    var dtLow = dt.toLowerCase();
-    var nameLow = name.toLowerCase();
-    if (dtLow === 'datetime' || nameLow === 'notename' || dtLow === 'notepad') continue;
-
-    list.push({
-      id: 'note_' + rowNum,
-      rowNumber: rowNum,
-      datetime: dt,
-      notename: name || 'Untitled',
-      category: cat || 'Uncategorized',
-      note: body,
-      action: act || 'SYNC'
-    });
-  }
-  return list;
-}
-
-function readNoteCategoriesFromRange(sheet) {
-  if (sheet.getMaxColumns() < 56) return [];
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 3) return [];
-
-  var vals = sheet.getRange(3, 56, lastRow - 2, 1).getValues(); // Column BD (56)
-  var seen = {};
-  var cats = [];
-  for (var i = 0; i < vals.length; i++) {
-    var cat = String(vals[i][0] || '').trim();
-    if (!cat) continue;
-    var low = cat.toLowerCase();
-    if (low === 'category' || low === 'notepad') continue;
-    if (!seen[low]) {
-      seen[low] = true;
-      cats.push(cat);
-    }
-  }
-  return cats;
-}
-
-function getLastUsedRowInNotepad(sheet) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return 2;
-  var vals = sheet.getRange(1, 54, lastRow, 5).getValues();
-  for (var r = vals.length - 1; r >= 0; r--) {
-    for (var c = 0; c < 5; c++) {
-      if (vals[r][c] !== '' && vals[r][c] !== null && vals[r][c] !== undefined) {
-        return r + 1;
-      }
-    }
-  }
-  return 2;
-}
-
-function insertNoteToRange(sheet, data) {
-  if (sheet.getMaxColumns() < 58) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 58 - sheet.getMaxColumns());
-  }
-
-  var lastRow = Math.max(sheet.getLastRow(), 2);
-  var vals = sheet.getRange(1, 54, lastRow, 5).getValues();
-
-  var r1 = String(vals[0] && vals[0][0] ? vals[0][0] : '').trim();
-  var r2 = String(vals[1] && vals[1][0] ? vals[1][0] : '').trim();
-  var r2Name = String(vals[1] && vals[1][1] ? vals[1][1] : '').trim();
-  if (!r1 && !r2 && !r2Name) {
-    try { sheet.getRange(1, 54, 1, 5).breakApart(); } catch (e) {}
-    sheet.getRange(1, 54, 1, 5).merge().setValue('Notepad').setFontWeight('bold').setHorizontalAlignment('center');
-    sheet.getRange(2, 54, 1, 5).setValues([['Datetime', 'Notename', 'Category', 'Note', 'Action']])
-      .setFontWeight('bold').setHorizontalAlignment('center');
-  }
-
-  var lastUsed = 2;
-  for (var r = vals.length - 1; r >= 2; r--) {
-    var row = vals[r];
-    if (
-      (row[0] !== '' && row[0] !== null && row[0] !== undefined) ||
-      (row[1] !== '' && row[1] !== null && row[1] !== undefined) ||
-      (row[2] !== '' && row[2] !== null && row[2] !== undefined) ||
-      (row[3] !== '' && row[3] !== null && row[3] !== undefined) ||
-      (row[4] !== '' && row[4] !== null && row[4] !== undefined)
-    ) {
-      lastUsed = r + 1;
-      break;
-    }
-  }
-  var targetRow = Math.max(lastUsed + 1, 3);
-
-  var dt = String(data.datetime || '').trim();
-  if (!dt) {
-    try {
-      dt = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Dhaka', 'M/d/yyyy, h:mm:ss a');
-    } catch (e) {
-      dt = new Date().toLocaleString();
-    }
-  }
-  var notename = String(data.notename || data.title || 'Untitled').trim();
-  var category = String(data.category || 'Uncategorized').trim() || 'Uncategorized';
-  var noteBody = String(data.note || data.content || '');
-  var actionVal = String(data.actionLabel || 'SYNC').trim() || 'SYNC';
-
-  sheet.getRange(targetRow, 54, 1, 5).setValues([[dt, notename, category, noteBody, actionVal]]);
-
-  return {
-    id: 'note_' + targetRow,
-    rowNumber: targetRow,
-    datetime: dt,
-    notename: notename,
-    category: category,
-    note: noteBody,
-    action: actionVal
-  };
-}
-
-function findNoteRowIndex(sheet, data) {
-  var targetRowNum = Number(data.rowNumber || 0);
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return -1;
-
-  var origName = String(data.originalNotename || data.notename || '').trim().toLowerCase();
-  var origDt = String(data.originalDatetime || data.datetime || '').trim();
-
-  if (targetRowNum >= 2 && targetRowNum <= lastRow) {
-    var rowVals = sheet.getRange(targetRowNum, 54, 1, 5).getValues()[0];
-    var rDt = formatNoteDatetimeVal(rowVals[0]);
-    var rName = String(rowVals[1] || '').trim().toLowerCase();
-    if ((!origName || rName === origName) || (!origDt || rDt === origDt)) {
-      return targetRowNum;
-    }
-  }
-
-  var vals = sheet.getRange(2, 54, lastRow - 1, 5).getValues();
-  for (var i = 0; i < vals.length; i++) {
-    var dt = formatNoteDatetimeVal(vals[i][0]);
-    var nm = String(vals[i][1] || '').trim().toLowerCase();
-    if (origDt && origName && dt === origDt && nm === origName) {
-      return i + 2;
-    }
-  }
-  for (var j = 0; j < vals.length; j++) {
-    var nm2 = String(vals[j][1] || '').trim().toLowerCase();
-    if (origName && nm2 === origName) {
-      return j + 2;
-    }
-  }
-  return -1;
-}
-
-function handleUpdateNoteRange(sheet, data) {
-  var rowNum = findNoteRowIndex(sheet, data);
-  if (rowNum < 2) {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: 'not_found',
-      sheetTab: sheet.getName(),
-      message: 'নোট খুঁজে পাওয়া যায়নি'
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var dt = String(data.datetime || formatNoteDatetimeVal(sheet.getRange(rowNum, 54).getValue())).trim();
-  var notename = String(data.notename || 'Untitled').trim();
-  var category = String(data.category || 'Uncategorized').trim() || 'Uncategorized';
-  var noteBody = String(data.note || '');
-  var actionVal = String(data.actionLabel || 'SYNC').trim() || 'SYNC';
-
-  sheet.getRange(rowNum, 54).setNumberFormat('@');
-  sheet.getRange(rowNum, 54, 1, 5).setValues([[dt, notename, category, noteBody, actionVal]]);
-
-  return ContentService.createTextOutput(JSON.stringify({
-    result: 'success',
-    sheetTab: sheet.getName(),
-    rowNumber: rowNum,
-    message: 'নোট আপডেট সম্পন্ন'
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-function handleDeleteNoteRange(sheet, data, params) {
-  var rowNum = findNoteRowIndex(sheet, data || params || {});
-  if (rowNum < 2) {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: 'not_found',
-      sheetTab: sheet.getName(),
-      message: 'নোট খুঁজে পাওয়া যায়নি'
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  sheet.getRange(rowNum, 54, 1, 5).deleteCells(SpreadsheetApp.Dimension.ROWS);
-  return ContentService.createTextOutput(JSON.stringify({
-    result: 'success',
-    sheetTab: sheet.getName(),
-    row: rowNum,
-    message: 'নোট ডিলিট হয়েছে (BB:BF কলাম রেঞ্জ)'
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-// ----------------------------------------------------
-// ৯. POCKET AUDIT ফাংশনস (BH:BM কলাম, Cols 60-65)
+// ৮. POCKET AUDIT ফাংশনস (BB:BG কলাম, Cols 54-59)
 // ----------------------------------------------------
 
 function savePocketAuditToRange(sheet, monthLabel, metrics) {
@@ -2193,8 +1916,8 @@ function savePocketAuditToRange(sheet, monthLabel, metrics) {
 
   var lastRow = sheet.getLastRow();
   var foundRow = -1;
-  if (lastRow >= 3 && sheet.getMaxColumns() >= 65) {
-    var vals = sheet.getRange(3, 60, lastRow - 2, 1).getValues();
+  if (lastRow >= 3 && sheet.getMaxColumns() >= 59) {
+    var vals = sheet.getRange(3, 54, lastRow - 2, 1).getValues();
     for (var i = 0; i < vals.length; i++) {
       var existingM = parseLabelString(vals[i][0]) || String(vals[i][0] || '').trim();
       if (existingM.toLowerCase() === cleanKey) {
@@ -2206,20 +1929,20 @@ function savePocketAuditToRange(sheet, monthLabel, metrics) {
 
   var rowValues = [[cleanMonth, bankVal, bkashVal, nagadVal, cashVal, walletVal]];
   if (foundRow > 0) {
-    sheet.getRange(foundRow, 60, 1, 6).setValues(rowValues);
+    sheet.getRange(foundRow, 54, 1, 6).setValues(rowValues);
   } else {
-    var targetRow = getNextEmptyRowInRange(sheet, 60, 6);
-    sheet.getRange(targetRow, 60, 1, 6).setValues(rowValues);
+    var targetRow = getNextEmptyRowInRange(sheet, 54, 6);
+    sheet.getRange(targetRow, 54, 1, 6).setValues(rowValues);
   }
 }
 
 function readPocketAuditFromRange(sheet) {
   var result = {};
-  if (sheet.getMaxColumns() < 65) return result;
+  if (sheet.getMaxColumns() < 59) return result;
   var lastRow = sheet.getLastRow();
   if (lastRow < 3) return result;
 
-  var vals = sheet.getRange(3, 60, lastRow - 2, 6).getValues();
+  var vals = sheet.getRange(3, 54, lastRow - 2, 6).getValues();
   for (var i = 0; i < vals.length; i++) {
     var r = vals[i];
     var mLabel = parseLabelString(r[0]) || String(r[0] || '').trim();

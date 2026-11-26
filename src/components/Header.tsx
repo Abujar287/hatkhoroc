@@ -7,8 +7,7 @@ import {
   CalendarClock,
   Sliders,
   Check,
-  LogOut,
-  PlusCircle
+  LogOut
 } from 'lucide-react';
 import { AppUser, AppTab, AppNotification, CostTask, MonthMapping } from '../types';
 import { findMonthMapping, getMonthKeyFromLabel, formatMonth2DigitYear } from '../utils/dateUtils';
@@ -106,7 +105,6 @@ export const Header: React.FC<HeaderProps> = ({
     if (isSuperAdmin) {
       if (!baseTabs.includes('users')) baseTabs.push('users');
       if (!baseTabs.includes('upcoming_3_month')) baseTabs.push('upcoming_3_month');
-      if (!baseTabs.includes('notepad')) baseTabs.push('notepad');
       return baseTabs;
     }
 
@@ -116,11 +114,6 @@ export const Header: React.FC<HeaderProps> = ({
 
     return baseTabs.filter(tab => tab !== 'upcoming_3_month');
   }, [currentUser, isSuperAdmin]);
-
-  const canShowEntry =
-    userAllowedTabs.includes('entry') &&
-    !currentUser?.isReadOnly &&
-    currentUser?.role !== 'super_admin_2';
 
   const menuItems: { id: AppTab; label: string; icon: React.FC<{ className?: string }>; superAdminOnly?: boolean }[] = [
     { id: 'monthly_summary', label: t('Monthly Summary', 'মাসিক সারসংক্ষেপ'), icon: CalendarRange },
@@ -266,30 +259,11 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Center Breathing Space */}
         <div className="flex-1 min-w-[16px] sm:min-w-[32px]" aria-hidden="true" />
 
-        {/* Right Zone: Month Name (left of Entry) + Strongly Highlighted Entry CTA */}
+        {/* Right Zone: Month Name */}
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
           <span className="h-7 sm:h-8 inline-flex items-center text-[10.5px] sm:text-xs font-bold text-teal-100 px-2 sm:px-2.5 rounded-lg sm:rounded-xl bg-[#0B3C39] border border-teal-700/70 whitespace-nowrap tabular-nums">
             {formatMonth2DigitYear(activeMonthLabel) || activeMonthLabel}
           </span>
-
-          {canShowEntry && (
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.93 }}
-              onClick={() => setActiveTab('entry')}
-              className={`h-7 sm:h-8 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-extrabold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeTab === 'entry'
-                  ? 'bg-[#FF7A59] hover:bg-[#ff6844] text-white border-white/70 shadow-[0_0_16px_rgba(255,122,89,0.65)] ring-2 ring-[#FF7A59]/40'
-                  : 'bg-gradient-to-r from-emerald-400 to-teal-300 hover:from-emerald-300 hover:to-teal-200 text-[#022C22] border-emerald-100/80 shadow-[0_0_16px_rgba(52,211,153,0.55)] ring-2 ring-emerald-400/35'
-              }`}
-              title={t('New Entry', 'নতুন এন্ট্রি')}
-              aria-label={t('Entry', 'এন্ট্রি')}
-            >
-              <PlusCircle className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
-              <span>{t('Entry', 'এন্ট্রি')}</span>
-            </motion.button>
-          )}
         </div>
       </div>
     </header>

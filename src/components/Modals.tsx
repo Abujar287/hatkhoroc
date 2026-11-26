@@ -671,7 +671,7 @@ const CreateUserModalInner: React.FC<CreateUserModalProps> = ({
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
     if (newRole === 'super_admin') {
-      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'notepad', 'users', 'settings']);
+      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']);
       setIsReadOnly(false);
     } else if (newRole === 'admin') {
       setAllowedTabs(['summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings', 'users']);
@@ -807,7 +807,6 @@ const CreateUserModalInner: React.FC<CreateUserModalProps> = ({
                 { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
                 { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
                 { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
-                { id: 'notepad' as AppTab, label: t('Notepad', 'নোটপ্যাড') },
                 { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                 { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
               ].map(tabItem => {
@@ -1241,7 +1240,7 @@ const EditProfileModalInner: React.FC<Omit<EditProfileModalProps, 'user'> & { us
       setAllowedTabs(['summary', 'details']);
       setIsReadOnly(true);
     } else if (newRole === 'super_admin') {
-      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'notepad', 'users', 'settings']);
+      setAllowedTabs(['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'users', 'settings']);
       setIsReadOnly(false);
     } else if (newRole === 'admin') {
       setAllowedTabs(['summary', 'entry', 'details', 'users', 'settings']);
@@ -1363,7 +1362,6 @@ const EditProfileModalInner: React.FC<Omit<EditProfileModalProps, 'user'> & { us
                     { id: 'details' as AppTab, label: t('Details', 'বিস্তারিত') },
                     { id: 'budget' as AppTab, label: t('Budget', 'বাজেট') },
                     { id: 'upcoming_cost' as AppTab, label: t('Upcoming Cost', 'আপকামিং') },
-                    { id: 'notepad' as AppTab, label: t('Notepad', 'নোটপ্যাড') },
                     { id: 'users' as AppTab, label: t('Users', 'ইউজার') },
                     { id: 'settings' as AppTab, label: t('Settings', 'সেটিংস') }
                   ].map(tabItem => {
@@ -1629,12 +1627,12 @@ const AppsScriptModalInner: React.FC<AppsScriptModalProps> = ({
         {/* Warning Banner */}
         <div className="p-2.5 bg-amber-950/80 rounded-xl border border-amber-800/80 text-[11px] text-amber-200 font-medium space-y-1">
           <p className="font-extrabold flex items-center gap-1 text-amber-300">
-            <span>⚠️</span> {t('Apps Script v7.0 (Unified Multi-User + Notepad BB:BF):', 'অ্যাপস স্ক্রিপ্ট v৭.০ (ইউজার প্রতি একক ট্যাব ও নোটপ্যাড BB:BF):')}
+            <span>⚠️</span> {t('Apps Script v7.0 (Unified Multi-User):', 'অ্যাপস স্ক্রিপ্ট v৭.০ (ইউজার প্রতি একক ট্যাব):')}
           </p>
           <p className="text-[10px] leading-snug text-amber-200/90">
             {t(
-              '1. Click Copy Code below. 2. In Google Sheet, go to Extensions > Apps Script and replace Code.gs. 3. Click Deploy > Manage Deployments > Edit (New version) > Deploy. Supports Entry, Budget, Category, Month Mapping, Tasks, Users, Upcoming 3 Month, Bou Gift & Super-Admin Notepad (BB:BF) on abujar287 tab.',
-              '১. নিচের কোডটি কপি করুন। ২. আপনার গুগল শিটের Extensions > Apps Script-এ গিয়ে Code.gs রিপ্লেস করুন। ৩. Deploy > Manage Deployments > Edit (New version) > Deploy করুন। প্রতিটি সেকশন ও abujar287 ট্যাবের Notepad (BB:BF) এর সাথে নিরাপদ সিঙ্ক কাজ করবে।'
+              '1. Click Copy Code below. 2. In Google Sheet, go to Extensions > Apps Script and replace Code.gs. 3. Click Deploy > Manage Deployments > Edit (New version) > Deploy. Supports Entry, Budget, Category, Month Mapping, Tasks, Users, Upcoming 3 Month & Bou Gift on abujar287 tab.',
+              '১. নিচের কোডটি কপি করুন। ২. আপনার গুগল শিটের Extensions > Apps Script-এ গিয়ে Code.gs রিপ্লেস করুন। ৩. Deploy > Manage Deployments > Edit (New version) > Deploy করুন। প্রতিটি সেকশন ও abujar287 ট্যাবের সাথে নিরাপদ সিঙ্ক কাজ করবে।'
             )}
           </p>
         </div>

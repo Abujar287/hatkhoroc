@@ -7,7 +7,7 @@ import {
   Eye,
   EyeOff,
   BarChart3,
-  NotebookPen,
+  Plus,
   CalendarClock,
   Settings,
   RefreshCw
@@ -18,7 +18,7 @@ import {
   setupWebPushSubscription,
   syncTasksToPushServer
 } from './utils/taskAlarmManager';
-import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry, NoteEntry, AppNotification, PocketAuditMetrics } from './types';
+import { AppUser, Transaction, TransactionType, UserRole, AppTab, MonthMapping, CostTask, Upcoming3MonthPlan, BouGiftEntry, AppNotification, PocketAuditMetrics } from './types';
 import {
   normalizeDate,
   normalizeTime,
@@ -38,7 +38,6 @@ import { ExportMonthModal } from './components/Modals';
 // Modular Components
 import { Header } from './components/Header';
 import { SummaryTab } from './components/SummaryTab';
-import { NotepadTab } from './components/NotepadTab';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
@@ -141,7 +140,7 @@ function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[
     role === 'super_admin_2'
       ? ['summary', 'monthly_summary', 'details']
       : isSuper
-        ? ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'notepad', 'users', 'settings']
+        ? ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings']
         : ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'settings'];
 
   let tabs = rawTabs && rawTabs.length > 0 ? [...rawTabs] : [...defaultTabs];
@@ -153,7 +152,6 @@ function normalizeUserTabs(role?: UserRole, username?: string, rawTabs?: AppTab[
   if (isSuper) {
     if (!tabs.includes('users')) tabs.push('users');
     if (!tabs.includes('upcoming_3_month')) tabs.push('upcoming_3_month');
-    if (!tabs.includes('notepad')) tabs.push('notepad');
   } else {
     tabs = tabs.filter(tab => tab !== 'upcoming_3_month');
     if (role !== 'admin') {
@@ -504,7 +502,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
   initialUsername: 'abujar287',
   createdAt: '2026-01-01',
   role: 'super_admin',
-  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'notepad', 'users', 'settings'],
+  allowedTabs: ['summary', 'monthly_summary', 'entry', 'details', 'budget', 'upcoming_cost', 'upcoming_3_month', 'users', 'settings'],
   isActive: true,
   isReadOnly: false,
   recordCount: 896
@@ -844,10 +842,6 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     return normalizeUserTabs(currentUser?.role, currentUser?.username, currentUser?.allowedTabs);
   }, [currentUser]);
 
-  const hasNotepadAccess = useMemo(() => {
-    return isSuperAdmin || allowedTabs.includes('notepad');
-  }, [isSuperAdmin, allowedTabs]);
-
   // ----------------------------------------------------
   // 5. ISOLATED CATEGORIES STATE
   // ----------------------------------------------------
@@ -1131,7 +1125,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
   const [globalFilterMode, setGlobalFilterMode] = useState<'month' | 'all'>('month');
 
   const handleSelectFooterTab = useCallback((nextTab: AppTab) => {
-    const order: AppTab[] = ['summary', 'details', 'upcoming_cost', 'settings', 'notepad'];
+    const order: AppTab[] = ['summary', 'details', 'entry', 'upcoming_cost', 'settings'];
     const prevIdx = order.indexOf(activeTab);
     const nextIdx = order.indexOf(nextTab);
     if (prevIdx !== -1 && nextIdx !== -1 && prevIdx !== nextIdx) {
@@ -1145,10 +1139,8 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
   useEffect(() => {
     if (activeTab === 'upcoming_3_month' && !isSuperAdmin) {
       setActiveTab('summary');
-    } else if (activeTab === 'notepad' && !hasNotepadAccess) {
-      setActiveTab('summary');
     }
-  }, [activeTab, isSuperAdmin, hasNotepadAccess]);
+  }, [activeTab, isSuperAdmin]);
 
   // Keep active user's recordCount synced with live transactions & refresh all user tab counts when opening Users tab
   useEffect(() => {
@@ -1845,383 +1837,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     }
   }, [currentTab]);
 
-  // ----------------------------------------------------
-  // 8.5 NOTEPAD STATE & SYNC (BB:BF - per user sheetTab)
-  // ----------------------------------------------------
-  const [notes, setNotes] = useState<NoteEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem(`app_notes_${currentTab}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-  const [noteCategories, setNoteCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(`app_note_categories_${currentTab}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-  const [isSyncingNotes, setIsSyncingNotes] = useState(false);
-  const pendingNoteMapRef = React.useRef<Map<string, { tab: string; note: NoteEntry }>>(new Map());
 
-  const extractNoteCategories = useCallback((rawCats: any, notesList: NoteEntry[]): string[] => {
-    const seen = new Set<string>();
-    const result: string[] = [];
-    const pushCat = (val: any) => {
-      const trimmed = String(val || '').trim();
-      if (!trimmed) return;
-      const lower = trimmed.toLowerCase();
-      if (lower === 'category' || lower === 'notepad' || lower === 'all') return;
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        result.push(trimmed);
-      }
-    };
-    if (Array.isArray(rawCats)) rawCats.forEach(pushCat);
-    notesList.forEach(n => pushCat(n.category));
-    return result;
-  }, []);
-
-  useEffect(() => {
-    if (!hasNotepadAccess) {
-      setNotes([]);
-      setNoteCategories([]);
-      return;
-    }
-    try {
-      const saved = localStorage.getItem(`app_notes_${currentTab}`);
-      setNotes(saved ? (JSON.parse(saved) || []) : []);
-    } catch {
-      setNotes([]);
-    }
-    try {
-      const savedCats = localStorage.getItem(`app_note_categories_${currentTab}`);
-      setNoteCategories(savedCats ? (JSON.parse(savedCats) || []) : []);
-    } catch {
-      setNoteCategories([]);
-    }
-  }, [hasNotepadAccess, currentTab]);
-
-  const formatNotepadDatetime = (d = new Date()) => {
-    return d.toLocaleString('en-US', {
-      month: 'numeric',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  };
-
-  const mapRawNotes = (rawList: any[]): NoteEntry[] => {
-    return rawList
-      .map((n: any, idx: number) => ({
-        id: String(n.id || `note_${n.rowNumber || idx}_${Date.now()}`),
-        rowNumber: n.rowNumber ? Number(n.rowNumber) : undefined,
-        datetime: String(n.datetime || n.Datetime || '').trim(),
-        notename: String(n.notename || n.Notename || n.title || 'Untitled').trim(),
-        category: String(n.category || n.Category || 'Uncategorized').trim() || 'Uncategorized',
-        note: String(n.note ?? n.Note ?? ''),
-        action: String(n.action || n.Action || 'SYNC').trim() || 'SYNC'
-      }))
-      .filter((n: NoteEntry) => Boolean(n.notename || n.note));
-  };
-
-  const mergeNotesWithPending = useCallback((remoteNotes: NoteEntry[], targetTab: string): NoteEntry[] => {
-    const existingKeys = new Set(
-      remoteNotes.map(n => `${(n.notename || '').trim().toLowerCase()}___${(n.datetime || '').trim()}`)
-    );
-    const extra: NoteEntry[] = [];
-    pendingNoteMapRef.current.forEach((entry, tempId) => {
-      if (entry.tab !== targetTab) return;
-      const key = `${(entry.note.notename || '').trim().toLowerCase()}___${(entry.note.datetime || '').trim()}`;
-      if (existingKeys.has(key)) {
-        pendingNoteMapRef.current.delete(tempId);
-      } else {
-        extra.push(entry.note);
-        existingKeys.add(key);
-      }
-    });
-    getOfflineQueue().forEach(qItem => {
-      if (qItem.action === 'addnote' && qItem.sheetTab === targetTab && qItem.payload) {
-        const nName = String(qItem.payload.notename || 'Untitled').trim();
-        const nDt = String(qItem.payload.datetime || '').trim();
-        const key = `${nName.toLowerCase()}___${nDt}`;
-        if (!existingKeys.has(key)) {
-          extra.push({
-            id: String(qItem.id || `note_q_${Date.now()}`),
-            datetime: nDt,
-            notename: nName,
-            category: String(qItem.payload.category || 'Uncategorized').trim(),
-            note: String(qItem.payload.note || ''),
-            action: 'SYNC'
-          });
-          existingKeys.add(key);
-        }
-      }
-    });
-    return extra.length > 0 ? [...remoteNotes, ...extra] : remoteNotes;
-  }, []);
-
-  const handleSyncNotes = useCallback(async (silent = false, tabOverride?: string) => {
-    if (!hasNotepadAccess) return;
-    const targetTab = tabOverride || currentTab;
-    setIsSyncingNotes(true);
-    try {
-      let data: any = null;
-      try {
-        const res = await fetchSheetApi(`/api/sheet-proxy?action=getnotes&sheetTab=${encodeURIComponent(targetTab)}`);
-        if (res.ok) {
-          const text = await res.text();
-          try { data = JSON.parse(text); } catch {}
-        }
-      } catch {}
-
-      if (!data || data.result !== 'success') {
-        try {
-          const directRes = await fetchSheetApi(`?action=getnotes&sheetTab=${encodeURIComponent(targetTab)}`);
-          if (directRes.ok) {
-            const text = await directRes.text();
-            try { data = JSON.parse(text); } catch {}
-          }
-        } catch {}
-      }
-
-      if (data && data.result === 'success' && Array.isArray(data.notes)) {
-        const mapped = mapRawNotes(data.notes);
-        const merged = mergeNotesWithPending(mapped, targetTab);
-        const nextCats = extractNoteCategories(data.noteCategories, merged);
-        setNotes(merged);
-        setNoteCategories(nextCats);
-        try {
-          localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(merged));
-          localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(nextCats));
-        } catch {}
-        if (silent !== true) {
-          showToast(`Synced ${merged.length} notes from ${targetTab} BB:BF`, 'success');
-        }
-      } else if (silent !== true) {
-        showToast('Could not fetch notes from Sheet (check Apps Script deploy)', 'error');
-      }
-    } finally {
-      setIsSyncingNotes(false);
-    }
-  }, [currentTab, hasNotepadAccess, mergeNotesWithPending, extractNoteCategories, showToast]);
-
-  useEffect(() => {
-    if (isAuthenticated && hasNotepadAccess && activeTab === 'notepad') {
-      handleSyncNotes(true);
-    }
-  }, [isAuthenticated, hasNotepadAccess, activeTab, handleSyncNotes]);
-
-  const handleAddNote = useCallback(async (input: { notename: string; category: string; note: string }) => {
-    if (!hasNotepadAccess) return;
-    const targetTab = currentTab;
-    const tempId = `note_local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const newNote: NoteEntry = {
-      id: tempId,
-      datetime: formatNotepadDatetime(new Date()),
-      notename: input.notename.trim() || 'Untitled',
-      category: input.category.trim() || 'Uncategorized',
-      note: input.note,
-      action: 'SYNC'
-    };
-
-    pendingNoteMapRef.current.set(tempId, { tab: targetTab, note: newNote });
-    setNotes(prev => {
-      const appended = [...prev, newNote];
-      try {
-        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(appended));
-      } catch {}
-      return appended;
-    });
-    setNoteCategories(prev => {
-      const updatedCats = extractNoteCategories([...prev, newNote.category], []);
-      try {
-        localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(updatedCats));
-      } catch {}
-      return updatedCats;
-    });
-    playSound('success');
-    void notifyEntryAdded({
-      kind: 'Note',
-      title: newNote.notename,
-      category: newNote.category,
-      targetTab: 'notepad'
-    });
-
-    const payload = {
-      action: 'addnote',
-      sheetTab: targetTab,
-      datetime: newNote.datetime,
-      notename: newNote.notename,
-      category: newNote.category,
-      note: newNote.note,
-      actionLabel: 'SYNC'
-    };
-
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      pendingNoteMapRef.current.delete(tempId);
-      addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
-      showToast('Note saved offline! Will append to Sheet BB:BF when online.', 'info');
-      return;
-    }
-
-    showToast('Note saved!', 'success');
-
-    fetchSheetApi('/api/sheet-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(async res => {
-        if (!res.ok) throw new Error('Note sync failed');
-        const resText = await res.text();
-        let resData: any = null;
-        try { resData = JSON.parse(resText); } catch {}
-        if (resData?.result === 'forbidden') {
-          showToast('Sheet write blocked by old Apps Script deploy — please Deploy New Version from Settings Script!', 'error');
-          addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
-          return;
-        }
-        if (resData?.result && resData.result !== 'success') {
-          throw new Error(resData.message || 'Sheet save error');
-        }
-        if (resData?.note?.rowNumber) {
-          setNotes(prev => {
-            const next = prev.map(n =>
-              n.id === tempId
-                ? { ...n, id: String(resData.note.id || n.id), rowNumber: Number(resData.note.rowNumber) }
-                : n
-            );
-            try {
-              localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(next));
-            } catch {}
-            return next;
-          });
-        }
-      })
-      .catch(() => {
-        addToOfflineQueue({ action: 'addnote', sheetTab: targetTab, payload });
-      })
-      .finally(() => {
-        pendingNoteMapRef.current.delete(tempId);
-      });
-  }, [currentTab, hasNotepadAccess, showToast]);
-
-  const handleUpdateNote = useCallback(async (
-    updatedNote: NoteEntry,
-    original?: { notename: string; datetime: string }
-  ) => {
-    if (!hasNotepadAccess) return;
-    const targetTab = currentTab;
-    setNotes(prev => {
-      const nextList = prev.map(n => (n.id === updatedNote.id ? updatedNote : n));
-      try {
-        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(nextList));
-      } catch {}
-      return nextList;
-    });
-    setNoteCategories(prev => {
-      const updatedCats = extractNoteCategories([...prev, updatedNote.category], []);
-      try {
-        localStorage.setItem(`app_note_categories_${targetTab}`, JSON.stringify(updatedCats));
-      } catch {}
-      return updatedCats;
-    });
-
-    const payload = {
-      action: 'updatenote',
-      sheetTab: targetTab,
-      rowNumber: updatedNote.rowNumber,
-      datetime: updatedNote.datetime,
-      notename: updatedNote.notename,
-      category: updatedNote.category,
-      note: updatedNote.note,
-      actionLabel: 'SYNC',
-      originalNotename: original?.notename || updatedNote.notename,
-      originalDatetime: original?.datetime || updatedNote.datetime
-    };
-
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
-      showToast('Note updated offline! Will sync when online.', 'info');
-      return;
-    }
-
-    showToast('Note updated!', 'success');
-
-    fetchSheetApi('/api/sheet-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(async res => {
-        if (!res.ok) throw new Error('Update note failed');
-        const txt = await res.text();
-        let resData: any = null;
-        try { resData = JSON.parse(txt); } catch {}
-        if (resData?.result === 'forbidden') {
-          showToast('Sheet update blocked by old Apps Script deploy — please Deploy New Version!', 'error');
-          addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
-        }
-      })
-      .catch(() => {
-        addToOfflineQueue({ action: 'updatenote', sheetTab: targetTab, payload });
-      });
-  }, [currentTab, hasNotepadAccess, showToast]);
-
-  const handleDeleteNote = useCallback(async (targetNote: NoteEntry) => {
-    if (!hasNotepadAccess) return;
-    const targetTab = currentTab;
-    setNotes(prev => {
-      const nextList = prev.filter(n => n.id !== targetNote.id);
-      try {
-        localStorage.setItem(`app_notes_${targetTab}`, JSON.stringify(nextList));
-      } catch {}
-      return nextList;
-    });
-    pendingNoteMapRef.current.delete(targetNote.id);
-    playSound('delete');
-
-    const payload = {
-      action: 'deletenote',
-      sheetTab: targetTab,
-      rowNumber: targetNote.rowNumber,
-      notename: targetNote.notename,
-      datetime: targetNote.datetime,
-      originalNotename: targetNote.notename,
-      originalDatetime: targetNote.datetime
-    };
-
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      addToOfflineQueue({ action: 'deletenote', sheetTab: targetTab, payload });
-      showToast('Note deleted offline; queued for sync.', 'info');
-      return;
-    }
-
-    showToast('Note deleted', 'info');
-
-    fetchSheetApi('/api/sheet-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Delete note failed');
-      })
-      .catch(() => {
-        addToOfflineQueue({ action: 'deletenote', sheetTab: targetTab, payload });
-      });
-  }, [currentTab, hasNotepadAccess, showToast]);
 
   useEffect(() => {
     setLastSyncTime(formatSyncDateTime(lastSyncDate, lang));
@@ -2479,27 +2095,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
           setPocketAuditVersion(v => v + 1);
         }
 
-        if (hasNotepadAccess) {
-          if (Array.isArray(data.notes)) {
-            const mappedNotes = mergeNotesWithPending(mapRawNotes(data.notes), tabToSync);
-            const nextCats = extractNoteCategories(data.noteCategories, mappedNotes);
-            setNotes(mappedNotes);
-            setNoteCategories(nextCats);
-            try {
-              localStorage.setItem(`app_notes_${tabToSync}`, JSON.stringify(mappedNotes));
-              localStorage.setItem(`app_note_categories_${tabToSync}`, JSON.stringify(nextCats));
-            } catch {}
-          } else {
-            if (Array.isArray(data.noteCategories)) {
-              const nextCats = extractNoteCategories(data.noteCategories, []);
-              setNoteCategories(nextCats);
-              try {
-                localStorage.setItem(`app_note_categories_${tabToSync}`, JSON.stringify(nextCats));
-              } catch {}
-            }
-            handleSyncNotes(true, tabToSync);
-          }
-        }
+
 
         // Load categories EXCLUSIVELY from Google Sheet (100% dynamic, zero hardcoding in codebase)
         const aggregatedExp: string[] = [];
@@ -2652,7 +2248,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
     } finally {
       setIsSyncing(false);
     }
-  }, [currentTab, handleSyncNotes, hasNotepadAccess, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
+  }, [currentTab, lang, mapUserFromSheet, refreshMissingUserRecordCounts, saveTransactionsLocally, showToast, transactions.length]);
 
   const handleManualSyncRef = useRef(handleManualSync);
   useEffect(() => {
@@ -2824,7 +2420,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
       const dx = e.changedTouches[0].clientX - startX;
       if (Math.abs(dx) >= 40) {
         const footerTabs: AppTab[] = (
-          ['summary', 'details', 'upcoming_cost', 'settings', 'notepad'] as AppTab[]
+          ['summary', 'details', 'entry', 'upcoming_cost', 'settings'] as AppTab[]
         ).filter(id => allowedTabs.includes(id));
         const curIdx = footerTabs.indexOf(activeTab);
         if (curIdx !== -1) {
@@ -4016,18 +3612,7 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                 />
               )}
 
-              {activeTab === 'notepad' && hasNotepadAccess && (
-                <NotepadTab
-                  notes={notes}
-                  sheetCategories={noteCategories}
-                  isSyncing={isSyncingNotes || isSyncing}
-                  onSyncNotes={() => handleSyncNotes(false)}
-                  onAddNote={handleAddNote}
-                  onUpdateNote={handleUpdateNote}
-                  onDeleteNote={handleDeleteNote}
-                  showToast={showToast}
-                />
-              )}
+
 
               {activeTab === 'users' && (
                 <UsersTab
@@ -4120,14 +3705,19 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
         <nav className="shrink-0 bg-[#042F2E]/95 backdrop-blur-xl px-2 sm:px-4 py-1.5 pb-safe flex justify-center items-center z-40 w-full min-h-[66px] border-t border-teal-800/50">
           <div className="w-full max-w-3xl lg:max-w-4xl flex items-center justify-around gap-1 sm:gap-2 relative">
             {[
-              { id: 'summary' as const, label: 'Summary', icon: BarChart3 },
-              { id: 'details' as const, label: 'Details', icon: ListOrdered },
-              { id: 'upcoming_cost' as const, label: 'Upcoming Cost', icon: CalendarClock },
-              { id: 'settings' as const, label: 'Settings', icon: Settings },
-              { id: 'notepad' as const, label: 'Notepad', icon: NotebookPen }
-            ].filter(x => allowedTabs.includes(x.id)).map(item => {
+              { id: 'summary' as const, label: t('Summary', 'সারাংশ'), icon: BarChart3 },
+              { id: 'details' as const, label: t('Details', 'বিস্তারিত'), icon: ListOrdered },
+              { id: 'entry' as const, label: t('Entry', 'এন্ট্রি'), icon: Plus },
+              { id: 'upcoming_cost' as const, label: t('Upcoming Cost', 'আপকামিং'), icon: CalendarClock },
+              { id: 'settings' as const, label: t('Settings', 'সেটিংস'), icon: Settings }
+            ].filter(x => {
+              if (x.id === 'entry') {
+                return allowedTabs.includes('entry') && !currentUser?.isReadOnly && currentUser?.role !== 'super_admin_2';
+              }
+              return allowedTabs.includes(x.id);
+            }).map(item => {
               const isActive = activeTab === item.id;
-              const isNotepad = item.id === 'notepad';
+              const isEntry = item.id === 'entry';
 
               return (
                 <motion.button
@@ -4135,21 +3725,13 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                   whileTap={{ scale: 0.93 }}
                   onClick={() => handleSelectFooterTab(item.id)}
                   className={`flex-1 relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl cursor-pointer select-none transition-colors duration-200 border border-transparent ${
-                    !isActive && isNotepad
-                      ? 'bg-amber-500/10 hover:bg-amber-500/18'
-                      : !isActive
-                      ? 'hover:bg-teal-900/40'
-                      : ''
+                    !isActive ? 'hover:bg-teal-900/40' : ''
                   }`}
                 >
-                  {isActive && (
+                  {isActive && !isEntry && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className={`absolute inset-0 rounded-xl ${
-                        isNotepad
-                          ? 'bg-amber-500/15'
-                          : 'bg-[#0B4A45]/75'
-                      }`}
+                      className="absolute inset-0 rounded-xl bg-[#0B4A45]/75"
                       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     />
                   )}
@@ -4162,62 +3744,48 @@ const DEFAULT_SUPERADMIN_USER: AppUser = {
                     transition={{ type: 'spring', stiffness: 450, damping: 24 }}
                     className="relative z-10 flex items-center justify-center"
                   >
-                    <item.icon
-                      className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${
+                    {isEntry ? (
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
                         isActive
-                          ? isNotepad
-                            ? 'text-amber-200 drop-shadow-[0_0_6px_rgba(253,230,138,0.85)]'
-                            : 'text-teal-200 drop-shadow-[0_0_6px_rgba(94,234,212,0.8)]'
-                          : isNotepad
-                          ? 'text-amber-300'
-                          : 'text-teal-300/75'
-                      }`}
-                    />
+                          ? 'bg-[#FF7A59] text-white shadow-[0_0_16px_rgba(255,122,89,0.75)] ring-2 ring-white/70 scale-105'
+                          : 'bg-gradient-to-r from-emerald-400 to-teal-400 text-[#022C22] shadow-[0_0_14px_rgba(52,211,153,0.5)] ring-2 ring-emerald-300/40'
+                      }`}>
+                        <item.icon className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3] shrink-0" />
+                      </div>
+                    ) : (
+                      <item.icon
+                        className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${
+                          isActive
+                            ? 'text-teal-200 drop-shadow-[0_0_6px_rgba(94,234,212,0.8)]'
+                            : 'text-teal-300/75'
+                        }`}
+                      />
+                    )}
                   </motion.div>
 
-                  {isActive ? (
-                    <span
-                      className={`relative z-10 mt-1 inline-flex items-center justify-center px-2 py-[3px] rounded-full overflow-hidden max-w-full ${
-                        isNotepad
-                          ? 'shadow-[0_0_12px_rgba(245,158,11,0.45)]'
-                          : 'shadow-[0_0_12px_rgba(45,212,191,0.45)]'
-                      }`}
-                    >
-                      {/* Continuously moving loading border line around the active tab name */}
+                  {isActive && !isEntry ? (
+                    <span className="relative z-10 mt-1 inline-flex items-center justify-center px-2 py-[3px] rounded-full overflow-hidden max-w-full shadow-[0_0_12px_rgba(45,212,191,0.45)]">
                       <span
                         aria-hidden="true"
                         className="tab-loading-ring pointer-events-none"
                         style={{
-                          background: isNotepad
-                            ? 'conic-gradient(from 0deg, transparent 0deg 200deg, #F59E0B 260deg, #FDE68A 320deg, #FFFFFF 360deg)'
-                            : 'conic-gradient(from 0deg, transparent 0deg 200deg, #14B8A6 260deg, #5EEAD4 320deg, #FFFFFF 360deg)'
+                          background: 'conic-gradient(from 0deg, transparent 0deg 200deg, #14B8A6 260deg, #5EEAD4 320deg, #FFFFFF 360deg)'
                         }}
                       />
-                      <span
-                        aria-hidden="true"
-                        className={`absolute inset-[1.5px] rounded-full ${
-                          isNotepad ? 'bg-[#3B2407]' : 'bg-[#063835]'
-                        }`}
-                      />
+                      <span aria-hidden="true" className="absolute inset-[1.5px] rounded-full bg-[#063835]" />
                       <motion.span
                         initial={{ scale: 0.94 }}
                         animate={{ scale: 1.02 }}
                         transition={{ type: 'spring', stiffness: 420, damping: 24 }}
-                        className={`relative z-10 text-[10px] sm:text-[11px] font-extrabold tracking-tight leading-none truncate max-w-full tab-name-highlight bg-clip-text text-transparent ${
-                          isNotepad
-                            ? 'bg-gradient-to-r from-amber-200 via-white to-amber-200'
-                            : 'bg-gradient-to-r from-teal-200 via-white to-emerald-200'
-                        }`}
+                        className="relative z-10 text-[10px] sm:text-[11px] font-extrabold tracking-tight leading-none truncate max-w-full tab-name-highlight bg-clip-text text-transparent bg-gradient-to-r from-teal-200 via-white to-emerald-200"
                       >
                         {item.label}
                       </motion.span>
                     </span>
                   ) : (
-                    <span
-                      className={`text-[10px] sm:text-[11px] mt-1 tracking-tight leading-none relative z-10 truncate max-w-full font-bold ${
-                        isNotepad ? 'text-amber-300' : 'text-teal-300/75'
-                      }`}
-                    >
+                    <span className={`text-[10px] sm:text-[11px] mt-1 tracking-tight leading-none relative z-10 truncate max-w-full font-bold ${
+                      isEntry ? (isActive ? 'text-white font-extrabold' : 'text-emerald-300') : 'text-teal-300/75'
+                    }`}>
                       {item.label}
                     </span>
                   )}
