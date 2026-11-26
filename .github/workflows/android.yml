@@ -1202,8 +1202,10 @@ jobs:
       - name: Generate Custom Android App Icons
         run: |
           mkdir -p assets
-          cp public/logo.png assets/icon.png || true
-          cp public/logo.png assets/splash.png || true
+          if [ ! -f "assets/icon-foreground.png" ]; then
+            cp public/logo.png assets/icon.png || true
+            cp public/logo.png assets/splash.png || true
+          fi
           npx @capacitor/assets generate --android --iconBackgroundColor '#042F2E' --splashBackgroundColor '#042F2E' || true
           rm -rf android/app/src/main/res/drawable-land-* android/app/src/main/res/drawable-port-xxxhdpi android/app/src/main/res/drawable-port-xxhdpi || true
 
